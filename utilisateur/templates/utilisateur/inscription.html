@@ -1,0 +1,137 @@
+{% extends 'auth_base.html' %}
+
+{% block title %}Créer un compte{% endblock %}
+{% block visual_title %}Un compte unique pour toute la scolarité.{% endblock %}
+{% block visual_tagline %}Créez votre compte en tant que parent, élève ou membre du corps professoral, à partir du matricule communiqué par votre établissement.{% endblock %}
+
+{% block content %}
+<div class="auth-card auth-card--wide">
+    <div class="auth-card__header">
+        <h2>Créer un compte</h2>
+        <p>Votre compte sera automatiquement rattaché à votre fiche existante grâce à votre matricule.</p>
+    </div>
+
+    {% if form.non_field_errors %}
+    <div class="form-errors-banner" role="alert">
+        <span class="form-errors-banner__icon" aria-hidden="true">!</span>
+        <div class="form-errors-banner__content">
+            {% for error in form.non_field_errors %}
+            <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="auth-field">
+            <label>{{ form.profil.label }}</label>
+            <div class="profile-picker">
+                {% for radio in form.profil %}
+                <label class="profile-picker__option">
+                    {{ radio.tag }}
+                    <span class="profile-picker__icon" aria-hidden="true">
+                        {% if radio.data.value == 'PARENT' %}👨‍👩‍👧
+                        {% elif radio.data.value == 'ELEVE' %}🎒
+                        {% else %}👩‍🏫{% endif %}
+                    </span>
+                    <span class="profile-picker__label">{{ radio.choice_label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            {% if form.profil.errors %}<p class="form-error" role="alert">{{ form.profil.errors|striptags }}</p>{% endif %}
+        </div>
+
+        <div class="form-grid-2">
+            <div class="auth-field" id="field-ecole" style="grid-column: 1 / -1;">
+                <label for="{{ form.ecole.id_for_label }}">{{ form.ecole.label }}</label>
+                {{ form.ecole }}
+                {% if form.ecole.errors %}<p class="form-error" role="alert">{{ form.ecole.errors|striptags }}</p>{% endif %}
+            </div>
+
+            <div class="auth-field">
+                <label for="{{ form.matricule.id_for_label }}">{{ form.matricule.label }}</label>
+                {{ form.matricule }}
+                <p class="form-help" id="help-matricule">Communiqué par votre établissement (fiche élève, tuteur ou personnel).</p>
+                {% if form.matricule.errors %}<p class="form-error" role="alert">{{ form.matricule.errors|striptags }}</p>{% endif %}
+            </div>
+
+            <div class="auth-field">
+                <label for="{{ form.nom.id_for_label }}">{{ form.nom.label }}</label>
+                {{ form.nom }}
+                {% if form.nom.errors %}<p class="form-error" role="alert">{{ form.nom.errors|striptags }}</p>{% endif %}
+            </div>
+
+            <div class="auth-field">
+                <label for="{{ form.prenom.id_for_label }}">{{ form.prenom.label }}</label>
+                {{ form.prenom }}
+                {% if form.prenom.errors %}<p class="form-error" role="alert">{{ form.prenom.errors|striptags }}</p>{% endif %}
+            </div>
+
+            <div class="auth-field">
+                <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+                {{ form.email }}
+                {% if form.email.errors %}<p class="form-error" role="alert">{{ form.email.errors|striptags }}</p>{% endif %}
+            </div>
+
+            <div class="auth-field">
+                <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+                {{ form.username }}
+                {% if form.username.errors %}<p class="form-error" role="alert">{{ form.username.errors|striptags }}</p>{% endif %}
+            </div>
+
+            <div class="auth-field">
+                <label for="{{ form.password1.id_for_label }}">{{ form.password1.label }}</label>
+                {{ form.password1 }}
+                {% if form.password1.errors %}<p class="form-error" role="alert">{{ form.password1.errors|striptags }}</p>{% endif %}
+            </div>
+
+            <div class="auth-field">
+                <label for="{{ form.password2.id_for_label }}">{{ form.password2.label }}</label>
+                {{ form.password2 }}
+                {% if form.password2.errors %}<p class="form-error" role="alert">{{ form.password2.errors|striptags }}</p>{% endif %}
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-form-submit" style="width:100%; margin-top:.5rem;">Créer mon compte</button>
+    </form>
+
+    <div class="auth-card__footer">
+        Déjà inscrit ? <a href="{% url 'utilisateur:login' %}">Se connecter</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var fieldEcole = document.getElementById('field-ecole');
+    var helpMatricule = document.getElementById('help-matricule');
+    var ecoleSelect = fieldEcole ? fieldEcole.querySelector('select') : null;
+    var radios = document.querySelectorAll('input[name="profil"]');
+
+    function sync() {
+        var checked = document.querySelector('input[name="profil"]:checked');
+        var isParent = checked && checked.value === 'PARENT';
+        if (fieldEcole) {
+            fieldEcole.style.display = isParent ? 'none' : '';
+        }
+        if (ecoleSelect) {
+            ecoleSelect.required = !isParent;
+            if (isParent) {
+                ecoleSelect.value = '';
+            }
+        }
+        if (helpMatricule) {
+            helpMatricule.textContent = isParent
+                ? 'Matricule de votre fiche tuteur (ex. TUT-000001).'
+                : 'Communiqué par votre établissement (fiche élève, tuteur ou personnel).';
+        }
+    }
+
+    radios.forEach(function (r) { r.addEventListener('change', sync); });
+    sync();
+})();
+</script>
+{% endblock %}

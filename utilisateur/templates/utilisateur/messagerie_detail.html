@@ -1,0 +1,43 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ conversation.sujet }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        <a href="{% url 'utilisateur:messagerie_inbox' %}" style="color:var(--secondary); text-decoration:none; font-weight:600;">← Messages</a>
+    </p>
+    <h1>{{ conversation.sujet }}</h1>
+    <p>
+        {{ eleve.prenom }} {{ eleve.nom }} · Classe {{ conversation.classe.classe }} · {{ conversation.annee_scolaire.anne_scolaire }}
+        · {{ conversation.ecole.ecole }}
+        <br>
+        {% if est_parent %}
+        Avec le titulaire <strong>{{ interlocuteur.nom_complet }}</strong>
+        {% else %}
+        Avec le parent <strong>{{ interlocuteur.nom_complet }}</strong>
+        {% endif %}
+    </p>
+</div>
+
+<div class="panel msg-chat">
+    <div class="panel-body msg-chat__body">
+        {% for m in msgs %}
+        <div class="msg-bubble {% if m.auteur_id == request.user.id %}msg-bubble--mine{% else %}msg-bubble--theirs{% endif %}">
+            <div class="msg-bubble__meta">
+                {% if m.auteur_id == request.user.id %}Vous{% else %}{{ m.auteur.nom_complet }}{% endif %}
+                · {{ m.created_at|date:"d/m/Y H:i" }}
+            </div>
+            <div class="msg-bubble__text">{{ m.contenu|linebreaksbr }}</div>
+        </div>
+        {% empty %}
+        <div class="portal-empty">Aucun message.</div>
+        {% endfor %}
+    </div>
+    <form method="post" class="msg-chat__composer">
+        {% csrf_token %}
+        <textarea name="contenu" class="form-control" rows="3" placeholder="Écrire un message…" required></textarea>
+        <button type="submit" class="btn btn-primary">Envoyer</button>
+    </form>
+</div>
+{% endblock %}

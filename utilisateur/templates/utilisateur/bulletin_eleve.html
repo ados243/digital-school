@@ -1,0 +1,113 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Bulletin — {{ bulletin.eleve }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        <a href="{% url 'utilisateur:bulletin_classe' bulletin.classe.id %}" style="color:var(--secondary); text-decoration:none; font-weight:600;">← Bulletins {{ bulletin.classe.classe }}</a>
+    </p>
+    <h1>Bulletin scolaire</h1>
+    <p>
+        {{ bulletin.eleve.prenom }} {{ bulletin.eleve.nom }} {{ bulletin.eleve.Post_nom }}
+        · {{ bulletin.classe.classe }} ({{ bulletin.classe.section.section }})
+        · {{ bulletin.annee.anne_scolaire }}
+    </p>
+</div>
+
+<section class="kpi-grid" style="margin-bottom:1.25rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Total général</div>
+            <div class="kpi-value">{{ bulletin.total_obtenus|default:"—" }} / {{ bulletin.total_maxima }}</div>
+        </div>
+        <div class="kpi-footer">T.G. / maxima généraux</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Pourcentage</div>
+            <div class="kpi-value">{% if bulletin.pourcentage_general is not None %}{{ bulletin.pourcentage_general }} %{% else %}—{% endif %}</div>
+        </div>
+        <div class="kpi-footer">
+            {% if bulletin_obj %}MAJ {{ bulletin_obj.updated_at|date:"d/m/Y H:i" }}{% else %}Bulletin officiel RDC{% endif %}
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Mode</div>
+            <div class="kpi-value" style="font-size:1.35rem;">
+                {% if bulletin.mode == 'SEMESTRE' %}Semestriel{% elif bulletin.mode == 'TRIMESTRE' %}Trimestriel{% else %}—{% endif %}
+            </div>
+        </div>
+        <div class="kpi-footer">{{ bulletin.cycle.cycle }}</div>
+    </div>
+</section>
+
+<div class="panel">
+    <div class="panel-header"><h3>Détail par branche</h3></div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table" style="font-size:0.88rem;">
+            <thead>
+                <tr>
+                    <th>Branches</th>
+                    {% for div in bulletin.divisions %}
+                        {% for p in div.periodes.all %}
+                        <th style="text-align:center;{% if forloop.first %} border-left:1px solid var(--border);{% endif %}" title="Travaux journaliers — {{ p.libelle }}">
+                            {{ p.numero }}e P.
+                        </th>
+                        {% endfor %}
+                        <th style="text-align:center;" title="Examen — {{ div.libelle }}">EXAM.</th>
+                        <th style="text-align:center; border-right:1px solid var(--border);">TOT.</th>
+                    {% endfor %}
+                    <th style="text-align:center;">T.G.</th>
+                    <th style="text-align:center;">%</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ligne in bulletin.lignes %}
+                <tr>
+                    <td>
+                        <strong>{{ ligne.matiere.libelle }}</strong>
+                        <div style="font-size:0.75rem; color:var(--text-muted);">
+                            Max TJ {{ ligne.matiere.maxima_periode }} · Exam {{ ligne.matiere.maxima_examen }}
+                        </div>
+                    </td>
+                    {% for bloc in ligne.blocs %}
+                        {% for cell in bloc.periodes %}
+                        <td style="text-align:center;{% if forloop.first %} border-left:1px solid var(--border);{% endif %}">
+                            {% if cell.points is not None %}{{ cell.points }}{% else %}—{% endif %}
+                        </td>
+                        {% endfor %}
+                        <td style="text-align:center;">
+                            {% if bloc.examen is not None %}{{ bloc.examen }}{% else %}—{% endif %}
+                        </td>
+                        <td style="text-align:center; font-weight:700; border-right:1px solid var(--border);">
+                            {% if bloc.total is not None %}{{ bloc.total }}{% else %}—{% endif %}
+                        </td>
+                    {% endfor %}
+                    <td style="text-align:center; font-weight:700;">
+                        {% if ligne.total_general is not None %}{{ ligne.total_general }}{% else %}—{% endif %}
+                        <span style="color:var(--text-muted); font-weight:500;">/ {{ ligne.maxima_general }}</span>
+                    </td>
+                    <td style="text-align:center;">
+                        {% if ligne.pourcentage is not None %}<strong>{{ ligne.pourcentage }}</strong>{% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="20" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                        Aucune matière pour cette section.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p style="padding:0.85rem 1.25rem; margin:0; font-size:0.8rem; color:var(--text-muted); border-top:1px solid var(--border);">
+        <strong>1e–ne P.</strong> = travaux journaliers &nbsp;·&nbsp;
+        <strong>EXAM.</strong> = examen de trimestre/semestre &nbsp;·&nbsp;
+        <strong>TOT.</strong> = TJ + TJ + EXAM. &nbsp;·&nbsp;
+        <strong>T.G. / %</strong> = total général et pourcentage officiel.
+    </p>
+</div>
+{% endblock %}

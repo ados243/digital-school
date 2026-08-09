@@ -1,0 +1,115 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Mes cours en ligne{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Mes cours en ligne</h1>
+    <p>Organisez vos leçons et publiez-les pour les élèves de vos classes.</p>
+</div>
+
+<div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:cours_enseignant_create' %}" class="btn btn-primary">+ Nouveau cours</a>
+</div>
+
+<section class="kpi-grid" style="margin-bottom:1.25rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Cours</div>
+            <div class="kpi-value">{{ cours_list|length }}</div>
+        </div>
+        <div class="kpi-footer">Total visibles pour vous</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Publiés</div>
+            <div class="kpi-value">{{ nb_publies }}</div>
+        </div>
+        <div class="kpi-footer">Accessibles aux élèves</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Brouillons</div>
+            <div class="kpi-value">{{ nb_brouillons }}</div>
+        </div>
+        <div class="kpi-footer">Non publiés</div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-body">
+        <form method="get" class="form-grid-2" style="align-items:end;">
+            <div class="form-group">
+                <label class="form-label">Classe</label>
+                <select name="classe" class="form-control" onchange="this.form.submit()">
+                    <option value="">Toutes</option>
+                    {% for c in classes %}
+                    <option value="{{ c.id }}" {% if filtre_classe == c.id|stringformat:"s" %}selected{% endif %}>{{ c.classe }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Matière</label>
+                <select name="matiere" class="form-control" onchange="this.form.submit()">
+                    <option value="">Toutes</option>
+                    {% for m in matieres %}
+                    <option value="{{ m.id }}" {% if filtre_matiere == m.id|stringformat:"s" %}selected{% endif %}>{{ m.libelle }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Statut</label>
+                <select name="statut" class="form-control" onchange="this.form.submit()">
+                    <option value="">Tous</option>
+                    <option value="publie" {% if filtre_statut == 'publie' %}selected{% endif %}>Publiés</option>
+                    <option value="brouillon" {% if filtre_statut == 'brouillon' %}selected{% endif %}>Brouillons</option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Cours</th>
+                    <th>Matière</th>
+                    <th>Classe</th>
+                    <th>Leçons</th>
+                    <th>Statut</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in cours_list %}
+                <tr>
+                    <td><strong>{{ c.titre }}</strong></td>
+                    <td>{{ c.matiere.libelle }}</td>
+                    <td>{{ c.classe.classe }}</td>
+                    <td>{{ c.chapitres_total|default:0 }} ch. · {{ c.lecons_pub }} / {{ c.lecons_total }}</td>
+                    <td>
+                        {% if c.publie %}
+                        <span class="badge badge-success">Publié</span>
+                        {% else %}
+                        <span class="badge badge-secondary">Brouillon</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right;">
+                        <a href="{% url 'utilisateur:cours_enseignant_detail' c.id %}" class="btn btn-primary btn-sm">Organiser</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                        Aucun cours pour le moment.
+                        <a href="{% url 'utilisateur:cours_enseignant_create' %}">Créer le premier</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

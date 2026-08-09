@@ -1,0 +1,34 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Connexion{% endblock %} | Digital School</title>
+    <link rel="icon" type="image/png" href="{% static 'images/logo-ds.png' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="auth-page">
+        <aside class="auth-visual">
+            <div class="auth-visual__logo"><img src="{% static 'images/logo-ds.png' %}" alt="Digital School"> Digital School</div>
+            <div>
+                <h1>{% block visual_title %}La gestion scolaire, simplifiée.{% endblock %}</h1>
+                <p>{% block visual_tagline %}Inscriptions, pédagogie, finances et ressources humaines réunis dans une seule plateforme.{% endblock %}</p>
+            </div>
+            <ul class="auth-visual__features">
+                {% block visual_features %}
+                <li>Suivi des notes et travaux cotés en temps réel</li>
+                <li>Espace dédié pour les parents et les élèves</li>
+                <li>Un compte unique pour toute la scolarité</li>
+                {% endblock %}
+            </ul>
+        </aside>
+        <main class="auth-panel">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

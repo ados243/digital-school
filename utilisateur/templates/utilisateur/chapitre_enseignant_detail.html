@@ -1,0 +1,106 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ chapitre.titre }}{% endblock %}
+{% block portal_main_class %}portal-main--wide{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        <a href="{% url 'utilisateur:cours_enseignant_detail' cours.id %}" style="color:var(--secondary);text-decoration:none;font-weight:600;">← {{ cours.titre }}</a>
+    </p>
+    <h1>Chapitre {{ chapitre.ordre }} — {{ chapitre.titre }}</h1>
+    <p>{{ cours.matiere.libelle }} · {{ sous_chapitres|length }} sous-chapitre{{ sous_chapitres|length|pluralize }}</p>
+</div>
+
+<div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:chapitre_enseignant_update' chapitre.id %}" class="btn btn-secondary btn-sm">Modifier le chapitre</a>
+    <a href="{% url 'utilisateur:chapitre_enseignant_delete' chapitre.id %}" class="btn btn-danger btn-sm" style="background:var(--danger);border-color:var(--danger);">Supprimer le chapitre</a>
+</div>
+
+{% if chapitre.image or chapitre.video_url or chapitre.contenu or chapitre.resume %}
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-header"><h3>Médias & intro du chapitre</h3></div>
+    <div class="panel-body">
+        {% if chapitre.resume %}<p><strong>Résumé :</strong> {{ chapitre.resume }}</p>{% endif %}
+        {% if chapitre.contenu %}<div class="ll-prose">{{ chapitre.contenu|linebreaks }}</div>{% endif %}
+        {% if chapitre.video_url %}<p><a href="{{ chapitre.video_url }}" target="_blank" rel="noopener">▶ Vidéo du chapitre</a></p>{% endif %}
+        {% if chapitre.image %}
+        <p style="margin-top:.75rem;"><img src="{{ chapitre.image.url }}" alt="" style="max-width:100%;max-height:240px;border-radius:8px;"></p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<div class="panel" style="margin-bottom:1.5rem;">
+    <div class="panel-header"><h3>Sous-chapitres</h3></div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Titre</th>
+                    <th>Type</th>
+                    <th>Médias</th>
+                    <th>Durée</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sc in sous_chapitres %}
+                <tr>
+                    <td>{{ chapitre.ordre }}.{{ sc.ordre }}</td>
+                    <td>
+                        <strong>{{ sc.titre }}</strong>
+                        {% if not sc.publie %}<span class="badge badge-secondary">Brouillon</span>{% endif %}
+                    </td>
+                    <td>{{ sc.get_type_contenu_display }}</td>
+                    <td>
+                        {% if sc.video_url %}Vidéo{% endif %}
+                        {% if sc.image %}{% if sc.video_url %} · {% endif %}Image{% endif %}
+                        {% if sc.fichier %}{% if sc.video_url or sc.image %} · {% endif %}Fichier{% endif %}
+                        {% if not sc.video_url and not sc.image and not sc.fichier %}—{% endif %}
+                    </td>
+                    <td>{{ sc.duree_affichee }}</td>
+                    <td style="text-align:right;white-space:nowrap;">
+                        <a href="{% url 'utilisateur:lecon_enseignant_update' sc.id %}" class="btn btn-secondary btn-sm">✏️</a>
+                        <a href="{% url 'utilisateur:lecon_enseignant_delete' sc.id %}" class="btn btn-danger btn-sm" style="background:var(--danger);border-color:var(--danger);">🗑️</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1.5rem;">Aucun sous-chapitre.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="qb-form">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="ajouter_sous">
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Ajouter un sous-chapitre</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=sous_form.titre %}
+                        {% include 'includes/form_field.html' with field=sous_form.resume %}
+                        {% include 'includes/form_field.html' with field=sous_form.type_contenu %}
+                        {% include 'includes/form_field.html' with field=sous_form.duree_minutes %}
+                        {% include 'includes/form_field.html' with field=sous_form.ordre %}
+                        {% include 'includes/form_field.html' with field=sous_form.video_url %}
+                        {% include 'includes/form_field.html' with field=sous_form.image %}
+                        {% include 'includes/form_field.html' with field=sous_form.fichier %}
+                        {% include 'includes/form_field.html' with field=sous_form.publie %}
+                    </div>
+                    {% include 'includes/form_field.html' with field=sous_form.contenu %}
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:1rem;">
+            <button type="submit" class="btn btn-primary">Ajouter le sous-chapitre</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

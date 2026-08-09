@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Rejeter la demande{% endblock %}
+{% block page_title %}Rejeter la demande{% endblock %}
+{% block page_subtitle %}Le paiement ne sera pas modifié.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:demandes_modification_list' %}" class="btn btn-secondary">Retour</a>
+{% endblock %}
+
+{% block content %}
+<div class="qb-form qb-form--narrow">
+  <div class="panel" style="margin-bottom:1rem;">
+    <div class="panel-header">
+      <h3>Paiement {{ demande.paiement.numero_recu }}</h3>
+    </div>
+    <div class="panel-body">
+      <p style="margin:0 0 .5rem;"><strong>Motif du caissier :</strong></p>
+      <p style="margin:0; color:var(--text-muted);">{{ demande.motif }}</p>
+    </div>
+  </div>
+
+  <form method="post" class="form-horizontal">
+    {% csrf_token %}
+    <div class="qb-form__layout qb-form__layout--single">
+      <div class="qb-form__document">
+        <div class="qb-form__section-head">Réponse (optionnel)</div>
+        <div class="qb-form__body">
+          <div class="form-field form-field--wide">
+            <div class="form-field__row">
+              <label class="form-field__label" for="reponse_admin">Motif du rejet</label>
+              <div class="form-field__content">
+                <div class="form-field__control">
+                  <textarea name="reponse_admin" id="reponse_admin" class="form-control" rows="3" placeholder="Expliquez pourquoi la demande est rejetée…"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="qb-form__footer">
+          <a href="{% url 'finances:demandes_modification_list' %}" class="btn btn-secondary">Annuler</a>
+          <button type="submit" class="btn btn-danger">Confirmer le rejet</button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

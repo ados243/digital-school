@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+
+{% block title %}Demande de modification{% endblock %}
+{% block page_title %}Demande de modification{% endblock %}
+{% block page_subtitle %}Signalez une erreur de saisie sur ce paiement. Un administrateur pourra le corriger.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:paiement_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Paiement concerné</h3>
+      <span style="font-family:monospace; font-weight:700; color:var(--primary);">{{ paiement.numero_recu }}</span>
+    </div>
+    <div class="panel-body">
+      <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:.65rem;">
+        <li style="display:flex; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--border); padding-bottom:.5rem;">
+          <span style="color:var(--text-muted);">Élève</span>
+          <strong>{{ paiement.eleve.eleve.prenom }} {{ paiement.eleve.eleve.nom }}</strong>
+        </li>
+        <li style="display:flex; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--border); padding-bottom:.5rem;">
+          <span style="color:var(--text-muted);">Frais</span>
+          <strong>{{ paiement.frais.type_frais.libelle }}</strong>
+        </li>
+        <li style="display:flex; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--border); padding-bottom:.5rem;">
+          <span style="color:var(--text-muted);">Montant crédité</span>
+          <strong style="font-family:monospace;">{{ paiement.montant_paye }} {{ paiement.devise }}</strong>
+        </li>
+        {% if paiement.montant_origine and paiement.taux_change %}
+        <li style="display:flex; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--border); padding-bottom:.5rem;">
+          <span style="color:var(--text-muted);">Reçu en CDF</span>
+          <strong style="font-family:monospace;">{{ paiement.montant_origine }} CDF (taux {{ paiement.taux_change }})</strong>
+        </li>
+        {% endif %}
+        <li style="display:flex; justify-content:space-between; gap:1rem; border-bottom:1px solid var(--border); padding-bottom:.5rem;">
+          <span style="color:var(--text-muted);">Mode</span>
+          <strong>{{ paiement.get_mode_paiement_display }}</strong>
+        </li>
+        <li style="display:flex; justify-content:space-between; gap:1rem;">
+          <span style="color:var(--text-muted);">Date</span>
+          <strong>{{ paiement.date_encodage|date:"d/m/Y H:i" }}</strong>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Votre demande</h3>
+    </div>
+    <div class="panel-body">
+      <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        {% include 'includes/form_field.html' with field=form.motif full_width=True %}
+        <p class="form-help" style="margin-top:.5rem;">
+          Expliquez clairement ce qui doit être corrigé. L'administrateur verra ce paiement et votre motif.
+        </p>
+        <div style="margin-top:1rem; display:flex; gap:.5rem; flex-wrap:wrap;">
+          <button type="submit" class="btn btn-primary">Envoyer la demande</button>
+          <a href="{% url 'finances:paiement_list' %}" class="btn btn-secondary">Annuler</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

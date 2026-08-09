@@ -1,0 +1,9 @@
+/*
+ * Ce fichier est conservé à titre de référence uniquement.
+ * Le style global est désormais centralisé dans :
+ *   static/css/style.css
+ *
+ * Ne pas modifier ce fichier. Toute modification doit être
+ * apportée dans le fichier CSS centralisé.
+ */
+@import url('/static/css/style.css');

@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}Supprimer l'élève{% endblock %}
+
+{% block page_title %}Suppression d'élève{% endblock %}
+{% block page_subtitle %}Cette action est irréversible.{% endblock %}
+
+{% block content %}
+<div class="confirm-delete">
+    <div class="confirm-delete__head">
+        <div class="confirm-delete__icon" aria-hidden="true">⚠️</div>
+        <h3>Confirmer la suppression</h3>
+    </div>
+    <div class="confirm-delete__body">
+        <p>Êtes-vous sûr de vouloir supprimer la fiche de l'élève&nbsp;?</p>
+        <span class="confirm-delete__target">{{ eleve.prenom }} {{ eleve.nom }} — {{ eleve.matricule }}</span>
+        <p class="confirm-delete__note">
+            Tous les enregistrements d'inscriptions associés seront également supprimés de la base de données.
+        </p>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="confirm-delete__actions">
+            <a href="{% url 'inscription:eleve_list' %}" class="btn btn-secondary">Annuler</a>
+            <button type="submit" class="btn btn-danger">Confirmer la suppression</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

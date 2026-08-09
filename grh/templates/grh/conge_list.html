@@ -1,0 +1,71 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Gestion des Congés{% endblock %}
+
+{% block page_title %}Gestion des Congés & Absences{% endblock %}
+{% block page_subtitle %}Planification, demande et validation des congés du personnel.{% endblock %}
+
+{% block header_actions %}
+    <a href="{% url 'grh:conge_create' %}" class="btn btn-primary">➕ Demander un congé</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h3>Demandes de congés</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th>Type de congé</th>
+                    <th>Date de début</th>
+                    <th>Date de fin</th>
+                    <th>Motif</th>
+                    <th>Statut</th>
+                    <th style="text-align: right; padding-right: 1.5rem;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in conges %}
+                <tr>
+                    <td>
+                        <strong>{{ c.personnel.nom }} {{ c.personnel.prenom }}</strong>
+                        <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ c.personnel.fonction }}</span>
+                    </td>
+                    <td><span class="badge badge-info">{{ c.get_type_conge_display }}</span></td>
+                    <td>{{ c.date_debut|date:"d/m/Y" }}</td>
+                    <td>{{ c.date_fin|date:"d/m/Y" }}</td>
+                    <td><span style="font-size: 0.9rem;" title="{{ c.motif }}">{{ c.motif|truncatechars:40 }}</span></td>
+                    <td>
+                        {% if c.statut == 'APPROUVE' %}
+                            <span class="badge badge-success">Approuvé</span>
+                        {% elif c.statut == 'REJETE' %}
+                            <span class="badge badge-danger">Rejeté</span>
+                        {% else %}
+                            <span class="badge badge-warning">En attente</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; padding-right: 1.5rem;">
+                        {% if c.statut == 'EN_ATTENTE' %}
+                            <a href="{% url 'grh:conge_approve' c.pk %}" class="btn btn-success btn-sm" style="margin-right: 0.5rem;">✔️ Approuver</a>
+                            <a href="{% url 'grh:conge_reject' c.pk %}" class="btn btn-danger btn-sm">❌ Rejeter</a>
+                        {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">Aucune action</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        Aucun congé enregistré. <br>
+                        <a href="{% url 'grh:conge_create' %}" class="btn btn-primary btn-sm" style="margin-top: 1rem;">Demander un congé</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

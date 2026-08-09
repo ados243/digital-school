@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} | Pédagogie{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}Définissez la matière, son coefficient et sa section pédagogique.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'pedagogie:dashboard' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{% url 'pedagogie:dashboard' as dashboard_url %}
+<div class="qb-form">
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Détails de la matière</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.code %}
+                        {% include 'includes/form_field.html' with field=form.coefficient %}
+                        {% include 'includes/form_field.html' with field=form.libelle %}
+                        {% include 'includes/form_field.html' with field=form.maxima_periode %}
+                        {% include 'includes/form_field.html' with field=form.section %}
+                        {% include 'includes/form_field.html' with field=form.enserignant %}
+                    </div>
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with cancel_url=dashboard_url submit_label="Enregistrer la matière" %}
+                </div>
+            </div>
+            <aside class="qb-form__sidebar">
+                <div class="panel">
+                    <div class="qb-form__sidebar-head">
+                        <h3>Enregistrement</h3>
+                        <p>Le coefficient sera utilisé pour les calculs de moyennes.</p>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}

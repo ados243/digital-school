@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if object %}Modifier{% else %}Créer{% endif %} un frais scolaire{% endblock %}
+{% block page_title %}{% if object %}Modifier{% else %}Nouveau{% endif %} frais scolaire{% endblock %}
+{% block page_subtitle %}Définissez le montant, la section et l'échéance du frais.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:frais_scolaire_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{% url 'finances:frais_scolaire_list' as list_url %}
+<div class="qb-form">
+    {% if not object %}
+    <div class="qb-form__status">
+        <div class="qb-form__status-item {% if types_count > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">🏷️</span>
+            <div>
+                <div class="qb-form__status-label">Types de frais</div>
+                <div class="qb-form__status-value">{{ types_count }}</div>
+                <div class="qb-form__status-meta">
+                    {% if types_count == 0 %}
+                    <a href="{% url 'finances:type_frais_create' %}">Créer un type de frais</a>
+                    {% else %}Catégories disponibles{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="qb-form__status-item {% if sections_count > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">🏫</span>
+            <div>
+                <div class="qb-form__status-label">Sections</div>
+                <div class="qb-form__status-value">{{ sections_count }}</div>
+                <div class="qb-form__status-meta">
+                    {% if sections_count == 0 %}
+                    <a href="{% url 'inscription:classe_create' %}">Créer une classe</a>
+                    {% else %}De votre établissement{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="qb-form__status-item qb-form__status-item--ok">
+            <span class="qb-form__status-icon">📅</span>
+            <div>
+                <div class="qb-form__status-label">Année scolaire</div>
+                <div class="qb-form__status-value">{% if annee_courante %}{{ annee_courante.anne_scolaire }}{% else %}—{% endif %}</div>
+                <div class="qb-form__status-meta">{% if annee_courante %}Année en cours{% else %}Aucune année active{% endif %}</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Barème du frais</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.type_frais %}
+                        {% include 'includes/form_field.html' with field=form.annee %}
+                        {% include 'includes/form_field.html' with field=form.section %}
+                        {% include 'includes/form_field.html' with field=form.echeance %}
+                        {% include 'includes/form_field.html' with field=form.montant %}
+                        {% include 'includes/form_field.html' with field=form.devise %}
+                    </div>
+                    {% include 'includes/form_field.html' with field=form.est_obligatoire full_width=True %}
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with cancel_url=list_url submit_label="Enregistrer" %}
+                </div>
+            </div>
+            <aside class="qb-form__sidebar">
+                <div class="panel">
+                    <div class="qb-form__sidebar-head">
+                        <h3>Validation</h3>
+                        <p>Ce barème sera proposé lors des encaissements.</p>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}

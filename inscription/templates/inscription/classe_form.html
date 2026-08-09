@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_update %}Modifier{% else %}Créer{% endif %} une classe{% endblock %}
+{% block page_title %}{% if is_update %}Modifier la classe{% else %}Nouvelle classe{% endif %}{% endblock %}
+{% block page_subtitle %}{% if is_update %}Mettez à jour les informations de la classe.{% else %}Définissez la section, la salle et la capacité maximale.{% endif %}{% endblock %}
+
+{% block header_actions %}
+{% if cancel_url %}
+<a href="{{ cancel_url }}" class="btn btn-secondary">Annuler</a>
+{% else %}
+<a href="{% url 'inscription:classe_list' %}" class="btn btn-secondary">Annuler</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% url 'inscription:classe_list' as default_cancel %}
+<div class="qb-form">
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Informations de la classe</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.section %}
+                        {% include 'includes/form_field.html' with field=form.classe %}
+                        {% include 'includes/form_field.html' with field=form.salle %}
+                        {% include 'includes/form_field.html' with field=form.capacite_max field_help="Nombre maximum d'élèves inscrits pour l'année en cours." %}
+                    </div>
+                </div>
+                <div class="qb-form__section-head">Enseignant titulaire</div>
+                <div class="qb-form__body">
+                    {% include 'includes/form_field.html' with field=form.titulaire field_help="Affectez un enseignant à cette salle de classe. Facultatif." full_width=True %}
+                    {% if enseignants_count == 0 %}
+                    <p class="form-help" style="padding: 0 1.4rem 1rem;">
+                        Aucun enseignant disponible.
+                        <a href="{% url 'grh:personnel_create' %}">Créer une fiche personnel</a>
+                        (fonction « Enseignant »).
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="qb-form__footer">
+                    {% if is_update %}
+                    {% include 'includes/form_actions.html' with cancel_url=cancel_url|default:default_cancel submit_label="Enregistrer les modifications" %}
+                    {% else %}
+                    {% include 'includes/form_actions.html' with cancel_url=cancel_url|default:default_cancel submit_label="Créer la classe" %}
+                    {% endif %}
+                </div>
+            </div>
+            <aside class="qb-form__sidebar">
+                <div class="panel">
+                    <div class="qb-form__sidebar-head">
+                        <h3>Validation</h3>
+                        <p>La classe sera associée à votre établissement.</p>
+                    </div>
+                    <div class="panel-body">
+                        <ul class="qb-form__recap">
+                            <li><span>Établissement</span><strong>Automatique</strong></li>
+                            <li><span>Enseignants</span><strong>{{ enseignants_count|default:0 }}</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}

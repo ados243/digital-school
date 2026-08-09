@@ -1,0 +1,68 @@
+{% extends 'portal_base.html' %}
+{% load elearning_tags %}
+
+{% block title %}Étudier en ligne{% endblock %}
+{% block portal_main_class %}portal-main--wide{% endblock %}
+
+{% block content %}
+<div class="ll-shell">
+    <header class="ll-catalog-hero">
+        <div class="ll-catalog-hero__inner">
+            <div>
+                <p class="ll-eyebrow">Digital School Learning</p>
+                <h1>Continuez à apprendre</h1>
+                <p>
+                    Cours en ligne pour la classe <strong>{{ inscription.classe.classe }}</strong>
+                    · {{ inscription.annee_s.anne_scolaire }}
+                </p>
+            </div>
+            <form method="get" class="ll-search">
+                {% if filtre_matiere %}<input type="hidden" name="matiere" value="{{ filtre_matiere }}">{% endif %}
+                {% if filtre_niveau %}<input type="hidden" name="niveau" value="{{ filtre_niveau }}">{% endif %}
+                <input type="search" name="q" value="{{ filtre_q }}" class="form-control"
+                       placeholder="Rechercher un cours, une matière, une compétence…">
+                <button type="submit" class="btn btn-primary">Rechercher</button>
+            </form>
+        </div>
+        <div class="ll-chips">
+            <a href="?{% if filtre_q %}q={{ filtre_q }}&{% endif %}{% if filtre_matiere %}matiere={{ filtre_matiere }}{% endif %}"
+               class="ll-chip {% if not filtre_niveau %}is-active{% endif %}">Tous niveaux</a>
+            {% for value, label in niveaux %}
+            <a href="?niveau={{ value }}{% if filtre_q %}&q={{ filtre_q }}{% endif %}{% if filtre_matiere %}&matiere={{ filtre_matiere }}{% endif %}"
+               class="ll-chip {% if filtre_niveau == value %}is-active{% endif %}">{{ label }}</a>
+            {% endfor %}
+            {% if matieres %}
+            <span class="ll-chips__sep"></span>
+            <a href="?{% if filtre_q %}q={{ filtre_q }}&{% endif %}{% if filtre_niveau %}niveau={{ filtre_niveau }}{% endif %}"
+               class="ll-chip {% if not filtre_matiere %}is-active{% endif %}">Toutes matières</a>
+            {% for m in matieres %}
+            <a href="?matiere={{ m.id }}{% if filtre_q %}&q={{ filtre_q }}{% endif %}{% if filtre_niveau %}&niveau={{ filtre_niveau }}{% endif %}"
+               class="ll-chip {% if filtre_matiere == m.id|stringformat:'s' %}is-active{% endif %}">{{ m.libelle }}</a>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </header>
+
+    {% for matiere, cours_list in par_matiere %}
+    <section class="ll-section">
+        <div class="ll-section__head">
+            <h2>{{ matiere.libelle }}</h2>
+            <span>{{ cours_list|length }} cours</span>
+        </div>
+        <div class="ll-grid">
+            {% for c in cours_list %}
+            {% include 'utilisateur/includes/ll_course_card.html' with c=c %}
+            {% endfor %}
+        </div>
+    </section>
+    {% empty %}
+    <div class="ll-empty">
+        <h2>Aucun cours trouvé</h2>
+        <p>Aucun cours publié ne correspond à votre recherche, ou vos enseignants n’ont pas encore mis de contenu en ligne.</p>
+        {% if filtre_q or filtre_matiere or filtre_niveau %}
+        <a href="{% url 'utilisateur:cours_eleve_list' %}" class="btn btn-secondary">Réinitialiser les filtres</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

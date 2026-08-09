@@ -1,0 +1,83 @@
+{% extends 'portal_base.html' %}
+{% load elearning_tags %}
+
+{% block title %}{{ chapitre.titre }}{% endblock %}
+{% block portal_main_class %}portal-main--wide{% endblock %}
+
+{% block content %}
+<div class="ll-shell">
+    <div class="ll-hero-band">
+        <div class="ll-hero-band__inner">
+            <a href="{% url 'utilisateur:cours_eleve_detail' cours.id %}" class="ll-back">← {{ cours.titre }}</a>
+            <p class="ll-eyebrow">Chapitre {{ chapitre.ordre }} · {{ cours.matiere.libelle }}</p>
+            <h1>{{ chapitre.titre }}</h1>
+            {% if chapitre.resume %}<p class="ll-hero-band__tagline">{{ chapitre.resume }}</p>{% endif %}
+            {% if premiere_sous %}
+            <a href="{% url 'utilisateur:lecon_eleve_detail' premiere_sous.id %}" class="btn btn-primary">Commencer ce chapitre</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="ll-course-body">
+        <div class="ll-course-body__main">
+            {% with embed=chapitre.video_url|video_embed %}
+            {% if embed %}
+            <div class="ll-block" style="padding:0;overflow:hidden;">
+                <div class="ll-video"><iframe src="{{ embed }}" title="{{ chapitre.titre }}" allowfullscreen></iframe></div>
+            </div>
+            {% elif chapitre.video_url %}
+            <div class="ll-block">
+                <a href="{{ chapitre.video_url }}" target="_blank" rel="noopener" class="btn btn-primary">Ouvrir la vidéo du chapitre</a>
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            {% if chapitre.image %}
+            <div class="ll-block">
+                <img src="{{ chapitre.image.url }}" alt="{{ chapitre.titre }}" style="width:100%;border-radius:8px;display:block;">
+            </div>
+            {% endif %}
+
+            {% if chapitre.contenu %}
+            <section class="ll-block">
+                <h2>Introduction</h2>
+                <div class="ll-prose">{{ chapitre.contenu|linebreaks }}</div>
+            </section>
+            {% endif %}
+
+            <section class="ll-block">
+                <h2>Sous-chapitres</h2>
+                <ol class="ll-toc">
+                    {% for row in sous_rows %}
+                    <li>
+                        <a href="{% url 'utilisateur:lecon_eleve_detail' row.lecon.id %}" class="ll-toc__item {% if row.terminee %}is-done{% endif %}">
+                            <span class="ll-toc__num">{% if row.terminee %}✓{% else %}{{ chapitre.ordre }}.{{ row.lecon.ordre }}{% endif %}</span>
+                            <span class="ll-toc__body">
+                                <strong>{{ row.lecon.titre }}</strong>
+                                <small>{{ row.lecon.get_type_contenu_display }}{% if row.lecon.video_url %} · Vidéo{% endif %}{% if row.lecon.image %} · Image{% endif %}</small>
+                            </span>
+                            <span class="ll-toc__dur">{{ row.lecon.duree_affichee }}</span>
+                        </a>
+                    </li>
+                    {% empty %}
+                    <li class="ll-muted">Aucun sous-chapitre dans ce chapitre.</li>
+                    {% endfor %}
+                </ol>
+            </section>
+        </div>
+
+        <aside class="ll-sticky-card">
+            <div class="ll-sticky-card__body">
+                <h3 style="margin:0 0 .75rem;">Programme</h3>
+                {% for ch in chapters_rows %}
+                <a href="{% url 'utilisateur:chapitre_eleve_detail' ch.chapitre.id %}"
+                   class="ll-side-ch {% if ch.chapitre.id == chapitre.id %}is-active{% endif %}">
+                    Ch. {{ ch.chapitre.ordre }} — {{ ch.chapitre.titre }}
+                    <small>{{ ch.terminees }}/{{ ch.total }}</small>
+                </a>
+                {% endfor %}
+            </div>
+        </aside>
+    </div>
+</div>
+{% endblock %}

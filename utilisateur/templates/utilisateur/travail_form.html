@@ -1,0 +1,74 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>{{ title }}</h1>
+    <p>Définissez la classe, la matière, le barème et le coefficient du travail.</p>
+</div>
+
+<div style="margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:travail_list' %}" class="btn btn-secondary">Annuler</a>
+</div>
+
+{% url 'utilisateur:travail_list' as list_url %}
+<div class="qb-form">
+    {% if not travail %}
+    <div class="qb-form__status">
+        <div class="qb-form__status-item {% if matieres_count > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">📖</span>
+            <div>
+                <div class="qb-form__status-label">Matières</div>
+                <div class="qb-form__status-value">{{ matieres_count }}</div>
+                <div class="qb-form__status-meta">
+                    {% if matieres_count == 0 %}
+                    Aucune matière disponible pour vous
+                    {% else %}Disponibles pour la cotation{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="qb-form__status-item {% if classes_count > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">🏫</span>
+            <div>
+                <div class="qb-form__status-label">Classes</div>
+                <div class="qb-form__status-value">{{ classes_count }}</div>
+                <div class="qb-form__status-meta">
+                    {% if classes_count == 0 %}
+                    Aucune classe associée
+                    {% else %}Vos classes / sections{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Informations du travail</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.type_travail %}
+                        {% include 'includes/form_field.html' with field=form.role_bulletin %}
+                        {% include 'includes/form_field.html' with field=form.titre %}
+                        {% include 'includes/form_field.html' with field=form.classe %}
+                        {% include 'includes/form_field.html' with field=form.matiere %}
+                        {% include 'includes/form_field.html' with field=form.annee_scolaire %}
+                        {% include 'includes/form_field.html' with field=form.periode %}
+                        {% include 'includes/form_field.html' with field=form.division %}
+                        {% include 'includes/form_field.html' with field=form.date_travail %}
+                        {% include 'includes/form_field.html' with field=form.bareme %}
+                        {% include 'includes/form_field.html' with field=form.coefficient %}
+                    </div>
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with cancel_url=list_url submit_label="Enregistrer" %}
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Journaux{% endblock %}
+{% block page_title %}Journaux (HOADA){% endblock %}
+{% block page_subtitle %}Listes par école{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div class="panel-header">
+    <h3>Journaux</h3>
+    <a href="{% url 'finances:hoada_journaux_create' %}" class="btn btn-primary btn-sm">+ Ajouter</a>
+  </div>
+
+  <div class="panel-body table-responsive" style="padding:0;">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Libellé</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for j in object_list %}
+        <tr>
+          <td style="font-family: monospace; font-weight:700;">{{ j.code }}</td>
+          <td>{{ j.libelle }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="2" style="text-align:center; color: var(--text-muted); padding:2rem;">
+            Aucun journal pour cette école.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

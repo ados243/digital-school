@@ -1,0 +1,776 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_update %}Modifier le paiement{% else %}Encaissement{% endif %}{% endblock %}
+
+{% block page_title %}{% if is_update %}Modifier le paiement{% else %}Encaissement{% endif %}{% endblock %}
+{% block page_subtitle %}
+{% if is_update %}Mettez à jour les informations de ce paiement.{% else %}Enregistrez un encaissement et générez le reçu de l'élève.{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:paiement_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{{ inscriptions_data|json_script:"inscriptions-data" }}
+{{ frais_solde_by_inscription|json_script:"frais-solde-data" }}
+
+{% url 'finances:paiement_list' as list_url %}
+<div class="qb-form">
+    <div class="qb-form__status">
+        {% if not is_update %}
+        <div class="qb-form__status-item {% if inscriptions_count > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">👥</span>
+            <div>
+                <div class="qb-form__status-label">Inscriptions actives</div>
+                <div class="qb-form__status-value">{{ inscriptions_count }}</div>
+                <div class="qb-form__status-meta">Élèves de votre établissement</div>
+            </div>
+        </div>
+        <div class="qb-form__status-item {% if frais_count > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">💰</span>
+            <div>
+                <div class="qb-form__status-label">Frais encore dus</div>
+                <div class="qb-form__status-value">{{ frais_count }}</div>
+                <div class="qb-form__status-meta">Hors frais soldés</div>
+            </div>
+        </div>
+        <div class="qb-form__status-item qb-form__status-item--ok">
+            <span class="qb-form__status-icon">📅</span>
+            <div>
+                <div class="qb-form__status-label">Année scolaire</div>
+                <div class="qb-form__status-value">{% if annee_courante %}{{ annee_courante.anne_scolaire }}{% else %}—{% endif %}</div>
+                <div class="qb-form__status-meta">{% if annee_courante %}Année en cours{% else %}Aucune année active{% endif %}</div>
+            </div>
+        </div>
+        {% endif %}
+        <div class="qb-form__status-item {% if taux_courant %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">💱</span>
+            <div>
+                <div class="qb-form__status-label">Taux actuel</div>
+                <div class="qb-form__status-value" style="font-family:monospace;">
+                    {% if taux_courant %}{{ taux_courant }}{% else %}—{% endif %}
+                </div>
+                <div class="qb-form__status-meta">
+                    {% if taux_courant %}
+                      1 USD = {{ taux_courant }} CDF
+                      {% if taux_courant_obj %}· {{ taux_courant_obj.date_effet|date:"d/m/Y" }}{% endif %}
+                    {% elif request.user.is_caissier %}
+                      Non défini — saisissez le taux manuellement ci-dessous
+                    {% else %}
+                      Non défini — <a href="{% url 'finances:taux_change_list' %}">saisir un taux</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" id="paiement-form" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+
+        {% if demande_modification %}
+        <div class="form-summary-panel" style="margin-bottom:1rem; border-color:#f59e0b; background:rgba(245,158,11,.06);">
+          <div class="panel-body" style="padding:1rem;">
+            <div style="font-size:.75rem; font-weight:700; color:#b45309; margin-bottom:.5rem; text-transform:uppercase; letter-spacing:.03em;">
+              Commentaire du caissier — {{ demande_modification.demande_par }}
+            </div>
+            <p style="margin:0; white-space:pre-wrap; line-height:1.5; font-size:1rem;">{{ demande_modification.motif }}</p>
+            <p style="margin:.75rem 0 0; font-size:.85rem; color:var(--text-muted);">
+              Demandée le {{ demande_modification.date_demande|date:"d/m/Y H:i" }}.
+              Après enregistrement, la demande sera marquée comme traitée.
+            </p>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="qb-form__layout">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Élève et frais</div>
+                <div class="qb-form__body">
+                    <div class="form-field form-field--wide{% if form.eleve.errors %} form-field--invalid{% endif %}">
+                        <div class="form-field__row">
+                            <label class="form-field__label" for="eleve-combobox">{{ form.eleve.label }}<span class="form-required">*</span></label>
+                            <div class="form-field__content">
+                                <div class="form-field__control">
+                                    <div class="form-combobox">
+                                        <input type="text" id="eleve-combobox" class="form-control" placeholder="Rechercher nom, matricule ou classe…" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="eleve-dropdown">
+                                        <div id="eleve-dropdown" class="form-combobox-dropdown" role="listbox"></div>
+                                    </div>
+                                </div>
+                                <div class="form-sr-only">{{ form.eleve }}</div>
+                                {% if form.eleve.errors %}<p class="form-error" role="alert">{{ form.eleve.errors|striptags }}</p>{% endif %}
+                                <p class="form-help">Recherchez puis sélectionnez l'inscription dans la liste.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="eleve-summary" class="form-summary-panel" style="margin: .75rem 1.25rem; display: none;">
+                        <div class="panel-body" style="padding: 1rem;">
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.35rem;">Élève sélectionné</div>
+                            <div id="summary-nom" style="font-size: 1.1rem; font-weight: 700;"></div>
+                            <div class="form-summary-grid">
+                                <div><span style="color: var(--text-muted);">Matricule :</span> <strong id="summary-matricule"></strong></div>
+                                <div><span style="color: var(--text-muted);">Classe :</span> <strong id="summary-classe"></strong></div>
+                                <div><span style="color: var(--text-muted);">Année :</span> <strong id="summary-annee"></strong></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-field form-field--wide{% if form.frais.errors %} form-field--invalid{% endif %}">
+                        <div class="form-field__row">
+                            <label class="form-field__label" for="{{ form.frais.id_for_label }}">{{ form.frais.label }}<span class="form-required">*</span></label>
+                            <div class="form-field__content">
+                                <div class="form-field__control">{{ form.frais }}</div>
+                                <div id="frais-solde-info" class="form-info-box"></div>
+                                {% if form.frais.errors %}<p class="form-error" role="alert">{{ form.frais.errors|striptags }}</p>{% endif %}
+                                <p class="form-help">Les frais entièrement payés sont masqués.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="qb-form__section-head">Détails du règlement</div>
+                <div class="qb-form__body">
+                    <div id="solde-panel" class="form-summary-panel" style="margin: 0 0 1rem; display: none;">
+                        <div class="panel-body" style="padding: 1rem;">
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">Situation du frais</div>
+                            <div class="form-summary-grid" style="grid-template-columns: repeat(3, 1fr);">
+                                <div>
+                                    <span style="color: var(--text-muted); display:block; font-size:0.75rem;">Montant total</span>
+                                    <strong id="solde-total">—</strong>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-muted); display:block; font-size:0.75rem;">Déjà payé</span>
+                                    <strong id="solde-paye">—</strong>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-muted); display:block; font-size:0.75rem;">Reste à payer</span>
+                                    <strong id="solde-reste" style="color: var(--primary); font-size: 1.1rem;">—</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-grid-2">
+                        <div class="form-field{% if form.montant_paye.errors %} form-field--invalid{% endif %}">
+                            <div class="form-field__row">
+                                <label class="form-field__label" for="{{ form.montant_paye.id_for_label }}" id="label-montant-paye">
+                                    {{ form.montant_paye.label }}
+                                </label>
+                                <div class="form-field__content">
+                                    <div class="form-field__control">{{ form.montant_paye }}</div>
+                                    {% if form.montant_paye.errors %}<p class="form-error" role="alert">{{ form.montant_paye.errors|striptags }}</p>{% endif %}
+                                    <p class="form-help" id="help-montant-paye">Montant crédité sur le frais (devise du frais).</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-field" id="equivalent-usd-field" style="display:none;">
+                            <div class="form-field__row">
+                                <label class="form-field__label" for="equivalent-usd-input">Équivalent en dollars (USD)</label>
+                                <div class="form-field__content">
+                                    <div class="form-field__control">
+                                        <input type="text" id="equivalent-usd-input" class="form-control" readonly value="—" style="font-family:monospace; font-weight:700; color:var(--primary); font-size:1.1rem;">
+                                    </div>
+                                    <p class="form-help">Somme saisie en CDF convertie au taux actuel (CDF ÷ taux).</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-field" id="reste-apres-field">
+                            <div class="form-field__row">
+                                <label class="form-field__label">Reste après encaissement</label>
+                                <div class="form-field__content">
+                                    <div class="form-field__control">
+                                        <input type="text" id="reste-apres-input" class="form-control" readonly value="—">
+                                    </div>
+                                    <p class="form-help">Calculé dans la devise du frais.</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% include 'includes/form_field.html' with field=form.devise %}
+                    </div>
+
+                    <div class="form-summary-panel" style="margin: 0 0 1rem;">
+                        <div class="panel-body" style="padding: 1rem;">
+                            <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; flex-wrap:wrap; margin-bottom:.75rem;">
+                                <div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.35rem;">Paiement en francs (CDF)</div>
+                                    <div style="font-size:.9rem;">
+                                        {% if taux_courant %}
+                                          Taux actuel :
+                                          <strong style="font-family:monospace; color:var(--primary);">1 USD = {{ taux_courant }} CDF</strong>
+                                          {% if taux_courant_obj %}
+                                            <span style="color:var(--text-muted);"> (effet {{ taux_courant_obj.date_effet|date:"d/m/Y" }})</span>
+                                          {% endif %}
+                                        {% else %}
+                                          <span style="color:#b45309;">Aucun taux école — saisissez-le manuellement.</span>
+                                        {% endif %}
+                                      </div>
+                                </div>
+                                <div class="form-field" style="margin:0; min-width:220px;">
+                                  <label class="form-field__label" style="display:flex; align-items:center; gap:.5rem; cursor:pointer;">
+                                    {{ form.payer_en_francs }}
+                                    <span>{{ form.payer_en_francs.label }}</span>
+                                  </label>
+                                </div>
+                            </div>
+                            <div id="conversion-fields" style="display:none;">
+                                <div class="form-grid-2">
+                                    {% include 'includes/form_field.html' with field=form.montant_en_francs %}
+                                    {% include 'includes/form_field.html' with field=form.taux_saisi %}
+                                </div>
+                                <div id="conversion-result" class="form-info-box" style="margin-top:.5rem;"></div>
+                                <p class="form-help" style="margin-top:.5rem;">
+                                  Saisissez le montant en CDF : l'<strong>équivalent en dollars</strong> s'affiche à côté du montant encaissé.
+                                  La validation du reste dû se fait sur le montant converti en USD.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% include 'includes/form_field.html' with field=form.mode_paiement %}
+                    <div id="reference-group">
+                        {% include 'includes/form_field.html' with field=form.reference_trans field_help="Obligatoire pour chèque, virement et mobile money." full_width=True %}
+                    </div>
+                </div>
+
+                <div class="qb-form__footer">
+                    <a href="{{ list_url }}" class="btn btn-secondary">Annuler</a>
+                    {% if is_update %}
+                    <button type="submit" class="btn btn-primary btn-lg">Enregistrer les modifications</button>
+                    {% else %}
+                    <button type="submit" class="btn btn-primary btn-lg">Encaisser et générer le reçu</button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <aside class="qb-form__sidebar">
+                <div class="panel">
+                    <div class="qb-form__sidebar-head">
+                        <h3>Récapitulatif</h3>
+                        <p>Vérifiez le montant avant validation.</p>
+                    </div>
+                    <div class="panel-body">
+                        <div class="form-recap-amount-wrap">
+                            <div style="font-size: 0.85rem; color: var(--text-muted);">Montant à encaisser</div>
+                            <div id="recap-montant" class="form-recap-amount">—</div>
+                            <div id="recap-devise" class="form-recap-sub"></div>
+                            <div id="recap-taux" class="form-recap-sub" style="font-family:monospace;">
+                              {% if taux_courant %}Taux actuel : 1 USD = {{ taux_courant }} CDF{% else %}Taux actuel : non défini{% endif %}
+                            </div>
+                            <div id="recap-conversion" class="form-recap-sub" style="color:#b45309;"></div>
+                            <div id="recap-solde-total" class="form-recap-sub"></div>
+                            <div id="recap-solde-paye" class="form-recap-sub"></div>
+                            <div id="recap-reste" class="form-recap-warning"></div>
+                            <div id="recap-reste-apres" class="form-recap-sub" style="font-weight: 700; color: var(--primary);"></div>
+                        </div>
+                        <ul class="qb-form__recap" style="margin: 1rem 0;">
+                            <li><span>Élève</span><strong id="recap-eleve">—</strong></li>
+                            <li><span>Frais</span><strong id="recap-frais">—</strong></li>
+                            <li><span>Mode</span><strong id="recap-mode">—</strong></li>
+                            <li><span>Statut</span><strong id="recap-statut">—</strong></li>
+                        </ul>
+                        {% include 'includes/form_field.html' with field=form.caissier %}
+                        {% include 'includes/form_field.html' with field=form.statut field_help="Un paiement « Validé » génère le reçu et l'écriture comptable." %}
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const inscriptions = JSON.parse(document.getElementById('inscriptions-data').textContent);
+    const fraisSolde = JSON.parse(document.getElementById('frais-solde-data').textContent);
+
+    const eleveSelect = document.getElementById('id_eleve');
+    const eleveInput = document.getElementById('eleve-combobox');
+    const eleveDropdown = document.getElementById('eleve-dropdown');
+    const fraisSelect = document.getElementById('id_frais');
+    const montantInput = document.getElementById('id_montant_paye');
+    const deviseSelect = document.getElementById('id_devise');
+    const modeSelect = document.getElementById('id_mode_paiement');
+    const statutSelect = document.getElementById('id_statut');
+    const referenceGroup = document.getElementById('reference-group');
+    const fraisSoldeInfo = document.getElementById('frais-solde-info');
+    const payerEnFrancs = document.getElementById('id_payer_en_francs');
+    const montantFrancsInput = document.getElementById('id_montant_en_francs');
+    const tauxSaisiInput = document.getElementById('id_taux_saisi');
+    const conversionFields = document.getElementById('conversion-fields');
+    const conversionResult = document.getElementById('conversion-result');
+    const recapConversion = document.getElementById('recap-conversion');
+    const equivalentUsdInput = document.getElementById('equivalent-usd-input');
+    const equivalentUsdField = document.getElementById('equivalent-usd-field');
+    const labelMontantPaye = document.getElementById('label-montant-paye');
+    const helpMontantPaye = document.getElementById('help-montant-paye');
+    let syncingConversion = false;
+
+    const inscriptionMap = Object.fromEntries(inscriptions.map(i => [String(i.id), i]));
+
+    function selectedDeviseCode() {
+        const text = (deviseSelect.options[deviseSelect.selectedIndex]?.text || '').toUpperCase();
+        if (text.includes('CDF')) return 'CDF';
+        if (text.includes('USD')) return 'USD';
+        return '';
+    }
+
+    function isPaiementEnCdf() {
+        return (payerEnFrancs && payerEnFrancs.checked) || selectedDeviseCode() === 'CDF';
+    }
+
+    function getCdfAmount() {
+        if (montantFrancsInput && parseAmount(montantFrancsInput.value) !== null) {
+            return parseAmount(montantFrancsInput.value);
+        }
+        if (isPaiementEnCdf()) {
+            return parseAmount(montantInput && montantInput.value);
+        }
+        return null;
+    }
+
+    function getTaux() {
+        return parseAmount(tauxSaisiInput && tauxSaisiInput.value);
+    }
+
+    function getUsdEquivalent() {
+        const cdf = getCdfAmount();
+        const taux = getTaux();
+        if (cdf === null || taux === null || taux <= 0) return null;
+        return Math.round((cdf / taux) * 100) / 100;
+    }
+
+    function formatFraisLabel(f) {
+        const paye = Number(f.montant_paye) || 0;
+        if (paye > 0) {
+            return `${f.libelle} — Reste : ${f.montant_restant} ${f.devise} (payé : ${f.montant_paye} / ${f.montant_total})`;
+        }
+        return `${f.libelle} — ${f.montant_total} ${f.devise} (reste à payer)`;
+    }
+
+    function getFraisForInscription(insId) {
+        return fraisSolde[String(insId)] || {};
+    }
+
+    function renderEleveDropdown(filter) {
+        const q = (filter || '').toLowerCase().trim();
+        eleveDropdown.innerHTML = '';
+        const matches = inscriptions.filter(ins =>
+            !q || ins.label.toLowerCase().includes(q) ||
+            ins.nom.toLowerCase().includes(q) ||
+            ins.matricule.toLowerCase().includes(q) ||
+            ins.classe.toLowerCase().includes(q)
+        );
+
+        if (!matches.length) {
+            eleveDropdown.style.display = 'none';
+            eleveInput.setAttribute('aria-expanded', 'false');
+            return;
+        }
+
+        matches.slice(0, 20).forEach(ins => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.role = 'option';
+            item.className = 'form-combobox-option';
+            item.textContent = ins.label;
+            item.addEventListener('click', () => selectInscription(ins));
+            eleveDropdown.appendChild(item);
+        });
+
+        eleveDropdown.style.display = 'block';
+        eleveInput.setAttribute('aria-expanded', 'true');
+    }
+
+    function selectInscription(ins) {
+        eleveSelect.value = String(ins.id);
+        eleveInput.value = ins.label;
+        eleveDropdown.style.display = 'none';
+        eleveInput.setAttribute('aria-expanded', 'false');
+        onEleveChanged();
+    }
+
+    function filterFraisOptions() {
+        const insId = eleveSelect.value;
+        const fraisDisponibles = getFraisForInscription(insId);
+        const currentValue = fraisSelect.value;
+
+        fraisSelect.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = Object.keys(fraisDisponibles).length ? '---------' : 'Aucun frais dû';
+        fraisSelect.appendChild(placeholder);
+
+        Object.entries(fraisDisponibles).forEach(([id, f]) => {
+            const opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = formatFraisLabel(f);
+            fraisSelect.appendChild(opt);
+        });
+
+        if (currentValue && fraisDisponibles[currentValue]) {
+            fraisSelect.value = currentValue;
+        }
+    }
+
+    function updateEleveSummary() {
+        const ins = inscriptionMap[eleveSelect.value];
+        const summary = document.getElementById('eleve-summary');
+        if (!ins) {
+            summary.style.display = 'none';
+            document.getElementById('recap-eleve').textContent = '—';
+            return;
+        }
+        summary.style.display = 'block';
+        document.getElementById('summary-nom').textContent = ins.nom;
+        document.getElementById('summary-matricule').textContent = ins.matricule;
+        document.getElementById('summary-classe').textContent = ins.classe;
+        document.getElementById('summary-annee').textContent = ins.annee;
+        document.getElementById('recap-eleve').textContent = ins.nom;
+    }
+
+    function formatAmount(value, devise) {
+        const n = Number(value);
+        const formatted = Number.isFinite(n) ? n.toFixed(2) : String(value || '—');
+        return devise ? `${formatted} ${devise}` : formatted;
+    }
+
+    function parseAmount(raw) {
+        if (raw === null || raw === undefined || raw === '') return null;
+        const n = Number(String(raw).replace(',', '.'));
+        return Number.isFinite(n) ? n : null;
+    }
+
+    function getSelectedFrais() {
+        const insId = eleveSelect.value;
+        if (!insId || !fraisSelect.value) return null;
+        return getFraisForInscription(insId)[fraisSelect.value] || null;
+    }
+
+    function updateFraisSoldeInfo() {
+        const frais = getSelectedFrais();
+        const soldePanel = document.getElementById('solde-panel');
+        const resteApresInput = document.getElementById('reste-apres-input');
+
+        if (!frais) {
+            soldePanel.style.display = 'none';
+            document.getElementById('recap-solde-total').textContent = '';
+            document.getElementById('recap-solde-paye').textContent = '';
+            document.getElementById('recap-reste').textContent = '';
+            document.getElementById('recap-reste-apres').textContent = '';
+            resteApresInput.value = '—';
+            if (fraisSoldeInfo) fraisSoldeInfo.style.display = 'none';
+            return;
+        }
+
+        const total = parseAmount(frais.montant_total) || 0;
+        const paye = parseAmount(frais.montant_paye) || 0;
+        const resteAvant = parseAmount(frais.montant_restant);
+        const reste = resteAvant === null ? Math.max(total - paye, 0) : Math.max(resteAvant, 0);
+
+        // Pour le reste après : utiliser l'équivalent USD si paiement en CDF
+        let montantPourSolde;
+        if (isPaiementEnCdf() && String(frais.devise).toUpperCase() === 'USD') {
+            montantPourSolde = getUsdEquivalent();
+            if (montantPourSolde === null) montantPourSolde = 0;
+        } else {
+            montantPourSolde = parseAmount(montantInput.value) || 0;
+        }
+        const resteApres = Math.max(reste - montantPourSolde, 0);
+
+        soldePanel.style.display = 'block';
+        document.getElementById('solde-total').textContent = formatAmount(total, frais.devise);
+        document.getElementById('solde-paye').textContent = formatAmount(paye, frais.devise);
+        document.getElementById('solde-reste').textContent = formatAmount(reste, frais.devise);
+        resteApresInput.value = formatAmount(resteApres, frais.devise);
+
+        if (fraisSoldeInfo) {
+            fraisSoldeInfo.style.display = 'block';
+            fraisSoldeInfo.innerHTML = `
+                <strong>Total :</strong> ${formatAmount(total, frais.devise)}
+                · <strong>Déjà payé :</strong> ${formatAmount(paye, frais.devise)}
+                · <strong style="color: var(--primary);">Reste à payer : ${formatAmount(reste, frais.devise)}</strong>
+            `;
+        }
+
+        document.getElementById('recap-solde-total').textContent = `Total du frais : ${formatAmount(total, frais.devise)}`;
+        document.getElementById('recap-solde-paye').textContent = `Déjà payé : ${formatAmount(paye, frais.devise)}`;
+        document.getElementById('recap-reste').textContent = `Reste dû : ${formatAmount(reste, frais.devise)}`;
+        document.getElementById('recap-reste-apres').textContent =
+            `Reste après encaissement : ${formatAmount(resteApres, frais.devise)}`;
+    }
+
+    function applyFraisDefaults() {
+        const frais = getSelectedFrais();
+        if (!frais) {
+            document.getElementById('recap-frais').textContent = '—';
+            updateFraisSoldeInfo();
+            return;
+        }
+        const reste = parseAmount(frais.montant_restant);
+        // Ne pas préremplir / plafonner si on est déjà en mode CDF
+        if (!isPaiementEnCdf()) {
+            montantInput.value = reste === null ? frais.montant_total : frais.montant_restant;
+            montantInput.max = reste === null ? frais.montant_total : frais.montant_restant;
+            if (frais.devise_id) {
+                deviseSelect.value = String(frais.devise_id);
+            }
+        } else {
+            montantInput.removeAttribute('max');
+        }
+        document.getElementById('recap-frais').textContent = frais.libelle;
+        updateFraisSoldeInfo();
+        updateRecap();
+    }
+
+    function onEleveChanged() {
+        filterFraisOptions();
+        updateEleveSummary();
+        fraisSelect.value = '';
+        montantInput.value = '';
+        montantInput.removeAttribute('max');
+        if (fraisSoldeInfo) fraisSoldeInfo.style.display = 'none';
+        updateFraisSoldeInfo();
+        updateRecap();
+    }
+
+    function applyConversion() {
+        const enCdf = isPaiementEnCdf();
+        const frais = getSelectedFrais();
+        const fraisDevise = (frais && frais.devise) ? String(frais.devise).toUpperCase() : 'USD';
+
+        if (equivalentUsdField) {
+            equivalentUsdField.style.display = enCdf ? '' : 'none';
+        }
+        if (conversionFields) {
+            conversionFields.style.display = enCdf ? 'block' : 'none';
+        }
+
+        if (labelMontantPaye) {
+            labelMontantPaye.textContent = enCdf ? 'Montant encaissé (CDF)' : 'Montant encaissé';
+        }
+        if (helpMontantPaye) {
+            helpMontantPaye.textContent = enCdf
+                ? 'Saisissez le montant reçu en francs. L\'équivalent dollars s\'affiche à côté.'
+                : 'Montant crédité sur le frais (devise du frais).';
+        }
+
+        if (!enCdf) {
+            if (montantInput) {
+                montantInput.readOnly = false;
+                montantInput.removeAttribute('max');
+            }
+            if (deviseSelect) deviseSelect.disabled = false;
+            if (equivalentUsdInput) equivalentUsdInput.value = '—';
+            if (conversionResult) conversionResult.innerHTML = '';
+            if (recapConversion) recapConversion.textContent = '';
+            updateFraisSoldeInfo();
+            updateRecapBasic();
+            return;
+        }
+
+        // Synchroniser checkbox + devise CDF
+        if (payerEnFrancs && !payerEnFrancs.checked) {
+            syncingConversion = true;
+            payerEnFrancs.checked = true;
+            syncingConversion = false;
+        }
+        if (deviseSelect && selectedDeviseCode() !== 'CDF') {
+            for (let i = 0; i < deviseSelect.options.length; i++) {
+                if ((deviseSelect.options[i].text || '').toUpperCase().includes('CDF')) {
+                    syncingConversion = true;
+                    deviseSelect.selectedIndex = i;
+                    syncingConversion = false;
+                    break;
+                }
+            }
+        }
+
+        // Si montant en francs vide, reprendre la saisie du montant encaissé
+        if (montantFrancsInput && !montantFrancsInput.value && montantInput && montantInput.value) {
+            syncingConversion = true;
+            montantFrancsInput.value = montantInput.value;
+            syncingConversion = false;
+        }
+
+        const cdf = getCdfAmount();
+        const taux = getTaux();
+        const usd = getUsdEquivalent();
+
+        if (cdf === null || taux === null || taux <= 0 || usd === null) {
+            if (equivalentUsdInput) equivalentUsdInput.value = '—';
+            if (conversionResult) {
+                conversionResult.innerHTML = '<span style="color:var(--text-muted);">Saisissez le montant en CDF et le taux pour voir l\'équivalent en dollars.</span>';
+            }
+            if (recapConversion) recapConversion.textContent = '';
+            // Ne pas valider le max HTML sur les francs (reste dû est en USD)
+            if (montantInput) montantInput.removeAttribute('max');
+            updateFraisSoldeInfo();
+            updateRecapBasic();
+            return;
+        }
+
+        if (equivalentUsdInput) {
+            equivalentUsdInput.value = usd.toFixed(2) + ' USD';
+        }
+
+        // Garder montant_paye = francs saisis pour l'affichage ; le serveur convertit.
+        // Aussi remplir montant_en_francs.
+        if (montantFrancsInput && parseAmount(montantFrancsInput.value) === null && montantInput) {
+            syncingConversion = true;
+            montantFrancsInput.value = Number(cdf).toFixed(2);
+            syncingConversion = false;
+        }
+        if (montantInput && montantFrancsInput && montantFrancsInput.value) {
+            // Afficher les francs dans montant encaissé pour clarté
+            if (document.activeElement !== montantInput) {
+                syncingConversion = true;
+                montantInput.value = Number(cdf).toFixed(2);
+                syncingConversion = false;
+            }
+            montantInput.readOnly = false;
+            montantInput.removeAttribute('max');
+        }
+
+        if (conversionResult) {
+            conversionResult.innerHTML =
+                `<strong>${formatAmount(cdf, 'CDF')}</strong> ÷ taux <strong>${taux}</strong>` +
+                ` = <strong style="color:var(--primary);">${formatAmount(usd, 'USD')}</strong>` +
+                (fraisDevise === 'USD'
+                    ? ' — ce montant USD sera crédité sur le frais'
+                    : '');
+        }
+        if (recapConversion) {
+            recapConversion.textContent =
+                `Reçu ${formatAmount(cdf, 'CDF')} → ${formatAmount(usd, 'USD')} (taux ${taux})`;
+        }
+        updateFraisSoldeInfo();
+        updateRecapBasic();
+    }
+
+    function updateRecapBasic() {
+        const enCdf = isPaiementEnCdf();
+        const usd = getUsdEquivalent();
+        if (enCdf && usd !== null) {
+            document.getElementById('recap-montant').textContent = usd.toFixed(2);
+            document.getElementById('recap-devise').textContent = 'Devise créditée : USD (converti)';
+        } else {
+            const montant = montantInput.value || '—';
+            const devise = deviseSelect.options[deviseSelect.selectedIndex]?.text || '';
+            document.getElementById('recap-montant').textContent = montant === '—' ? '—' : montant;
+            document.getElementById('recap-devise').textContent = devise ? `Devise : ${devise}` : '';
+        }
+        document.getElementById('recap-statut').textContent =
+            statutSelect.options[statutSelect.selectedIndex]?.text || '—';
+    }
+
+    function toggleReferenceField() {
+        const isCash = modeSelect.value === 'ESPECES';
+        referenceGroup.style.opacity = isCash ? '0.65' : '1';
+        document.getElementById('recap-mode').textContent =
+            modeSelect.options[modeSelect.selectedIndex]?.text || '—';
+    }
+
+    function updateRecap() {
+        if (syncingConversion) return;
+        applyConversion();
+    }
+
+    // Avant submit : s'assurer que montant_en_francs est rempli si CDF
+    document.getElementById('paiement-form').addEventListener('submit', function () {
+        if (deviseSelect) deviseSelect.disabled = false;
+        if (montantInput) montantInput.readOnly = false;
+        if (isPaiementEnCdf() && montantFrancsInput) {
+            const cdf = getCdfAmount();
+            if (cdf !== null) {
+                montantFrancsInput.value = Number(cdf).toFixed(2);
+            }
+            if (payerEnFrancs) payerEnFrancs.checked = true;
+        }
+    });
+
+    eleveInput.addEventListener('input', () => {
+        if (!eleveInput.value.trim()) {
+            eleveSelect.value = '';
+            onEleveChanged();
+        }
+        renderEleveDropdown(eleveInput.value);
+    });
+    eleveInput.addEventListener('focus', () => renderEleveDropdown(eleveInput.value));
+    document.addEventListener('click', (e) => {
+        if (!eleveInput.contains(e.target) && !eleveDropdown.contains(e.target)) {
+            eleveDropdown.style.display = 'none';
+            eleveInput.setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    fraisSelect.addEventListener('change', applyFraisDefaults);
+    montantInput.addEventListener('input', function () {
+        if (syncingConversion) return;
+        if (isPaiementEnCdf() && montantFrancsInput) {
+            syncingConversion = true;
+            montantFrancsInput.value = montantInput.value;
+            syncingConversion = false;
+        }
+        updateRecap();
+    });
+    deviseSelect.addEventListener('change', function () {
+        if (syncingConversion) return;
+        if (selectedDeviseCode() === 'CDF' && payerEnFrancs) {
+            payerEnFrancs.checked = true;
+        }
+        updateRecap();
+    });
+    modeSelect.addEventListener('change', toggleReferenceField);
+    statutSelect.addEventListener('change', updateRecap);
+    if (payerEnFrancs) {
+        payerEnFrancs.addEventListener('change', function () {
+            if (syncingConversion) return;
+            if (payerEnFrancs.checked) {
+                // Basculer devise sur CDF
+                for (let i = 0; i < deviseSelect.options.length; i++) {
+                    if ((deviseSelect.options[i].text || '').toUpperCase().includes('CDF')) {
+                        syncingConversion = true;
+                        deviseSelect.selectedIndex = i;
+                        syncingConversion = false;
+                        break;
+                    }
+                }
+            } else {
+                const frais = getSelectedFrais();
+                if (frais && frais.devise_id) {
+                    syncingConversion = true;
+                    deviseSelect.value = String(frais.devise_id);
+                    syncingConversion = false;
+                }
+            }
+            updateRecap();
+        });
+    }
+    if (montantFrancsInput) {
+        montantFrancsInput.addEventListener('input', function () {
+            if (syncingConversion) return;
+            if (montantInput) {
+                syncingConversion = true;
+                montantInput.value = montantFrancsInput.value;
+                syncingConversion = false;
+            }
+            updateRecap();
+        });
+    }
+    if (tauxSaisiInput) tauxSaisiInput.addEventListener('input', updateRecap);
+
+    if (eleveSelect.value) {
+        const ins = inscriptionMap[eleveSelect.value];
+        if (ins) eleveInput.value = ins.label;
+    }
+    filterFraisOptions();
+    updateEleveSummary();
+    applyFraisDefaults();
+    toggleReferenceField();
+    updateRecap();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Demande de congé{% endblock %}
+{% block page_title %}Demander un congé{% endblock %}
+{% block page_subtitle %}Saisissez les dates et le motif de l'absence.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'grh:conge_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{% url 'grh:conge_list' as list_url %}
+<div class="qb-form">
+    {% if personnel_count is not None %}
+    <div class="qb-form__status">
+        <div class="qb-form__status-item {% if personnel_count > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">👥</span>
+            <div>
+                <div class="qb-form__status-label">Personnel</div>
+                <div class="qb-form__status-value">{{ personnel_count }}</div>
+                <div class="qb-form__status-meta">
+                    {% if personnel_count == 0 %}
+                    <a href="{% url 'grh:personnel_create' %}">Créer une fiche personnel</a>
+                    {% else %}Membres enregistrés{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="qb-form__status-item {% if conges_en_attente_count > 0 %}qb-form__status-item--warn{% else %}qb-form__status-item--ok{% endif %}">
+            <span class="qb-form__status-icon">⏳</span>
+            <div>
+                <div class="qb-form__status-label">En attente</div>
+                <div class="qb-form__status-value">{{ conges_en_attente_count }}</div>
+                <div class="qb-form__status-meta">Demandes à traiter</div>
+            </div>
+        </div>
+        <div class="qb-form__status-item qb-form__status-item--ok">
+            <span class="qb-form__status-icon">✅</span>
+            <div>
+                <div class="qb-form__status-label">Approuvés</div>
+                <div class="qb-form__status-value">{{ conges_approuves_count }}</div>
+                <div class="qb-form__status-meta">Congés validés</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Demande de congé</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.personnel %}
+                        {% include 'includes/form_field.html' with field=form.type_conge %}
+                        {% include 'includes/form_field.html' with field=form.date_debut %}
+                        {% include 'includes/form_field.html' with field=form.date_fin %}
+                    </div>
+                    {% include 'includes/form_field.html' with field=form.motif full_width=True %}
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with cancel_url=list_url submit_label="Soumettre la demande" %}
+                </div>
+            </div>
+            <aside class="qb-form__sidebar">
+                <div class="panel">
+                    <div class="qb-form__sidebar-head">
+                        <h3>Soumission</h3>
+                        <p>La demande sera enregistrée avec le statut « En attente ».</p>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}

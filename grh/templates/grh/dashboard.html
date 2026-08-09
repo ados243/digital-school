@@ -1,0 +1,216 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Tableau de bord GRH{% endblock %}
+
+{% block page_title %}Tableau de bord GRH{% endblock %}
+{% block page_subtitle %}Vue d'ensemble de la gestion des ressources humaines.{% endblock %}
+
+{% block header_actions %}
+    {% if total_personnel == 0 %}
+        <a href="{% url 'grh:generer_demo' %}" class="btn btn-success">⚙️ Générer Données Démo</a>
+    {% else %}
+        <a href="{% url 'grh:generer_demo' %}" class="btn btn-secondary btn-sm">Réinitialiser Données Démo</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- KPI Cards -->
+<section class="kpi-grid">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Membres du Personnel</div>
+            <div class="kpi-value">{{ total_personnel }}</div>
+        </div>
+        <div class="kpi-footer">👥 Employés inscrits</div>
+    </div>
+    
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Contrats Actifs</div>
+            <div class="kpi-value">{{ contrats_actifs }}</div>
+        </div>
+        <div class="kpi-footer">📄 Contrats de travail signés</div>
+    </div>
+    
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Congés en attente</div>
+            <div class="kpi-value">{{ conges_en_attente }}</div>
+        </div>
+        <div class="kpi-footer">📅 Demandes à valider</div>
+    </div>
+    
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Masse Salariale (Mois)</div>
+            <div class="kpi-value" style="font-size: 1.4rem; font-weight: 700; margin-top: 0.5rem;">
+                {{ total_paie_mensuelle_usd }} USD <br>
+                {{ total_paie_mensuelle_cdf|filesizeformat|slice:":-2" }} CDF
+                <!-- wait, we can just display the numbers directly -->
+                <span style="font-size: 1.2rem; display:block; margin-top:0.25rem;">{{ total_paie_mensuelle_cdf }} CDF</span>
+            </div>
+        </div>
+        <div class="kpi-footer">💳 Total net payé/dû</div>
+    </div>
+</section>
+
+{% if total_personnel == 0 %}
+<div class="panel" style="border: 2px dashed var(--primary); text-align: center; padding: 3rem;">
+    <h2>Base de données vide</h2>
+    <p style="color: var(--text-muted); margin: 1rem 0 2rem 0;">
+        Il semble qu'aucun membre du personnel n'ait été enregistré. 
+        Pour tester rapidement toutes les fonctionnalités (Contrats, Présences, Congés, Fiches de paie), 
+        cliquez sur le bouton ci-dessous afin de générer un jeu de données de test réaliste.
+    </p>
+    <a href="{% url 'grh:generer_demo' %}" class="btn btn-primary" style="padding: 1rem 2rem; font-size: 1rem;">
+        ⚡ Générer les données de démonstration
+    </a>
+</div>
+{% else %}
+
+<!-- Today's Attendance Panel -->
+<div class="panel">
+    <div class="panel-header">
+        <h3>Statut des Présences Aujourd'hui ({{ today|date:"d F Y" }})</h3>
+        <a href="{% url 'grh:presence_list' %}" class="btn btn-secondary btn-sm">Gérer les Pointages</a>
+    </div>
+    <div class="panel-body">
+        <div style="display: flex; gap: 2rem; justify-content: space-around; text-align: center;">
+            <div>
+                <div style="font-size: 2.2rem; font-weight: 700; color: var(--success);">{{ nb_presents }}</div>
+                <div style="color: var(--text-muted); font-size: 0.9rem; font-weight:600;">PRÉSENTS</div>
+            </div>
+            <div>
+                <div style="font-size: 2.2rem; font-weight: 700; color: var(--warning);">{{ nb_retards }}</div>
+                <div style="color: var(--text-muted); font-size: 0.9rem; font-weight:600;">RETARDS</div>
+            </div>
+            <div>
+                <div style="font-size: 2.2rem; font-weight: 700; color: var(--danger);">{{ nb_absents }}</div>
+                <div style="color: var(--text-muted); font-size: 0.9rem; font-weight:600;">ABSENTS</div>
+            </div>
+            <div>
+                <div style="font-size: 2.2rem; font-weight: 700; color: var(--secondary);">{{ nb_conges }}</div>
+                <div style="color: var(--text-muted); font-size: 0.9rem; font-weight:600;">EN CONGÉ</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dashboard Grid (Split) -->
+<div class="dashboard-grid">
+    <!-- Left Column: Leaves and Payroll -->
+    <div>
+        <!-- Leaves -->
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Dernières demandes de congés</h3>
+                <a href="{% url 'grh:conge_list' %}" class="btn btn-secondary btn-sm">Voir tout</a>
+            </div>
+            <div class="panel-body table-responsive" style="padding: 0;">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Personnel</th>
+                            <th>Type</th>
+                            <th>Période</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for conge in recent_conges %}
+                        <tr>
+                            <td><strong>{{ conge.personnel.prenom }} {{ conge.personnel.nom }}</strong></td>
+                            <td>{{ conge.get_type_conge_display }}</td>
+                            <td>Du {{ conge.date_debut|date:"d/m" }} au {{ conge.date_fin|date:"d/m/Y" }}</td>
+                            <td>
+                                {% if conge.statut == 'APPROUVE' %}
+                                <span class="badge badge-success">Approuvé</span>
+                                {% elif conge.statut == 'REJETE' %}
+                                <span class="badge badge-danger">Rejeté</span>
+                                {% else %}
+                                <span class="badge badge-warning">En attente</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: var(--text-muted);">Aucune demande enregistrée</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Payrolls -->
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Derniers bulletins de paie générés</h3>
+                <a href="{% url 'grh:paie_list' %}" class="btn btn-secondary btn-sm">Gérer la paie</a>
+            </div>
+            <div class="panel-body table-responsive" style="padding: 0;">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Personnel</th>
+                            <th>Mois</th>
+                            <th>Net à Payer</th>
+                            <th>Paiement</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for paie in recent_paies %}
+                        <tr>
+                            <td><strong>{{ paie.personnel.prenom }} {{ paie.personnel.nom }}</strong></td>
+                            <td>{{ paie.mois }}/{{ paie.annee }}</td>
+                            <td>{{ paie.net_a_payer }} {{ paie.devise.devise }}</td>
+                            <td>
+                                {% if paie.statut_paiement == 'PAYE' %}
+                                <span class="badge badge-success">Payé</span>
+                                {% elif paie.statut_paiement == 'ANNULE' %}
+                                <span class="badge badge-danger">Annulé</span>
+                                {% else %}
+                                <span class="badge badge-warning">En attente</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: var(--text-muted);">Aucune fiche de paie générée</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Right Column: Recent Hires -->
+    <div>
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Personnel Récemment Ajouté</h3>
+                <a href="{% url 'grh:personnel_list' %}" class="btn btn-secondary btn-sm">Liste complète</a>
+            </div>
+            <div class="panel-body" style="padding: 1rem;">
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    {% for emp in recent_personnel %}
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; border-radius: var(--radius-sm); transition: var(--transition);">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem;">
+                            {{ emp.prenom|slice:":1" }}{{ emp.nom|slice:":1" }}
+                        </div>
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.95rem;">{{ emp.prenom }} {{ emp.nom }}</div>
+                            <div style="color: var(--text-muted); font-size: 0.8rem;">{{ emp.fonction }} ({{ emp.matricule }})</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div style="text-align: center; color: var(--text-muted); padding: 1rem;">Aucun employé</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

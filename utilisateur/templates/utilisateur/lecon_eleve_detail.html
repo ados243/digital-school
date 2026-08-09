@@ -1,0 +1,133 @@
+{% extends 'portal_base.html' %}
+{% load elearning_tags %}
+
+{% block title %}{{ lecon.titre }}{% endblock %}
+{% block portal_main_class %}portal-main--wide{% endblock %}
+
+{% block content %}
+<div class="ll-shell ll-player-page">
+    <div class="ll-player-bar">
+        <div>
+            <a href="{% url 'utilisateur:cours_eleve_detail' cours.id %}" class="ll-back">← {{ cours.titre|truncatechars:36 }}</a>
+            {% if chapitre %}
+            <div style="margin-top:.35rem;">
+                <a href="{% url 'utilisateur:chapitre_eleve_detail' chapitre.id %}" class="ll-back" style="font-size:.85rem;">
+                    Chapitre {{ chapitre.ordre }} — {{ chapitre.titre|truncatechars:40 }}
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        <div class="ll-progress ll-progress--compact ll-progress--on-dark">
+            <div class="ll-progress__label"><span>Progression</span><strong>{{ progression_pct }} %</strong></div>
+            <div class="ll-progress__bar"><div style="width:{{ progression_pct }}%"></div></div>
+        </div>
+    </div>
+
+    <div class="ll-player-grid">
+        <div class="ll-player-main">
+            {% with embed=lecon.video_url|video_embed %}
+            {% if embed %}
+            <div class="ll-video">
+                <iframe src="{{ embed }}" title="{{ lecon.titre }}" allowfullscreen
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
+            </div>
+            {% elif lecon.video_url %}
+            <div class="ll-video ll-video--link">
+                <a href="{{ lecon.video_url }}" target="_blank" rel="noopener" class="btn btn-primary">Ouvrir la vidéo</a>
+            </div>
+            {% elif lecon.image %}
+            <div class="ll-video ll-video--image">
+                <img src="{{ lecon.image.url }}" alt="{{ lecon.titre }}">
+            </div>
+            {% else %}
+            <div class="ll-video ll-video--reading">
+                <div>
+                    <span class="ll-pill ll-pill--light">{{ lecon.get_type_contenu_display }}</span>
+                    <h2>{{ lecon.titre }}</h2>
+                    <p>{{ lecon.duree_affichee }} de lecture</p>
+                </div>
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <div class="ll-player-article">
+                <div class="ll-player__meta">
+                    <span class="ll-pill">{{ lecon.get_type_contenu_display }}</span>
+                    {% if chapitre %}<span>Ch. {{ chapitre.ordre }}.{{ lecon.ordre }}</span>{% endif %}
+                    <span>{{ lecon_index }} / {{ lecons_total }}</span>
+                    <span>{{ lecon.duree_affichee }}</span>
+                    {% if progression.terminee %}<span class="ll-pill" style="background:var(--success-light);color:var(--primary-hover);">Terminé</span>{% endif %}
+                </div>
+                <h1>{{ lecon.titre }}</h1>
+                {% if lecon.resume %}<p class="ll-lead">{{ lecon.resume }}</p>{% endif %}
+
+                {% if lecon.image and lecon.video_url %}
+                <p style="margin:1rem 0;"><img src="{{ lecon.image.url }}" alt="" style="max-width:100%;border-radius:8px;"></p>
+                {% endif %}
+
+                {% if lecon.contenu %}
+                <div class="ll-prose ll-prose--lesson">{{ lecon.contenu|linebreaks }}</div>
+                {% endif %}
+
+                {% if lecon.fichier %}
+                <div class="ll-resource">
+                    <div>
+                        <strong>Ressource téléchargeable</strong>
+                        <div class="ll-muted">Document joint</div>
+                    </div>
+                    <a href="{{ lecon.fichier.url }}" target="_blank" class="btn btn-secondary btn-sm">Télécharger</a>
+                </div>
+                {% endif %}
+
+                <div class="ll-player__actions">
+                    {% if prev_lecon %}
+                    <a href="{% url 'utilisateur:lecon_eleve_detail' prev_lecon.id %}" class="btn btn-secondary">← Précédent</a>
+                    {% else %}<span></span>{% endif %}
+                    <div class="ll-player__actions-right">
+                        {% if not progression.terminee %}
+                        <form method="post">{% csrf_token %}
+                            <input type="hidden" name="action" value="terminer">
+                            <button type="submit" class="btn btn-primary">
+                                {% if next_lecon %}Terminer et continuer{% else %}Marquer comme terminé{% endif %}
+                            </button>
+                        </form>
+                        {% elif next_lecon %}
+                        <a href="{% url 'utilisateur:lecon_eleve_detail' next_lecon.id %}" class="btn btn-primary">Suivant →</a>
+                        {% else %}
+                        <a href="{% url 'utilisateur:cours_eleve_detail' cours.id %}" class="btn btn-primary">Cours terminé ✓</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <aside class="ll-player-aside">
+            <div class="ll-curriculum ll-curriculum--dark">
+                <div class="ll-curriculum__head">
+                    <h2>Programme</h2>
+                    <span>{{ progression_pct }} %</span>
+                </div>
+                {% for ch in chapters_rows %}
+                <div class="ll-curr-ch">
+                    <div class="ll-curr-ch__title">Ch. {{ ch.chapitre.ordre }} — {{ ch.chapitre.titre }}</div>
+                    <ol class="ll-curriculum__list">
+                        {% for row in ch.sous_rows %}
+                        <li>
+                            <a href="{% url 'utilisateur:lecon_eleve_detail' row.lecon.id %}"
+                               class="ll-curriculum__item {% if row.lecon.id == lecon.id %}is-current{% endif %} {% if row.terminee %}is-done{% elif row.vue %}is-seen{% endif %}">
+                                <span class="ll-curriculum__icon">{% if row.terminee %}✓{% else %}{{ row.lecon.type_contenu|type_lecon_icon }}{% endif %}</span>
+                                <span class="ll-curriculum__text">
+                                    <strong>{{ ch.chapitre.ordre }}.{{ row.lecon.ordre }} {{ row.lecon.titre }}</strong>
+                                    <small>{{ row.lecon.duree_affichee }}</small>
+                                </span>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ol>
+                </div>
+                {% endfor %}
+            </div>
+        </aside>
+    </div>
+</div>
+{% endblock %}

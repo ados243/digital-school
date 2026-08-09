@@ -1,0 +1,204 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Espace enseignant{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Bonjour {{ request.user.prenom }}</h1>
+    <p>
+        {% if personnel %}
+        Espace titulaire — {{ personnel.prenom }} {{ personnel.nom }} · {{ personnel.matricule }}
+        {% if annee_courante %} · Année {{ annee_courante.anne_scolaire }}{% endif %}
+        {% else %}
+        Votre compte n'est pas encore rattaché à une fiche personnel.
+        {% endif %}
+    </p>
+</div>
+
+{% if not personnel %}
+<div class="panel">
+    <div class="portal-empty">
+        Aucune fiche personnel liée à votre compte.<br>
+        Demandez à l'administration de créer votre fiche GRH et de l'associer à votre matricule lors de l'inscription.
+    </div>
+</div>
+{% else %}
+
+<section class="kpi-grid" style="margin-bottom: 1.75rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Mes classes</div>
+            <div class="kpi-value">{{ total_classes }}</div>
+        </div>
+        <div class="kpi-footer">Salles dont vous êtes titulaire</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Mes élèves</div>
+            <div class="kpi-value">{{ total_eleves }}</div>
+        </div>
+        <div class="kpi-footer">Inscrits cette année</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Mes matières</div>
+            <div class="kpi-value">{{ matieres|length }}</div>
+        </div>
+        <div class="kpi-footer">Matières qui vous sont affectées</div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom: 1.5rem;">
+    <div class="panel-header">
+        <h3>Mes classes</h3>
+        <a href="{% url 'utilisateur:cours_enseignant_list' %}" class="btn btn-secondary btn-sm">Cours en ligne</a>
+        <a href="{% url 'utilisateur:travail_list' %}" class="btn btn-secondary btn-sm">Travaux cotés</a>
+    </div>
+    <div class="panel-body" style="padding: 1rem;">
+        {% if classes_data %}
+        <div class="portal-class-grid">
+            {% for item in classes_data %}
+            <a href="{% url 'utilisateur:enseignant_classe' item.classe.id %}" class="portal-class-card">
+                <div class="portal-class-card__title">{{ item.classe.classe }}</div>
+                <div class="portal-class-card__meta">
+                    {{ item.classe.section.section }} · Salle {{ item.classe.salle }}
+                </div>
+                <div class="portal-class-card__stats">
+                    <span><strong>{{ item.inscrits }}</strong> / {{ item.classe.capacite_max }} élèves</span>
+                    <span>{{ item.garcons }} G · {{ item.filles }} F</span>
+                </div>
+                <div class="portal-class-card__bar">
+                    <div style="width: {{ item.percent }}%;"></div>
+                </div>
+                <div class="portal-class-card__footer">Voir les élèves →</div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="portal-empty">
+            Aucune classe ne vous est encore affectée en tant que titulaire.<br>
+            L'administration peut vous désigner titulaire depuis la fiche de la classe.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% for item in classes_data %}
+<div class="panel" style="margin-bottom: 1.5rem;">
+    <div class="panel-header">
+        <h3>Élèves — {{ item.classe.classe }}</h3>
+        <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+            <span class="badge badge-info">{{ item.inscrits }} élève{{ item.inscrits|pluralize }}</span>
+            <a href="{% url 'utilisateur:enseignant_classe' item.classe.id %}" class="btn btn-secondary btn-sm">Fiche classe</a>
+            <a href="{% url 'utilisateur:evolution_classe' item.classe.id %}" class="btn btn-secondary btn-sm">📈 Évolution</a>
+            {% if item.role == 'titulaire' %}
+            <a href="{% url 'utilisateur:presence_classe' item.classe.id %}" class="btn btn-primary btn-sm">📋 Présence</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Matricule</th>
+                    <th>Élève</th>
+                    <th>Sexe</th>
+                    <th>Tuteur / parent</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for eleve in item.eleves %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td><span style="font-family: monospace; font-weight: 700; color: var(--primary);">{{ eleve.matricule }}</span></td>
+                    <td><strong>{{ eleve.prenom }} {{ eleve.nom }} {{ eleve.Post_nom }}</strong></td>
+                    <td>{{ eleve.get_sexe_display }}</td>
+                    <td>
+                        {% if eleve.titeur %}
+                        {{ eleve.titeur.prenom }} {{ eleve.titeur.nom }}
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align:center; color: var(--text-muted); padding: 2rem;">
+                        {% if not annee_courante %}
+                        Aucune année scolaire en cours.
+                        {% else %}
+                        Aucun élève inscrit dans cette classe.
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endfor %}
+
+{% if matieres %}
+<div class="panel" style="margin-bottom: 1.5rem;">
+    <div class="panel-header"><h3>Mes matières</h3></div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Matière</th>
+                    <th>Section</th>
+                    <th>Coefficient</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in matieres %}
+                <tr>
+                    <td><span class="font-mono">{{ m.code }}</span></td>
+                    <td><strong>{{ m.libelle }}</strong></td>
+                    <td>{{ m.section.section }}</td>
+                    <td>{{ m.coefficient }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% if travaux_recents %}
+<div class="panel">
+    <div class="panel-header">
+        <h3>Travaux récents</h3>
+        <a href="{% url 'utilisateur:travail_list' %}" class="btn btn-secondary btn-sm">Tout voir</a>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Matière</th>
+                    <th>Classe</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in travaux_recents %}
+                <tr>
+                    <td>{{ t.date_travail|date:"d/m/Y" }}</td>
+                    <td><span class="badge badge-info">{{ t.get_type_travail_display }}</span></td>
+                    <td>{{ t.matiere.libelle }}</td>
+                    <td>{{ t.classe.classe }}</td>
+                    <td style="text-align:right;">
+                        <a href="{% url 'utilisateur:travail_notes' t.id %}" class="btn btn-primary btn-sm">Notes</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

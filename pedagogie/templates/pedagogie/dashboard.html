@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+
+{% block title %}Pédagogie & Classes{% endblock %}
+
+{% block page_title %}Pédagogie & Classes{% endblock %}
+{% block page_subtitle %}Gestion des matières, des coefficients et de l'organisation pédagogique par section.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'pedagogie:periodes_bulletin' %}" class="btn btn-secondary">📅 Calendrier / en cours</a>
+<a href="{% url 'pedagogie:matiere_create' %}" class="btn btn-primary" style="margin-left: 0.5rem;">➕ Nouvelle Matière</a>
+<a href="{% url 'inscription:classe_create' %}?next={% url 'pedagogie:dashboard' %}" class="btn btn-secondary" style="margin-left: 0.5rem;">🏫 Nouvelle Classe</a>
+{% endblock %}
+
+{% block content %}
+<!-- KPI Cards -->
+<section class="kpi-grid">
+    <a href="{% url 'pedagogie:matiere_list' %}" class="kpi-card kpi-card--link">
+        <div>
+            <div class="kpi-title">Total Matières</div>
+            <div class="kpi-value">{{ stats.total_matieres }}</div>
+        </div>
+        <div class="kpi-footer">📖 Voir la liste des matières →</div>
+    </a>
+    
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Classes gérées</div>
+            <div class="kpi-value">{{ stats.total_classes }}</div>
+        </div>
+        <div class="kpi-footer">🏫 Classes d'élèves enregistrées</div>
+    </div>
+    
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Sections pédagogiques</div>
+            <div class="kpi-value">{{ stats.total_sections }}</div>
+        </div>
+        <div class="kpi-footer">🗂️ Cycles et sections actifs</div>
+    </div>
+
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Élèves inscrits</div>
+            <div class="kpi-value">{{ stats.total_inscrits }}</div>
+        </div>
+        <div class="kpi-footer">
+            {% if stats.annee_courante %}
+            📅 Année {{ stats.annee_courante.anne_scolaire }}
+            {% else %}
+            ⚠️ Aucune année scolaire en cours
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Classes complètes</div>
+            <div class="kpi-value">{{ stats.classes_completes }}</div>
+        </div>
+        <div class="kpi-footer">🔴 Capacité maximale atteinte</div>
+    </div>
+
+    <a href="{% url 'pedagogie:periodes_bulletin' %}" class="kpi-card kpi-card--link">
+        <div>
+            <div class="kpi-title">Périodes / divisions en cours</div>
+            <div class="kpi-value">{{ calendrier_encours.lignes|length }}</div>
+        </div>
+        <div class="kpi-footer">📅 Voir trimestres, semestres et périodes →</div>
+    </a>
+</section>
+
+<!-- Calendrier en cours -->
+<section class="panel" style="margin-top:2rem;">
+    <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+        <h3 style="margin:0;">📅 Trimestres / semestres / périodes en cours</h3>
+        <a href="{% url 'pedagogie:periodes_bulletin' %}" class="btn btn-secondary btn-sm">Gérer le calendrier</a>
+    </div>
+    <div class="panel-body">
+        {% if not calendrier_encours.annee %}
+        <p style="margin:0; color:var(--text-muted);">Aucune année scolaire nationale en cours.</p>
+        {% elif not calendrier_encours.lignes %}
+        <p style="margin:0; color:var(--text-muted);">
+            Aucun trimestre, semestre ni période marqué en cours pour
+            <strong>{{ calendrier_encours.annee.anne_scolaire }}</strong>.
+            <a href="{% url 'pedagogie:periodes_bulletin' %}">Synchroniser ou marquer manuellement →</a>
+        </p>
+        {% else %}
+        <div class="table-responsive" style="padding:0;">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Cycle</th>
+                        <th>Trimestre / Semestre</th>
+                        <th>Période (TJ)</th>
+                        <th>Fin division</th>
+                        <th>Fin période</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ligne in calendrier_encours.lignes %}
+                    <tr>
+                        <td><strong>{{ ligne.cycle.get_cycle_display|default:ligne.cycle.cycle }}</strong></td>
+                        <td>
+                            {% if ligne.division %}
+                            <span class="badge badge-success">{{ ligne.division.libelle }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if ligne.periode %}
+                            <span class="badge badge-info">{{ ligne.periode.libelle }}</span>
+                            {% else %}
+                            <span style="color:var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                        <td>{% if ligne.division %}{{ ligne.division.date_fin|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                        <td>{% if ligne.periode %}{{ ligne.periode.date_fin|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p style="margin:0.75rem 0 0; font-size:0.85rem; color:var(--text-muted);">
+            Les éléments dont la date de fin est dépassée sont automatiquement retirés du statut « en cours ».
+        </p>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Main Sections Container -->
+<div style="display: flex; flex-direction: column; gap: 2rem; margin-top: 2rem;">
+    {% if not sections_data %}
+    <div class="panel" style="text-align: center; padding: 3rem;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">🎓</div>
+        <h2>Aucune section pédagogique configurée</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+            Commencez par créer des matières et des classes associées à vos sections pédagogiques.
+        </p>
+        <a href="{% url 'pedagogie:matiere_create' %}" class="btn btn-primary">Créer une matière</a>
+    </div>
+    {% else %}
+        {% for section, data in sections_data.items %}
+        <div class="panel">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 0.75rem;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.35rem; color: var(--primary);">📂 Section : {{ section.section }}</h3>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Cycle: {{ section.cycle }}</span>
+                </div>
+                <div style="text-align: right;">
+                    <span class="badge" style="background-color: var(--accent-light); color: var(--accent); font-weight: 600; padding: 0.35rem 0.65rem; border-radius: 4px; font-size: 0.85rem;">
+                        Coefficient global : <strong>{{ data.total_coefficient }}</strong>
+                    </span>
+                </div>
+            </div>
+            <div class="panel-body" style="padding-top: 1rem;">
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+                    
+                    <!-- Left: Subject List -->
+                    <div>
+                        <h4 style="margin-top: 0; margin-bottom: 0.75rem; font-size: 1.05rem; display: flex; align-items: center;">
+                            <span style="margin-right: 0.5rem;">📖</span> Matières enseignées ({{ data.matieres_count }})
+                        </h4>
+                        {% if not data.matieres %}
+                        <p style="color: var(--text-muted); font-style: italic; font-size: 0.9rem;">Aucune matière associée à cette section pour le moment.</p>
+                        {% else %}
+                        <div class="table-responsive">
+                            <table class="custom-table" style="font-size: 0.9rem;">
+                                <thead>
+                                    <tr>
+                                        <th>Code</th>
+                                        <th>Libellé</th>
+                                        <th style="text-align: center;">Coefficient</th>
+                                        <th style="text-align: right; width: 120px;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for m in data.matieres %}
+                                    <tr>
+                                        <td><strong>{{ m.code }}</strong></td>
+                                        <td>{{ m.libelle }}</td>
+                                        <td style="text-align: center; font-weight: bold; color: var(--secondary);">{{ m.coefficient }}</td>
+                                        <td style="text-align: right;">
+                                            <a href="{% url 'pedagogie:matiere_update' m.id %}" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.4rem; font-size: 0.8rem;" title="Modifier">✏️</a>
+                                            <a href="{% url 'pedagogie:matiere_delete' m.id %}" class="btn btn-danger btn-sm" style="padding: 0.2rem 0.4rem; font-size: 0.8rem; background-color: var(--danger);" title="Supprimer">🗑️</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Right: Classes List -->
+                    <div style="border-left: 1px solid var(--border-color); padding-left: 1.5rem;">
+                        <h4 style="margin-top: 0; margin-bottom: 0.75rem; font-size: 1.05rem; display: flex; align-items: center;">
+                            <span style="margin-right: 0.5rem;">🏫</span> Classes correspondantes ({{ data.classes_count }})
+                        </h4>
+                        {% if not data.classes %}
+                        <p style="color: var(--text-muted); font-style: italic; font-size: 0.9rem;">Aucune classe dans cette section.</p>
+                        {% else %}
+                        <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+                            {% for c in data.classes %}
+                            <li style="background: var(--bg-light); padding: 0.6rem; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid {% if c.is_full %}var(--danger){% else %}var(--secondary){% endif %};">
+                                <div>
+                                    <a href="{% url 'inscription:classe_detail' c.obj.id %}" style="text-decoration: none; color: inherit;">
+                                        <strong style="font-size: 0.95rem;">Classe {{ c.obj.classe }}</strong>
+                                    </a>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Salle: {{ c.obj.salle }}</div>
+                                    <div style="font-size: 0.75rem; margin-top: 0.25rem;">
+                                        <strong style="color: {% if c.is_full %}var(--danger){% else %}var(--primary){% endif %};">{{ c.inscrits }}/{{ c.obj.capacite_max }}</strong> élèves
+                                        {% if c.is_full %}<span style="color: var(--danger); font-weight: 600;"> — COMPLÈTE</span>{% endif %}
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 0.8rem; font-weight: 600;">{{ c.percent }}%</div>
+                                    <div style="display: flex; gap: 0.25rem; margin-top: 0.25rem;">
+                                        <a href="{% url 'inscription:classe_update' c.obj.id %}?next={% url 'pedagogie:dashboard' %}" style="font-size: 0.75rem; text-decoration: none;" title="Modifier la classe">✏️ Modif</a>
+                                    </div>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}

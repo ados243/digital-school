@@ -1,0 +1,44 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Annonces de la direction{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Annonces de la direction</h1>
+    <p>Messages officiels de l'école destinés aux parents.</p>
+</div>
+
+{% if nb_non_lus %}
+<p style="margin-bottom:1rem;">
+    <span class="badge badge-warning">{{ nb_non_lus }} non lu{{ nb_non_lus|pluralize }}</span>
+</p>
+{% endif %}
+
+<div class="panel">
+    <div class="panel-header"><h3>Messages reçus</h3></div>
+    <div class="panel-body" style="padding:0;">
+        {% if rows %}
+        <div class="msg-thread-list">
+            {% for row in rows %}
+            <a href="{% url 'utilisateur:parent_annonce_detail' row.communication.id %}" class="msg-thread-item {% if not row.lu %}msg-thread-item--unread{% endif %}">
+                <div class="msg-thread-item__main">
+                    <div class="msg-thread-item__title">
+                        {{ row.communication.sujet }}
+                        {% if not row.lu %}<span class="badge badge-danger">Nouveau</span>{% endif %}
+                    </div>
+                    <div class="msg-thread-item__meta">
+                        {{ row.communication.libelle_cible }}
+                        · {{ row.communication.ecole.ecole }}
+                    </div>
+                    <div class="msg-thread-item__preview">{{ row.communication.contenu|truncatechars:140 }}</div>
+                </div>
+                <div class="msg-thread-item__date">{{ row.communication.created_at|date:"d/m/Y H:i" }}</div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="portal-empty" style="padding:2.5rem;">Aucune annonce pour le moment.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

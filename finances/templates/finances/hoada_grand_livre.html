@@ -1,0 +1,90 @@
+﻿{% extends 'base.html' %}
+{% block title %}Grand livre{% endblock %}
+{% block page_title %}Grand livre (HOADA){% endblock %}
+{% block page_subtitle %}Toutes les écritures saisies, regroupées par compte.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:hoada_ecritures_create' %}" class="btn btn-primary">+ Nouvelle écriture</a>
+{% endblock %}
+
+{% block content %}
+{% if comptes %}
+<div class="qb-form__status" style="margin-bottom:1.25rem;">
+    <div class="qb-form__status-item qb-form__status-item--ok">
+        <span class="qb-form__status-icon" aria-hidden="true">📒</span>
+        <div>
+            <div style="font-size:.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em;">Comptes mouvementés</div>
+            <div style="font-weight:700;">{{ comptes|length }}</div>
+        </div>
+    </div>
+    <div class="qb-form__status-item qb-form__status-item--ok">
+        <span class="qb-form__status-icon" aria-hidden="true">↗</span>
+        <div>
+            <div style="font-size:.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em;">Total débits</div>
+            <div style="font-weight:700;">{{ total_debit }}</div>
+        </div>
+    </div>
+    <div class="qb-form__status-item qb-form__status-item--ok">
+        <span class="qb-form__status-icon" aria-hidden="true">↘</span>
+        <div>
+            <div style="font-size:.72rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em;">Total crédits</div>
+            <div style="font-weight:700;">{{ total_credit }}</div>
+        </div>
+    </div>
+</div>
+
+{% for entry in comptes %}
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+        <h3>{{ entry.compte.numero }} — {{ entry.compte.libelle }}</h3>
+        <span style="font-size:.8rem; color:var(--text-muted);">
+            Solde&nbsp;:
+            <strong style="color:{% if entry.solde >= 0 %}var(--primary-hover){% else %}var(--danger){% endif %};">
+                {{ entry.solde }}
+            </strong>
+        </span>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Journal</th>
+                    <th>Pièce</th>
+                    <th>Libellé</th>
+                    <th style="text-align:right;">Débit</th>
+                    <th style="text-align:right;">Crédit</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in entry.lignes %}
+                <tr>
+                    <td>{{ l.ecriture.date_ecriture|date:"d/m/Y" }}</td>
+                    <td>{{ l.ecriture.journal.code }}</td>
+                    <td>{{ l.ecriture.piece.reference|default:"-" }}</td>
+                    <td>{{ l.ecriture.libelle|default:"-" }}</td>
+                    <td style="text-align:right;">{% if l.sens == "DEBIT" %}{{ l.montant }}{% else %}-{% endif %}</td>
+                    <td style="text-align:right;">{% if l.sens == "CREDIT" %}{{ l.montant }}{% else %}-{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="background:var(--bg-light); font-weight:700;">
+                    <td colspan="4">Totaux du compte</td>
+                    <td style="text-align:right;">{{ entry.debit }}</td>
+                    <td style="text-align:right;">{{ entry.credit }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="panel">
+    <div class="panel-body" style="text-align:center; color:var(--text-muted); padding:3rem 1.5rem;">
+        <p style="margin-bottom:1rem;">Aucune écriture comptable pour cette école.</p>
+        <a href="{% url 'finances:hoada_ecritures_create' %}" class="btn btn-primary">Saisir une écriture</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

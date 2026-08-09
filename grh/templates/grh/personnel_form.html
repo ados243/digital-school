@@ -1,0 +1,91 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}Saisissez les informations personnelles et professionnelles.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'grh:personnel_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{% url 'grh:personnel_list' as list_url %}
+<div class="qb-form">
+    <form method="post" enctype="multipart/form-data" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Identité</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        <div class="form-field">
+                            <div class="form-field__row">
+                                <label class="form-field__label">Matricule</label>
+                                <div class="form-field__content">
+                                    <div class="form-field__control">
+                                        <input type="text" class="form-control" readonly
+                                               value="{% if personnel %}{{ personnel.matricule }}{% else %}Attribué à l'enregistrement{% endif %}">
+                                    </div>
+                                    <p class="form-help">Généré automatiquement (PER-000001).</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% include 'includes/form_field.html' with field=form.sexe %}
+                        {% include 'includes/form_field.html' with field=form.nom %}
+                        {% include 'includes/form_field.html' with field=form.Post_nom %}
+                        {% include 'includes/form_field.html' with field=form.prenom %}
+                        {% include 'includes/form_field.html' with field=form.date_de_naissance %}
+                        {% include 'includes/form_field.html' with field=form.nationalite %}
+                        {% include 'includes/form_field.html' with field=form.photo %}
+                    </div>
+                </div>
+                <div class="qb-form__section-head">Coordonnées &amp; fonction</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.fonction %}
+                        {% include 'includes/form_field.html' with field=form.telephone %}
+                        {% include 'includes/form_field.html' with field=form.quartier %}
+                        {% include 'includes/form_field.html' with field=form.adresse %}
+                    </div>
+                    <p class="form-help" style="margin-top:.5rem;">
+                        Le compte de connexion sera rattaché automatiquement lorsque ce membre du personnel créera son compte via la page d'inscription (profil « Corps professoral ») avec ce matricule.
+                    </p>
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with cancel_url=list_url submit_label="Enregistrer" %}
+                </div>
+            </div>
+            <aside class="qb-form__sidebar">
+                <div class="panel">
+                    <div class="qb-form__sidebar-head">
+                        <h3>Enregistrement</h3>
+                        <p>Le membre du personnel sera rattaché à votre établissement.</p>
+                    </div>
+                    <div class="panel-body">
+                        <ul class="qb-form__recap">
+                            <li><span>Matricule</span><strong>{% if personnel %}{{ personnel.matricule }}{% else %}Automatique{% endif %}</strong></li>
+                            <li><span>Fonction</span><strong id="recap-fonction">—</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const fonctionSelect = document.getElementById('id_fonction');
+    const recap = document.getElementById('recap-fonction');
+    if (!fonctionSelect || !recap) return;
+    function sync() {
+        recap.textContent = fonctionSelect.options[fonctionSelect.selectedIndex]?.text || '—';
+    }
+    fonctionSelect.addEventListener('change', sync);
+    sync();
+})();
+</script>
+{% endblock %}

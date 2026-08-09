@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}Nouvelle écriture{% endblock %}
+{% block page_title %}Nouvelle écriture comptable{% endblock %}
+{% block page_subtitle %}Saisie HOADA débit / crédit{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:hoada_ecritures_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{% url 'finances:hoada_ecritures_list' as list_url %}
+<div class="qb-form">
+    <div class="qb-form__status">
+        <div class="qb-form__status-item {% if comptes %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">📒</span>
+            <div>
+                <div class="qb-form__status-label">Comptes</div>
+                <div class="qb-form__status-value">{{ comptes|length }}</div>
+                <div class="qb-form__status-meta">
+                    {% if comptes %}Plan comptable de l'école{% else %}
+                    <a href="{% url 'finances:hoada_plan_comptable_create' %}">Créer un compte</a>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="qb-form__status-item {% if journaux %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">📓</span>
+            <div>
+                <div class="qb-form__status-label">Journaux</div>
+                <div class="qb-form__status-value">{{ journaux|length }}</div>
+                <div class="qb-form__status-meta">
+                    {% if journaux %}Disponibles pour la saisie{% else %}
+                    <a href="{% url 'finances:hoada_journaux_create' %}">Créer un journal</a>{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="qb-form__status-item qb-form__status-item--ok">
+            <span class="qb-form__status-icon">🧾</span>
+            <div>
+                <div class="qb-form__status-label">Pièces</div>
+                <div class="qb-form__status-value">{{ pieces|length }}</div>
+                <div class="qb-form__status-meta">Pièces justificatives enregistrées</div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" id="ecriture-form" class="form-horizontal">
+        {% csrf_token %}
+        <input type="hidden" name="line_count" value="{{ line_count }}">
+        {% if error %}<div class="alert alert-danger form-alert">{{ error }}</div>{% endif %}
+
+        <div class="qb-form__layout">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">En-tête de l'écriture</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.date_ecriture %}
+                        {% include 'includes/form_field.html' with field=form.journal %}
+                        {% include 'includes/form_field.html' with field=form.piece %}
+                        {% include 'includes/form_field.html' with field=form.libelle %}
+                    </div>
+                </div>
+                <div class="qb-form__section-head">Lignes d'écriture</div>
+                <div class="qb-form__body">
+                    {% for i in "0123456789" %}
+                        {% if forloop.counter0 < line_count %}
+                        <div class="qb-form__line-card">
+                            <div class="qb-form__line-card-title">Ligne {{ forloop.counter }}</div>
+                            <div class="form-grid-3">
+                                <div class="form-group">
+                                    <label for="compte_{{ forloop.counter0 }}">Compte</label>
+                                    <select name="compte_{{ forloop.counter0 }}" id="compte_{{ forloop.counter0 }}" class="form-control" required>
+                                        {% for c in comptes %}
+                                        <option value="{{ c.id }}">{{ c.numero }} — {{ c.libelle }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="sens_{{ forloop.counter0 }}">Sens</label>
+                                    <select name="sens_{{ forloop.counter0 }}" id="sens_{{ forloop.counter0 }}" class="form-control" required>
+                                        <option value="DEBIT">Débit</option>
+                                        <option value="CREDIT">Crédit</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="montant_{{ forloop.counter0 }}">Montant</label>
+                                    <input name="montant_{{ forloop.counter0 }}" id="montant_{{ forloop.counter0 }}" type="number" step="0.01" min="0" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with cancel_url=list_url submit_label="Enregistrer l'écriture" %}
+                </div>
+            </div>
+            <aside class="qb-form__sidebar">
+                <div class="panel">
+                    <div class="qb-form__sidebar-head">
+                        <h3>Validation</h3>
+                        <p>Vérifiez l'équilibre débit / crédit avant d'enregistrer.</p>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}

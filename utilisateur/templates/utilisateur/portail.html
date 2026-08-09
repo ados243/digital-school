@@ -1,0 +1,177 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Mon espace{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Bonjour {{ request.user.prenom }}</h1>
+    <p>
+        {% if request.user.is_parent %}Suivez la scolarité, les notes, les présences et les frais de votre/vos enfant(s).
+        {% elif request.user.is_eleve %}Voici votre situation scolaire, vos notes et vos cours en ligne.
+        {% else %}Bienvenue sur votre espace personnel.{% endif %}
+    </p>
+</div>
+
+{% if request.user.is_parent %}
+    {% if nb_annonces_non_lues %}
+    <div class="alert alert-warning" style="margin-bottom:1.25rem;">
+        Vous avez <strong>{{ nb_annonces_non_lues }}</strong> annonce{{ nb_annonces_non_lues|pluralize }} de la direction non lue{{ nb_annonces_non_lues|pluralize }}.
+        <a href="{% url 'utilisateur:parent_annonces' %}" style="margin-left:.5rem; font-weight:700;">Voir les annonces →</a>
+    </div>
+    {% endif %}
+
+    {% if annonces_recentes %}
+    <div class="panel" style="margin-bottom:1.5rem;">
+        <div class="panel-header">
+            <h3>Annonces de la direction</h3>
+            <a href="{% url 'utilisateur:parent_annonces' %}" class="btn btn-secondary btn-sm">Tout voir</a>
+        </div>
+        <div class="panel-body" style="padding:0;">
+            <div class="msg-thread-list">
+                {% for row in annonces_recentes %}
+                <a href="{% url 'utilisateur:parent_annonce_detail' row.communication.id %}" class="msg-thread-item {% if not row.lu %}msg-thread-item--unread{% endif %}">
+                    <div class="msg-thread-item__main">
+                        <div class="msg-thread-item__title">
+                            {{ row.communication.sujet }}
+                            {% if not row.lu %}<span class="badge badge-danger">Nouveau</span>{% endif %}
+                        </div>
+                        <div class="msg-thread-item__meta">{{ row.communication.libelle_cible }} · {{ row.communication.created_at|date:"d/m/Y" }}</div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if enfants %}
+    <section class="kpi-grid" style="margin-bottom: 1.5rem;">
+        <div class="kpi-card">
+            <div>
+                <div class="kpi-title">Enfants</div>
+                <div class="kpi-value">{{ enfants|length }}</div>
+            </div>
+            <div class="kpi-footer">Rattachés à votre compte</div>
+        </div>
+        <div class="kpi-card">
+            <div>
+                <div class="kpi-title">Inscrits</div>
+                <div class="kpi-value">{{ nb_inscrits }}</div>
+            </div>
+            <div class="kpi-footer">Année scolaire en cours</div>
+        </div>
+    </section>
+
+    <div class="portal-children-grid">
+        {% for item in enfants %}
+        <a href="{% url 'utilisateur:parent_enfant' item.eleve.id %}" class="portal-child-card portal-child-card--link">
+            <span class="portal-child-card__avatar">{{ item.eleve.prenom|slice:":1"|upper }}{{ item.eleve.nom|slice:":1"|upper }}</span>
+            <div style="flex:1; min-width:0;">
+                <div class="portal-child-card__name">{{ item.eleve.prenom }} {{ item.eleve.nom }} {{ item.eleve.Post_nom }}</div>
+                <div class="portal-child-card__meta">
+                    {{ item.eleve.ecole.ecole }}
+                    · Matricule {{ item.eleve.matricule }}
+                    {% if item.inscription %}
+                    · Classe {{ item.inscription.classe.classe }} · {{ item.inscription.annee_s.anne_scolaire }}
+                    {% else %}
+                    · Aucune inscription pour l'année en cours
+                    {% endif %}
+                </div>
+                {% if item.inscription %}
+                <div class="portal-child-card__stats">
+                    <span>
+                        Présence
+                        <strong>{% if item.presence.taux is not None %}{{ item.presence.taux }} %{% else %}—{% endif %}</strong>
+                    </span>
+                    <span>
+                        Notes
+                        <strong>{{ item.notes_count }}</strong>
+                    </span>
+                    <span>
+                        {% if item.finances.nb_impayes %}
+                        <span class="badge badge-warning">{{ item.finances.nb_impayes }} frais dû{{ item.finances.nb_impayes|pluralize }}</span>
+                        {% else %}
+                        <span class="badge badge-success">Frais à jour</span>
+                        {% endif %}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+            <span class="portal-child-card__cta">Suivre →</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="panel">
+        <div class="portal-empty">
+            Aucun enfant n'est encore rattaché à votre compte.<br>
+            Vérifiez que votre fiche tuteur est liée lors de la création du compte (matricule tuteur).
+        </div>
+    </div>
+    {% endif %}
+
+{% elif request.user.is_eleve %}
+    <div style="margin-bottom:1.25rem;">
+        <a href="{% url 'utilisateur:cours_eleve_list' %}" class="btn btn-primary">Étudier mes matières en ligne</a>
+    </div>
+
+    <div class="panel" style="margin-bottom:1.5rem;">
+        <div class="panel-header"><h3>Ma scolarité</h3></div>
+        <div class="panel-body">
+            {% if inscription_courante %}
+            <p>
+                Classe <strong>{{ inscription_courante.classe.classe }}</strong>
+                — Année scolaire <strong>{{ inscription_courante.annee_s.anne_scolaire }}</strong>
+            </p>
+            {% else %}
+            <p class="text-muted">Aucune inscription enregistrée pour le moment.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header"><h3>Mes dernières notes</h3></div>
+        <div class="panel-body table-responsive" style="padding:0;">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Matière</th>
+                        <th>Date</th>
+                        <th>Note</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for note in notes_recentes %}
+                    <tr>
+                        <td>
+                            <span class="badge {% if note.travail.type_travail == 'EXAMEN' or note.travail.type_travail == 'COMPOSITION' %}badge-danger{% elif note.travail.type_travail == 'INTERROGATION' %}badge-warning{% else %}badge-info{% endif %}">
+                                {{ note.travail.get_type_travail_display }}
+                            </span>
+                        </td>
+                        <td>{{ note.travail.matiere.libelle }}</td>
+                        <td>{{ note.travail.date_travail|date:"d/m/Y" }}</td>
+                        <td><strong>{{ note.note }}</strong> / {{ note.travail.bareme }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align:center; color:var(--text-muted); padding:2rem;">Aucune note enregistrée pour le moment.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+{% else %}
+<div class="panel">
+    <div class="portal-empty">
+        Votre profil ne dispose pas encore d'un espace dédié.
+        {% if request.user.is_professeur %}
+        <br><a href="{% url 'utilisateur:enseignant_dashboard' %}" class="btn btn-primary" style="margin-top:1rem;">Accéder à mon espace enseignant</a>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

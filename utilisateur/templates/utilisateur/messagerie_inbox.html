@@ -1,0 +1,73 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Messages{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Messages</h1>
+    <p>
+        {% if est_parent %}
+        Échanges avec le professeur titulaire (représentant de l'école pour la classe de votre enfant).
+        {% else %}
+        Échanges avec les parents des élèves de vos classes.
+        {% endif %}
+    </p>
+</div>
+
+{% if total_non_lus %}
+<p style="margin-bottom:1rem;">
+    <span class="badge badge-warning">{{ total_non_lus }} message{{ total_non_lus|pluralize }} non lu{{ total_non_lus|pluralize }}</span>
+</p>
+{% endif %}
+
+<div class="panel">
+    <div class="panel-header">
+        <h3>Conversations</h3>
+        {% if est_parent %}
+        <a href="{% url 'utilisateur:portail' %}" class="btn btn-secondary btn-sm">Mes enfants</a>
+        {% else %}
+        <a href="{% url 'utilisateur:enseignant_dashboard' %}" class="btn btn-secondary btn-sm">Mes classes</a>
+        {% endif %}
+    </div>
+    <div class="panel-body" style="padding:0;">
+        {% if rows %}
+        <div class="msg-thread-list">
+            {% for row in rows %}
+            <a href="{% url 'utilisateur:messagerie_detail' row.conversation.id %}" class="msg-thread-item {% if row.non_lus %}msg-thread-item--unread{% endif %}">
+                <div class="msg-thread-item__main">
+                    <div class="msg-thread-item__title">
+                        {{ row.conversation.sujet }}
+                        {% if row.non_lus %}<span class="badge badge-danger">{{ row.non_lus }}</span>{% endif %}
+                    </div>
+                    <div class="msg-thread-item__meta">
+                        {% if est_parent %}
+                        Titulaire · {{ row.conversation.enseignant.nom_complet }}
+                        {% else %}
+                        Parent · {{ row.conversation.parent.nom_complet }}
+                        {% endif %}
+                        · {{ row.conversation.eleve.prenom }} {{ row.conversation.eleve.nom }}
+                        · {{ row.conversation.classe.classe }}
+                    </div>
+                    {% if row.dernier %}
+                    <div class="msg-thread-item__preview">{{ row.dernier.contenu|truncatechars:120 }}</div>
+                    {% endif %}
+                </div>
+                <div class="msg-thread-item__date">
+                    {% if row.dernier %}{{ row.dernier.created_at|date:"d/m/Y H:i" }}{% else %}{{ row.conversation.created_at|date:"d/m/Y" }}{% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="portal-empty" style="padding:2.5rem;">
+            Aucune conversation pour le moment.
+            {% if est_parent %}
+            <br>Ouvrez la fiche d'un enfant pour contacter son titulaire.
+            {% else %}
+            <br>Depuis une classe, contactez le parent d'un élève.
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

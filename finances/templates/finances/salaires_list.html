@@ -1,0 +1,406 @@
+{% extends 'base.html' %}
+
+{% block title %}Payer le personnel{% endblock %}
+
+{% block page_title %}Payer le personnel{% endblock %}
+{% block page_subtitle %}
+  Fiches de paie générées par le GRH{% if ecole %} — {{ ecole.ecole }}{% endif %}.
+  Sélectionnez une fiche en attente pour la régler.
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'grh:paie_list' %}" class="btn btn-secondary">📄 Générer / voir les fiches (GRH)</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .confirm-modal.is-open { display: flex; }
+  .confirm-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .45);
+  }
+  .confirm-modal__dialog {
+    position: relative;
+    z-index: 1;
+    width: min(440px, 100%);
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, .22);
+    overflow: hidden;
+  }
+  .confirm-modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .confirm-modal__header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+  .confirm-modal__close {
+    background: none;
+    border: none;
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: .15rem .35rem;
+  }
+  .confirm-modal__body {
+    padding: 1.25rem;
+  }
+  .confirm-modal__body p {
+    margin: 0 0 .75rem;
+    color: var(--text-main);
+    line-height: 1.45;
+  }
+  .confirm-modal__meta {
+    margin: 0;
+    padding: .85rem 1rem;
+    background: rgba(37, 99, 235, .06);
+    border-radius: 10px;
+    font-size: .9rem;
+  }
+  .confirm-modal__meta strong {
+    color: var(--primary);
+    font-family: monospace;
+  }
+  .confirm-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+    background: #fafafa;
+  }
+  body.modal-open { overflow: hidden; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<section class="kpi-grid">
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Fiches générées (GRH)</div>
+      <div class="kpi-value">{{ nb_generees }}</div>
+    </div>
+    <div class="kpi-footer">📄 Bulletins disponibles</div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">En attente de paiement</div>
+      <div class="kpi-value">{{ nb_en_attente }}</div>
+    </div>
+    <div class="kpi-footer">⏳ À régler</div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Déjà payées</div>
+      <div class="kpi-value">{{ nb_payees }}</div>
+    </div>
+    <div class="kpi-footer">✅ Soldées</div>
+  </div>
+  {% for row in total_en_attente %}
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Total à payer — {{ row.devise__devise }}</div>
+      <div class="kpi-value">{{ row.total }}</div>
+    </div>
+    <div class="kpi-footer">💰 Salaires en attente</div>
+  </div>
+  {% endfor %}
+</section>
+
+<div style="margin-bottom: 1.25rem; display: flex; gap: .75rem; align-items: center; flex-wrap: wrap;">
+  <a href="{% url 'finances:salaires_list' %}?statut=TOUS{% if filter_mois %}&mois={{ filter_mois }}{% endif %}{% if filter_annee %}&annee={{ filter_annee }}{% endif %}"
+     class="btn {% if filter_statut == 'TOUS' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Toutes les fiches</a>
+  <a href="{% url 'finances:salaires_list' %}?statut=EN_ATTENTE{% if filter_mois %}&mois={{ filter_mois }}{% endif %}{% if filter_annee %}&annee={{ filter_annee }}{% endif %}"
+     class="btn {% if filter_statut == 'EN_ATTENTE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">En attente</a>
+  <a href="{% url 'finances:salaires_list' %}?statut=PAYE{% if filter_mois %}&mois={{ filter_mois }}{% endif %}{% if filter_annee %}&annee={{ filter_annee }}{% endif %}"
+     class="btn {% if filter_statut == 'PAYE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Payées</a>
+
+  <form method="get" style="display:flex; gap:.5rem; align-items:end; flex-wrap:wrap; margin-left:auto;">
+    <input type="hidden" name="statut" value="{{ filter_statut }}">
+    <div>
+      <label class="form-field__label" for="filter-mois">Mois</label>
+      <select name="mois" id="filter-mois" class="form-control">
+        <option value="">Tous</option>
+        {% for num, label in mois_labels.items %}
+        <option value="{{ num }}" {% if filter_mois == num %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-field__label" for="filter-annee">Année</label>
+      <select name="annee" id="filter-annee" class="form-control">
+        <option value="">Toutes</option>
+        {% for a in annees_dispo %}
+        <option value="{{ a }}" {% if filter_annee == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn btn-secondary btn-sm">Filtrer</button>
+  </form>
+</div>
+
+<form method="post" action="{% url 'finances:salaires_payer_lot' %}" id="salaires-lot-form">
+  {% csrf_token %}
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Fiches de paie générées par le GRH</h3>
+      {% if filter_statut != 'PAYE' %}
+      <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+        <select name="mode_paiement" id="mode-paiement-select" class="form-control" style="min-width:160px;">
+          {% for value, label in modes_paiement %}
+          <option value="{{ value }}" {% if value == 'ESPECES' %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-payer-lot">
+          💵 Payer la sélection
+        </button>
+      </div>
+      {% endif %}
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            {% if filter_statut != 'PAYE' %}
+            <th style="width:40px;">
+              <input type="checkbox" id="check-all" title="Tout sélectionner">
+            </th>
+            {% endif %}
+            <th>Période</th>
+            <th>Employé</th>
+            <th>Net à payer</th>
+            <th>Devise</th>
+            <th>Mode</th>
+            <th>Statut</th>
+            <th>Date paiement</th>
+            <th style="text-align:right; padding-right:1.5rem;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in object_list %}
+          <tr>
+            {% if filter_statut != 'PAYE' %}
+            <td>
+              {% if p.statut_paiement == 'EN_ATTENTE' %}
+              <input type="checkbox" name="paie_ids" value="{{ p.id }}" class="paie-check"
+                     data-nom="{{ p.personnel.prenom }} {{ p.personnel.nom }}"
+                     data-montant="{{ p.net_a_payer }} {{ p.devise }}">
+              {% endif %}
+            </td>
+            {% endif %}
+            <td>
+              <strong>
+                {% for num, label in mois_labels.items %}{% if num == p.mois %}{{ label }}{% endif %}{% endfor %}
+                {{ p.annee }}
+              </strong>
+            </td>
+            <td>
+              <strong>{{ p.personnel.nom }} {{ p.personnel.Post_nom }} {{ p.personnel.prenom }}</strong>
+              <span style="display:block; font-size:.8rem; color:var(--text-muted);">{{ p.personnel.fonction }}</span>
+            </td>
+            <td style="font-family:monospace; font-weight:700; color:var(--primary);">{{ p.net_a_payer }}</td>
+            <td>{{ p.devise }}</td>
+            <td>{{ p.get_mode_paiement_display }}</td>
+            <td>
+              {% if p.statut_paiement == 'PAYE' %}
+                <span class="badge badge-success">Payé</span>
+              {% elif p.statut_paiement == 'ANNULE' %}
+                <span class="badge badge-danger">Annulé</span>
+              {% else %}
+                <span class="badge badge-warning">En attente</span>
+              {% endif %}
+            </td>
+            <td>{% if p.date_paiement %}{{ p.date_paiement|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td style="text-align:right; padding-right:1.5rem;">
+              <div style="display:flex; gap:.4rem; justify-content:flex-end; flex-wrap:wrap;">
+                <a href="{% url 'grh:paie_detail' p.pk %}" class="btn btn-secondary btn-sm">📄 Bulletin</a>
+                {% if p.statut_paiement == 'EN_ATTENTE' %}
+                <button type="button"
+                        class="btn btn-primary btn-sm btn-payer-one"
+                        data-action="{% url 'finances:salaire_payer' p.pk %}"
+                        data-nom="{{ p.personnel.prenom }} {{ p.personnel.nom }}"
+                        data-periode="{% for num, label in mois_labels.items %}{% if num == p.mois %}{{ label }}{% endif %}{% endfor %} {{ p.annee }}"
+                        data-montant="{{ p.net_a_payer }} {{ p.devise }}">
+                  💵 Payer
+                </button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" style="text-align:center; color:var(--text-muted); padding:3rem;">
+              {% if not ecole %}
+                Aucune école associée à votre compte — impossible d'afficher les fiches de paie.
+              {% else %}
+                Aucune fiche de paie générée pour {{ ecole.ecole }}.
+                <br>
+                <a href="{% url 'grh:paie_list' %}" class="btn btn-primary btn-sm" style="margin-top:1rem;">
+                  Générer les fiches en GRH
+                </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+
+<!-- Popup confirmation paiement -->
+<div id="confirm-paiement-modal" class="confirm-modal" aria-hidden="true">
+  <div class="confirm-modal__backdrop" data-close-confirm></div>
+  <div class="confirm-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-paiement-title">
+    <div class="confirm-modal__header">
+      <h3 id="confirm-paiement-title">Confirmer le paiement</h3>
+      <button type="button" class="confirm-modal__close" data-close-confirm aria-label="Fermer">✕</button>
+    </div>
+    <div class="confirm-modal__body">
+      <p id="confirm-paiement-text">Voulez-vous vraiment valider ce paiement ?</p>
+      <div class="confirm-modal__meta" id="confirm-paiement-meta"></div>
+    </div>
+    <div class="confirm-modal__footer">
+      <button type="button" class="btn btn-secondary" data-close-confirm>Annuler</button>
+      <button type="button" class="btn btn-primary" id="confirm-paiement-ok">💵 Confirmer le paiement</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const form = document.getElementById('salaires-lot-form');
+  const modal = document.getElementById('confirm-paiement-modal');
+  const textEl = document.getElementById('confirm-paiement-text');
+  const metaEl = document.getElementById('confirm-paiement-meta');
+  const okBtn = document.getElementById('confirm-paiement-ok');
+  const modeSelect = document.getElementById('mode-paiement-select');
+  const checkAll = document.getElementById('check-all');
+  let pendingAction = null;
+
+  function modeLabel() {
+    if (!modeSelect) return '—';
+    const opt = modeSelect.options[modeSelect.selectedIndex];
+    return opt ? opt.textContent : modeSelect.value;
+  }
+
+  function openConfirm(options) {
+    pendingAction = options;
+    textEl.textContent = options.message;
+    metaEl.innerHTML = options.metaHtml || '';
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+  }
+
+  function closeConfirm() {
+    pendingAction = null;
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+  }
+
+  if (checkAll) {
+    checkAll.addEventListener('change', function () {
+      document.querySelectorAll('.paie-check').forEach(function (cb) {
+        cb.checked = checkAll.checked;
+      });
+    });
+  }
+
+  document.querySelectorAll('.btn-payer-one').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      openConfirm({
+        type: 'one',
+        action: btn.dataset.action,
+        message: 'Confirmez-vous le paiement du salaire de cet agent ?',
+        metaHtml:
+          '<div><strong>' + (btn.dataset.nom || '') + '</strong></div>' +
+          '<div>Période : ' + (btn.dataset.periode || '') + '</div>' +
+          '<div>Montant : <strong>' + (btn.dataset.montant || '') + '</strong></div>' +
+          '<div>Mode : ' + modeLabel() + '</div>',
+      });
+    });
+  });
+
+  const btnLot = document.getElementById('btn-payer-lot');
+  if (btnLot) {
+    btnLot.addEventListener('click', function () {
+      const checked = Array.from(document.querySelectorAll('.paie-check:checked'));
+      if (!checked.length) {
+        openConfirm({
+          type: 'none',
+          message: 'Aucune fiche sélectionnée.',
+          metaHtml: '<div>Cochez au moins une fiche en attente avant de payer.</div>',
+        });
+        okBtn.style.display = 'none';
+        return;
+      }
+      okBtn.style.display = '';
+      const names = checked.slice(0, 5).map(function (cb) { return cb.dataset.nom; });
+      const more = checked.length > 5 ? '<div>… et ' + (checked.length - 5) + ' autre(s)</div>' : '';
+      openConfirm({
+        type: 'lot',
+        message: 'Confirmez-vous le paiement groupé des fiches sélectionnées ?',
+        metaHtml:
+          '<div><strong>' + checked.length + ' fiche(s)</strong> seront payées</div>' +
+          '<div>' + names.join(', ') + '</div>' + more +
+          '<div style="margin-top:.35rem;">Mode : ' + modeLabel() + '</div>',
+      });
+    });
+  }
+
+  okBtn.addEventListener('click', function () {
+    if (!pendingAction || pendingAction.type === 'none') {
+      closeConfirm();
+      return;
+    }
+    if (pendingAction.type === 'one' && pendingAction.action) {
+      form.setAttribute('action', pendingAction.action);
+      form.submit();
+      return;
+    }
+    if (pendingAction.type === 'lot') {
+      form.setAttribute('action', '{% url "finances:salaires_payer_lot" %}');
+      form.submit();
+    }
+  });
+
+  modal.querySelectorAll('[data-close-confirm]').forEach(function (el) {
+    el.addEventListener('click', function () {
+      okBtn.style.display = '';
+      closeConfirm();
+    });
+  });
+
+  document.addEventListener('keydown', function (evt) {
+    if (evt.key === 'Escape' && modal.classList.contains('is-open')) {
+      okBtn.style.display = '';
+      closeConfirm();
+    }
+  });
+})();
+</script>
+{% endblock %}

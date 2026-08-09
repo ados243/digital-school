@@ -1,0 +1,468 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Reçu N° {{ paiement.numero_recu }}{% endblock %}
+
+{% block breadcrumbs %}{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ─── Écran ─────────────────────────────────────────────── */
+  .receipt-toolbar {
+    max-width: 820px;
+    margin: 0 auto 1rem;
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .receipt-toolbar .format-group {
+    display: flex;
+    gap: .35rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+  .receipt-toolbar .format-group label {
+    font-size: .8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .receipt-format-btn {
+    border: 1px solid var(--border);
+    background: #fff;
+    border-radius: 8px;
+    padding: .35rem .65rem;
+    font-size: .8rem;
+    cursor: pointer;
+  }
+  .receipt-format-btn.is-active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+
+  .receipt {
+    background: #fff;
+    margin: 0 auto 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    color: #000;
+  }
+  .receipt__inner { padding: 1.5rem; }
+  .receipt__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 2px solid var(--primary);
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+  }
+  .receipt__school h2 {
+    margin: 0 0 .25rem;
+    color: var(--primary);
+    font-size: 1.25rem;
+  }
+  .receipt__school p {
+    margin: 0;
+    font-size: .8rem;
+    color: var(--text-muted);
+  }
+  .receipt__title { text-align: right; }
+  .receipt__title h1 {
+    margin: 0;
+    font-size: 1.4rem;
+  }
+  .receipt__number {
+    font-family: monospace;
+    font-weight: 700;
+    color: var(--primary);
+    font-size: 1rem;
+  }
+  .receipt__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .receipt__block h4 {
+    margin: 0 0 .35rem;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--primary);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: .2rem;
+  }
+  .receipt__block p {
+    margin: 0 0 .2rem;
+    font-size: .85rem;
+  }
+  .receipt__block strong { font-weight: 700; }
+  .receipt__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .85rem;
+    margin-bottom: 1rem;
+  }
+  .receipt__table th,
+  .receipt__table td {
+    padding: .45rem .35rem;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .receipt__table th {
+    font-size: .72rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .receipt__table .num { text-align: right; font-family: monospace; font-weight: 700; }
+  .receipt__total td {
+    border-top: 2px solid #000;
+    font-weight: 700;
+    font-size: 1rem;
+  }
+  .receipt__signs {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 2rem;
+  }
+  .receipt__sign {
+    text-align: center;
+    flex: 1;
+  }
+  .receipt__sign p {
+    margin: 0 0 2.2rem;
+    font-size: .75rem;
+    color: var(--text-muted);
+  }
+  .receipt__sign-line {
+    border-bottom: 1px solid var(--border);
+    width: min(200px, 100%);
+    margin: 0 auto;
+  }
+  .receipt__footer {
+    margin-top: 1.5rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: .7rem;
+    color: var(--text-muted);
+  }
+  .receipt__cut {
+    display: none;
+    text-align: center;
+    color: #999;
+    font-size: .7rem;
+    margin: .5rem 0;
+  }
+
+  /* Largeur écran selon format choisi */
+  .receipt[data-format="a4"] { max-width: 800px; }
+  .receipt[data-format="80mm"] { max-width: 320px; }
+  .receipt[data-format="58mm"] { max-width: 240px; }
+  .receipt[data-format="auto"] { max-width: 800px; }
+
+  .receipt[data-format="80mm"] .receipt__grid,
+  .receipt[data-format="58mm"] .receipt__grid {
+    grid-template-columns: 1fr;
+  }
+  .receipt[data-format="80mm"] .receipt__header,
+  .receipt[data-format="58mm"] .receipt__header {
+    flex-direction: column;
+  }
+  .receipt[data-format="80mm"] .receipt__title,
+  .receipt[data-format="58mm"] .receipt__title {
+    text-align: left;
+  }
+  .receipt[data-format="80mm"] .receipt__signs,
+  .receipt[data-format="58mm"] .receipt__signs {
+    flex-direction: column;
+  }
+  .receipt[data-format="58mm"] .receipt__inner { padding: .75rem; }
+  .receipt[data-format="58mm"] .receipt__school h2 { font-size: 1rem; }
+  .receipt[data-format="58mm"] .receipt__title h1 { font-size: 1.1rem; }
+  .receipt[data-format="58mm"] .receipt__table { font-size: .75rem; }
+
+  /* ─── Impression : s’adapte à l’imprimante ─────────────── */
+  @media print {
+    .sidebar,
+    .top-header,
+    .messages-container,
+    .receipt-toolbar,
+    .no-print { display: none !important; }
+
+    .app-container,
+    .main-content {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+      width: 100% !important;
+      max-width: none !important;
+    }
+
+    .receipt {
+      border: none !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+      max-width: 100% !important;
+      width: 100% !important;
+    }
+
+    .receipt__inner { padding: 0 !important; }
+    .receipt__cut { display: block; }
+
+    /* Format A4 */
+    body.receipt-print-a4 .receipt__grid { grid-template-columns: 1fr 1fr; }
+    body.receipt-print-a4 .receipt__header { flex-direction: row; }
+    body.receipt-print-a4 .receipt__title { text-align: right; }
+
+    /* Ticket 80mm / 58mm / auto étroit */
+    body.receipt-print-80mm .receipt__grid,
+    body.receipt-print-58mm .receipt__grid,
+    body.receipt-print-auto .receipt__grid {
+      grid-template-columns: 1fr;
+    }
+    body.receipt-print-80mm .receipt__header,
+    body.receipt-print-58mm .receipt__header,
+    body.receipt-print-auto .receipt__header {
+      flex-direction: column;
+    }
+    body.receipt-print-80mm .receipt__title,
+    body.receipt-print-58mm .receipt__title,
+    body.receipt-print-auto .receipt__title {
+      text-align: left;
+    }
+    body.receipt-print-80mm .receipt__signs,
+    body.receipt-print-58mm .receipt__signs,
+    body.receipt-print-auto .receipt__signs {
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    body.receipt-print-58mm {
+      font-size: 11px;
+    }
+  }
+
+</style>
+
+<style id="receipt-page-style">
+@page { size: auto; margin: 5mm; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="receipt-toolbar no-print">
+  <button type="button" class="btn btn-primary" id="btn-print-receipt">🖨️ Imprimer</button>
+  {% if request.user.is_caissier %}
+  <a href="{% url 'finances:paiement_create' %}" class="btn btn-secondary">+ Nouveau paiement</a>
+  {% endif %}
+  <a href="{% url 'finances:paiement_list' %}" class="btn btn-secondary">Retour à la liste</a>
+
+  <div class="format-group">
+    <label>Format imprimante</label>
+    <button type="button" class="receipt-format-btn is-active" data-format="auto">Auto</button>
+    <button type="button" class="receipt-format-btn" data-format="a4">A4</button>
+    <button type="button" class="receipt-format-btn" data-format="80mm">Ticket 80 mm</button>
+    <button type="button" class="receipt-format-btn" data-format="58mm">Ticket 58 mm</button>
+  </div>
+</div>
+
+<article class="receipt" id="receipt" data-format="auto">
+  <div class="receipt__inner">
+    <header class="receipt__header">
+      <div class="receipt__school">
+        <h2>{{ ecole.ecole|default:request.user.ecole.ecole|default:"Digital School" }}</h2>
+        {% if ecole %}
+        <p>{{ ecole.adresse }}</p>
+        <p>{% if ecole.telephone1 %}Tél : {{ ecole.telephone1 }}{% endif %}</p>
+        {% endif %}
+        <p style="margin-top:.35rem;">Facture / Reçu de paiement</p>
+        <p>Date : {{ paiement.date_encodage|date:"d/m/Y H:i" }}</p>
+      </div>
+      <div class="receipt__title">
+        <h1>FACTURE</h1>
+        <div class="receipt__number">N° {{ paiement.numero_recu }}</div>
+        <p style="margin-top:.4rem;">
+          {% if paiement.statut == 'VALIDE' %}
+            <span class="badge badge-success">VALIDÉ</span>
+          {% elif paiement.statut == 'ANNULE' %}
+            <span class="badge badge-danger">ANNULÉ</span>
+          {% else %}
+            <span class="badge badge-warning">EN ATTENTE</span>
+          {% endif %}
+        </p>
+      </div>
+    </header>
+
+    <div class="receipt__grid">
+      <div class="receipt__block">
+        <h4>Élève</h4>
+        <p>Nom : <strong>{{ paiement.eleve.eleve.nom }} {{ paiement.eleve.eleve.Post_nom|default_if_none:"" }} {{ paiement.eleve.eleve.prenom }}</strong></p>
+        <p>Classe : <strong>{{ paiement.eleve.classe.classe }}</strong></p>
+        <p>Matricule : <strong>{{ paiement.eleve.eleve.matricule }}</strong></p>
+      </div>
+      <div class="receipt__block">
+        <h4>Paiement</h4>
+        <p>Frais : <strong>{{ paiement.frais.type_frais.libelle }}</strong></p>
+        <p>Année : <strong>{{ paiement.frais.annee.anne_scolaire }}</strong></p>
+        <p>Mode : <strong>{{ paiement.get_mode_paiement_display }}</strong></p>
+        {% if paiement.reference_trans %}
+        <p>Réf. : <strong style="font-family:monospace;">{{ paiement.reference_trans }}</strong></p>
+        {% endif %}
+      </div>
+    </div>
+
+    <table class="receipt__table">
+      <thead>
+        <tr>
+          <th>Désignation</th>
+          <th>Devise</th>
+          <th class="num">Montant</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <strong>{{ paiement.frais.type_frais.libelle }}</strong>
+            {% if paiement.frais.type_frais.description %}
+            <br><small style="color:var(--text-muted);">{{ paiement.frais.type_frais.description }}</small>
+            {% endif %}
+          </td>
+          <td>{{ paiement.devise.devise }}</td>
+          <td class="num">{{ solde.total }}</td>
+        </tr>
+        <tr>
+          <td colspan="2">Déjà payé (avant ce reçu)</td>
+          <td class="num">{{ solde.deja_paye }}</td>
+        </tr>
+        <tr>
+          <td colspan="2">Montant de ce reçu</td>
+          <td class="num" style="color:var(--primary);">{{ solde.ce_paiement }}</td>
+        </tr>
+        {% if paiement.taux_change and paiement.montant_origine %}
+        <tr>
+          <td colspan="2">
+            Reçu en {{ paiement.devise_origine.devise|default:"CDF" }} :
+            {{ paiement.montant_origine }}
+            · Taux : 1 USD = {{ paiement.taux_change }} CDF
+          </td>
+          <td class="num">{{ solde.ce_paiement }} {{ paiement.devise.devise }}</td>
+        </tr>
+        {% endif %}
+        <tr class="receipt__total">
+          <td colspan="2">TOTAL PAYÉ</td>
+          <td class="num">{{ solde.total_paye }} {{ paiement.devise.devise }}</td>
+        </tr>
+        <tr>
+          <td colspan="2"><strong>RESTE À PAYER</strong></td>
+          <td class="num">
+            {% if solde.reste_apres > 0 %}
+              {{ solde.reste_apres }} {{ paiement.devise.devise }}
+            {% else %}
+              Soldé
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="receipt__signs">
+      <div class="receipt__sign">
+        <p>Signature Élève / Parent</p>
+        <div class="receipt__sign-line"></div>
+      </div>
+      <div class="receipt__sign">
+        <p>Caissier : <strong>{{ paiement.caissier }}</strong></p>
+        <div class="receipt__sign-line"></div>
+      </div>
+    </div>
+
+    <div class="receipt__cut">- - - - - - coupure - - - - - -</div>
+
+    <footer class="receipt__footer">
+      Document généré automatiquement par Digital School.<br>
+      Conservez cette facture / ce reçu.
+    </footer>
+  </div>
+</article>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var STORAGE_KEY = 'ds_receipt_print_format';
+  var receipt = document.getElementById('receipt');
+  var pageStyle = document.getElementById('receipt-page-style');
+  var body = document.body;
+  var autoprint = {{ autoprint|yesno:"true,false" }};
+
+  var PAGE_CSS = {
+    auto: '@page { size: auto; margin: 4mm; }',
+    a4: '@page { size: A4; margin: 12mm; }',
+    '80mm': '@page { size: 80mm auto; margin: 3mm; }',
+    '58mm': '@page { size: 58mm auto; margin: 2mm; }'
+  };
+
+  function applyFormat(format) {
+    format = PAGE_CSS[format] ? format : 'auto';
+    receipt.setAttribute('data-format', format);
+    body.classList.remove(
+      'receipt-print-auto',
+      'receipt-print-a4',
+      'receipt-print-80mm',
+      'receipt-print-58mm'
+    );
+    body.classList.add('receipt-print-' + format);
+    if (pageStyle) pageStyle.textContent = PAGE_CSS[format];
+    document.querySelectorAll('.receipt-format-btn').forEach(function (btn) {
+      btn.classList.toggle('is-active', btn.getAttribute('data-format') === format);
+    });
+    try { localStorage.setItem(STORAGE_KEY, format); } catch (e) {}
+  }
+
+  function detectPrinterFormat() {
+    // Heuristique : largeur utile d'impression du navigateur / pilote
+    try {
+      if (window.matchMedia('(max-width: 240px)').matches) return '58mm';
+      if (window.matchMedia('(max-width: 340px)').matches) return '80mm';
+    } catch (e) {}
+    // Sinon conserver le dernier choix, ou Auto (size: auto = taille imprimante)
+    try {
+      var saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && PAGE_CSS[saved]) return saved;
+    } catch (e) {}
+    return 'auto';
+  }
+
+  var initial = detectPrinterFormat();
+  applyFormat(initial);
+
+  document.querySelectorAll('.receipt-format-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      applyFormat(btn.getAttribute('data-format'));
+    });
+  });
+
+  function doPrint() {
+    // Avant impression, si Auto : laisser size:auto pour coller à l'imprimante branchée
+    if (receipt.getAttribute('data-format') === 'auto') {
+      if (pageStyle) pageStyle.textContent = PAGE_CSS.auto;
+    }
+    window.print();
+  }
+
+  var printBtn = document.getElementById('btn-print-receipt');
+  if (printBtn) printBtn.addEventListener('click', doPrint);
+
+  if (autoprint) {
+    window.addEventListener('load', function () {
+      setTimeout(doPrint, 350);
+    });
+  }
+})();
+</script>
+{% endblock %}

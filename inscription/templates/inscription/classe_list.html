@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des Classes{% endblock %}
+
+{% block page_title %}Classes & Salles{% endblock %}
+{% block page_subtitle %}Suivi de la capacité et du taux de remplissage de chaque classe.{% endblock %}
+
+{% block header_actions %}
+    <a href="{% url 'inscription:classe_create' %}" class="btn btn-primary">➕ Créer une classe</a>
+{% endblock %}
+
+{% block content %}
+{% if annee_courante %}
+<p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+    📅 Statistiques de remplissage pour l'année scolaire <strong>{{ annee_courante.anne_scolaire }}</strong>
+</p>
+{% else %}
+<div class="alert alert-warning" style="margin-bottom: 1rem;">
+    Aucune année scolaire n'est marquée « en cours ». Les effectifs affichés peuvent être incomplets.
+</div>
+{% endif %}
+<div class="panel">
+    <div class="panel-header">
+        <h3>Toutes les classes</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Classe</th>
+                    <th>Section</th>
+                    <th>Salle</th>
+                    <th>Enseignant</th>
+                    <th>Capacité Max</th>
+                    <th>Élèves inscrits</th>
+                    <th>Taux de remplissage</th>
+                    <th style="text-align: right; padding-right: 1.5rem;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in classes %}
+                <tr>
+                    <td>
+                        <a href="{% url 'inscription:classe_detail' c.obj.id %}" style="text-decoration: none; color: inherit;">
+                            <strong>{{ c.obj.classe }}</strong>
+                        </a>
+                    </td>
+                    <td>{{ c.obj.section.section }}</td>
+                    <td>{{ c.obj.salle }}</td>
+                    <td>
+                        {% if c.obj.titulaire %}
+                        {{ c.obj.titulaire.prenom }} {{ c.obj.titulaire.nom }}
+                        {% else %}
+                        <span style="color: var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: center;">{{ c.obj.capacite_max }}</td>
+                    <td style="text-align: center;">
+                        <strong style="color: {% if c.is_full %}var(--danger){% elif c.percent > 70 %}var(--warning){% else %}var(--primary){% endif %};">
+                            {{ c.inscrits }}
+                        </strong>
+                    </td>
+                    <td style="min-width: 180px;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="flex: 1; background-color: var(--border); border-radius: 99px; height: 8px; overflow: hidden;">
+                                <div style="
+                                    height: 100%;
+                                    width: {{ c.percent }}%;
+                                    background-color: {% if c.is_full %}var(--danger){% elif c.percent > 70 %}var(--warning){% else %}var(--primary){% endif %};
+                                    border-radius: 99px;
+                                    transition: width 0.5s ease;
+                                "></div>
+                            </div>
+                            <span style="font-size: 0.8rem; font-weight: 700; min-width: 35px; text-align: right; color: {% if c.is_full %}var(--danger){% elif c.percent > 70 %}var(--warning){% else %}var(--text-main){% endif %};">
+                                {{ c.percent }}%
+                            </span>
+                        </div>
+                        {% if c.is_full %}
+                        <span style="font-size: 0.7rem; color: var(--danger); font-weight: 600;">CLASSE COMPLÈTE</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; padding-right: 1.5rem; display: flex; gap: 0.5rem; justify-content: flex-end; align-items: center;">
+                        <a href="{% url 'inscription:classe_detail' c.obj.id %}" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.85rem;" title="Voir les détails">👁️</a>
+                        {% if not c.is_full %}
+                        <a href="{% url 'inscription:inscription_create' %}" class="btn btn-success btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.85rem;" title="Inscrire un élève">✍️ Inscrire</a>
+                        {% endif %}
+                        <a href="{% url 'inscription:classe_update' c.obj.id %}" class="btn btn-secondary btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.85rem;" title="Modifier">✏️</a>
+                        <a href="{% url 'inscription:classe_delete' c.obj.id %}" class="btn btn-danger btn-sm" style="padding: 0.3rem 0.5rem; font-size: 0.85rem; background-color: var(--danger); border-color: var(--danger);" title="Supprimer">🗑️</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        Aucune classe créée. <br>
+                        <a href="{% url 'inscription:classe_create' %}" class="btn btn-primary btn-sm" style="margin-top: 1rem;">Créer la première classe</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

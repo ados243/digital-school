@@ -1,0 +1,53 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Nouveau message{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        {% if mode == 'parent' %}
+        <a href="{% url 'utilisateur:parent_enfant' eleve.id %}" style="color:var(--secondary); text-decoration:none; font-weight:600;">← {{ eleve.prenom }} {{ eleve.nom }}</a>
+        {% else %}
+        <a href="{% url 'utilisateur:enseignant_classe' classe.id %}" style="color:var(--secondary); text-decoration:none; font-weight:600;">← Classe {{ classe.classe }}</a>
+        {% endif %}
+    </p>
+    <h1>Nouveau message</h1>
+    <p>
+        {% if mode == 'parent' %}
+        À destination du professeur titulaire
+        {% if titulaire %} <strong>{{ titulaire.prenom }} {{ titulaire.nom }}</strong>{% endif %}
+        · concernant {{ eleve.prenom }} {{ eleve.nom }}
+        (classe {{ inscription.classe.classe }})
+        {% else %}
+        À destination du parent
+        {% if parent_user %} <strong>{{ parent_user.nom_complet }}</strong>{% endif %}
+        · concernant {{ eleve.prenom }} {{ eleve.nom }}
+        {% endif %}
+    </p>
+</div>
+
+<div class="panel">
+    <div class="panel-header"><h3>Écrire</h3></div>
+    <div class="panel-body">
+        <form method="post" class="form-horizontal">
+            {% csrf_token %}
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label for="sujet">Sujet</label>
+                <input type="text" name="sujet" id="sujet" class="form-control" maxlength="200" required placeholder="Ex. : Absence, rendez-vous, travail…">
+            </div>
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label for="contenu">Message</label>
+                <textarea name="contenu" id="contenu" class="form-control" rows="6" required placeholder="Votre message…"></textarea>
+            </div>
+            <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
+                <button type="submit" class="btn btn-primary">Envoyer</button>
+                {% if mode == 'parent' %}
+                <a href="{% url 'utilisateur:parent_enfant' eleve.id %}" class="btn btn-secondary">Annuler</a>
+                {% else %}
+                <a href="{% url 'utilisateur:enseignant_classe' classe.id %}" class="btn btn-secondary">Annuler</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

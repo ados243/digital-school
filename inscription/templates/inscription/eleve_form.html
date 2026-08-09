@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}Saisissez les informations de l'élève.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inscription:eleve_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{{ tuteurs_data|json_script:"tuteurs-data" }}
+{% if tuteurs_count == 0 and not eleve %}
+<div class="alert alert-warning form-alert">
+    <strong>Aucun tuteur enregistré.</strong> Créez d'abord un parent ou tuteur avant d'enregistrer un élève.
+    <div style="margin-top: .75rem;">
+        <a href="{% url 'inscription:tuteur_create' %}?next={{ request.path }}" class="btn btn-primary btn-sm">Créer un tuteur</a>
+    </div>
+</div>
+{% endif %}
+
+{% url 'inscription:eleve_list' as list_url %}
+<div class="qb-form">
+    <form method="post" enctype="multipart/form-data" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Identité</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        <div class="form-field">
+                            <div class="form-field__row">
+                                <label class="form-field__label">Matricule élève</label>
+                                <div class="form-field__content">
+                                    <div class="form-field__control">
+                                        <input type="text" class="form-control" readonly
+                                               value="{% if eleve %}{{ eleve.matricule }}{% else %}Attribué à l'enregistrement{% endif %}">
+                                    </div>
+                                    <p class="form-help">Généré automatiquement (ELV-000001).</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% include 'includes/form_field.html' with field=form.sexe %}
+                        {% include 'includes/form_field.html' with field=form.nom %}
+                        {% include 'includes/form_field.html' with field=form.Post_nom %}
+                        {% include 'includes/form_field.html' with field=form.prenom %}
+                        {% include 'includes/form_field.html' with field=form.date_de_naissance %}
+                        {% include 'includes/form_field.html' with field=form.nationalite %}
+                    </div>
+                </div>
+                <div class="qb-form__section-head">
+                    <span>Résidence &amp; tuteur</span>
+                    <a href="{% url 'inscription:tuteur_create' %}?next={{ request.path }}" style="font-size:.75rem;font-weight:600;color:var(--secondary);text-decoration:none;text-transform:none;letter-spacing:0;">+ Nouveau tuteur</a>
+                </div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        <div class="form-field form-field--wide{% if form.titeur.errors %} form-field--invalid{% endif %}">
+                            <div class="form-field__row">
+                                <label class="form-field__label" for="tuteur-combobox">{{ form.titeur.label }}<span class="form-required">*</span></label>
+                                <div class="form-field__content">
+                                    <div class="form-field__control">
+                                        <div class="form-combobox">
+                                            <input type="text" id="tuteur-combobox" class="form-control"
+                                                   placeholder="Rechercher par nom, prénom ou matricule…"
+                                                   autocomplete="off" role="combobox"
+                                                   aria-expanded="false" aria-controls="tuteur-dropdown">
+                                            <div id="tuteur-dropdown" class="form-combobox-dropdown" role="listbox"></div>
+                                        </div>
+                                    </div>
+                                    <div class="form-sr-only">{{ form.titeur }}</div>
+                                    {% if form.titeur.errors %}<p class="form-error" role="alert">{{ form.titeur.errors|striptags }}</p>{% endif %}
+                                    <p class="form-help">Tapez le nom du parent / tuteur pour filtrer la liste.</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% include 'includes/form_field.html' with field=form.quartier %}
+                    </div>
+                    {% include 'includes/form_field.html' with field=form.adresse full_width=True %}
+                    {% include 'includes/form_field.html' with field=form.photo full_width=True %}
+                </div>
+                <div class="qb-form__footer">
+                    <a href="{{ list_url }}" class="btn btn-secondary">Annuler</a>
+                    <button type="submit" class="btn btn-primary btn-lg" {% if tuteurs_count == 0 and not eleve %}disabled{% endif %}>Enregistrer l'élève</button>
+                </div>
+            </div>
+            <aside class="qb-form__sidebar">
+                <div class="panel">
+                    <div class="qb-form__sidebar-head">
+                        <h3>Enregistrement</h3>
+                        <p>La fiche sera rattachée à votre établissement.</p>
+                    </div>
+                    <div class="panel-body">
+                        <ul class="qb-form__recap">
+                            <li><span>Tuteurs disponibles</span><strong>{{ tuteurs_count }}</strong></li>
+                            <li><span>Tuteur sélectionné</span><strong id="recap-tuteur">—</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const tuteurs = JSON.parse(document.getElementById('tuteurs-data').textContent || '[]');
+    const tuteurSelect = document.getElementById('id_titeur');
+    const tuteurInput = document.getElementById('tuteur-combobox');
+    const tuteurDropdown = document.getElementById('tuteur-dropdown');
+    const recapTuteur = document.getElementById('recap-tuteur');
+    if (!tuteurSelect || !tuteurInput || !tuteurDropdown) return;
+
+    const tuteurMap = Object.fromEntries(tuteurs.map(t => [String(t.id), t]));
+
+    function renderDropdown(filter) {
+        const q = (filter || '').toLowerCase().trim();
+        tuteurDropdown.innerHTML = '';
+        const matches = tuteurs.filter(t =>
+            !q ||
+            t.label.toLowerCase().includes(q) ||
+            t.nom.toLowerCase().includes(q) ||
+            (t.matricule || '').toLowerCase().includes(q) ||
+            (t.telephone || '').toLowerCase().includes(q)
+        );
+
+        if (!matches.length) {
+            tuteurDropdown.style.display = 'none';
+            tuteurInput.setAttribute('aria-expanded', 'false');
+            return;
+        }
+
+        matches.slice(0, 20).forEach(t => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'form-combobox-option';
+            btn.setAttribute('role', 'option');
+            btn.textContent = t.label;
+            btn.addEventListener('click', () => selectTuteur(t));
+            tuteurDropdown.appendChild(btn);
+        });
+        tuteurDropdown.style.display = 'block';
+        tuteurInput.setAttribute('aria-expanded', 'true');
+    }
+
+    function selectTuteur(t) {
+        tuteurSelect.value = String(t.id);
+        tuteurInput.value = t.label;
+        tuteurDropdown.style.display = 'none';
+        tuteurInput.setAttribute('aria-expanded', 'false');
+        if (recapTuteur) recapTuteur.textContent = t.nom;
+    }
+
+    function syncFromSelect() {
+        const t = tuteurMap[tuteurSelect.value];
+        if (t) {
+            tuteurInput.value = t.label;
+            if (recapTuteur) recapTuteur.textContent = t.nom;
+        } else {
+            if (recapTuteur) recapTuteur.textContent = '—';
+        }
+    }
+
+    tuteurInput.addEventListener('input', () => {
+        if (!tuteurInput.value.trim()) {
+            tuteurSelect.value = '';
+            if (recapTuteur) recapTuteur.textContent = '—';
+        }
+        renderDropdown(tuteurInput.value);
+    });
+    tuteurInput.addEventListener('focus', () => renderDropdown(tuteurInput.value));
+    document.addEventListener('click', (ev) => {
+        if (!tuteurInput.contains(ev.target) && !tuteurDropdown.contains(ev.target)) {
+            tuteurDropdown.style.display = 'none';
+            tuteurInput.setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    syncFromSelect();
+})();
+</script>
+{% endblock %}

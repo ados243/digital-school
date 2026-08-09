@@ -1,0 +1,26 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ communication.sujet }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        <a href="{% url 'utilisateur:parent_annonces' %}" style="color:var(--secondary); text-decoration:none; font-weight:600;">← Annonces</a>
+    </p>
+    <h1>{{ communication.sujet }}</h1>
+    <p>
+        {{ communication.ecole.ecole }}
+        · {{ communication.libelle_cible }}
+        · {{ communication.created_at|date:"d/m/Y à H:i" }}
+        {% if communication.auteur %}
+        · Direction — {{ communication.auteur.nom_complet }}
+        {% endif %}
+    </p>
+</div>
+
+<div class="panel">
+    <div class="panel-body" style="padding:1.5rem;">
+        <div style="white-space:pre-wrap; line-height:1.55; font-size:1rem;">{{ communication.contenu }}</div>
+    </div>
+</div>
+{% endblock %}

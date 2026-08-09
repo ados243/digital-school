@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Enregistrer un tuteur{% endblock %}
+{% block page_title %}Enregistrer un parent / tuteur{% endblock %}
+{% block page_subtitle %}Saisissez les coordonnées du tuteur légal de l'élève.{% endblock %}
+
+{% block header_actions %}
+<button type="button" onclick="window.history.back()" class="btn btn-secondary">Annuler</button>
+{% endblock %}
+
+{% block content %}
+<div class="qb-form qb-form--narrow">
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Identité du tuteur</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        <div class="form-field">
+                            <div class="form-field__row">
+                                <label class="form-field__label">Matricule tuteur</label>
+                                <div class="form-field__content">
+                                    <div class="form-field__control">
+                                        <input type="text" class="form-control" readonly
+                                               value="{% if tuteur %}{{ tuteur.matricule }}{% else %}Attribué à l'enregistrement{% endif %}">
+                                    </div>
+                                    <p class="form-help">Généré automatiquement (TUT-000001).</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% include 'includes/form_field.html' with field=form.lien_parente %}
+                        {% include 'includes/form_field.html' with field=form.nom %}
+                        {% include 'includes/form_field.html' with field=form.Post_nom %}
+                        {% include 'includes/form_field.html' with field=form.prenom %}
+                    </div>
+                </div>
+                <div class="qb-form__section-head">Coordonnées</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.telephone %}
+                        {% include 'includes/form_field.html' with field=form.telephone2 %}
+                        {% include 'includes/form_field.html' with field=form.email %}
+                    </div>
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with submit_label="Enregistrer le tuteur" cancel_onclick="window.history.back()" %}
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

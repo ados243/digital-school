@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Ajouter un compte{% endblock %}
+{% block page_title %}Ajouter un compte comptable{% endblock %}
+{% block page_subtitle %}Plan comptable HOADA — comptes par école{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:hoada_plan_comptable' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{% url 'finances:hoada_plan_comptable' as list_url %}
+<div class="qb-form qb-form--narrow">
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% if error %}<div class="alert alert-danger form-alert">{{ error }}</div>{% endif %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Compte comptable</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.numero %}
+                        {% include 'includes/form_field.html' with field=form.devise %}
+                        {% include 'includes/form_field.html' with field=form.libelle %}
+                    </div>
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with cancel_url=list_url submit_label="Enregistrer" %}
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

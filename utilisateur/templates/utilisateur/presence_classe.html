@@ -1,0 +1,211 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Présence — {{ classe.classe }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom: .5rem;">
+        <a href="{% url 'utilisateur:enseignant_classe' classe.id %}" style="color: var(--secondary); text-decoration: none; font-weight: 600;">← Classe {{ classe.classe }}</a>
+        &nbsp;·&nbsp;
+        <a href="{% url 'utilisateur:presence_recap' classe.id %}" style="color: var(--secondary); text-decoration: none; font-weight: 600;">📊 Récap élèves</a>
+    </p>
+    <h1>Présence du jour</h1>
+    <p>
+        Classe {{ classe.classe }} · {{ classe.section.section }}
+        {% if annee_courante %} · {{ annee_courante.anne_scolaire }}{% endif %}
+    </p>
+</div>
+
+{% if not annee_courante %}
+<div class="panel">
+    <div class="portal-empty">Aucune année scolaire en cours. La saisie de présence est indisponible.</div>
+</div>
+{% else %}
+
+<form method="get" style="margin-bottom: 1.25rem;">
+    <div class="panel">
+        <div class="panel-body" style="display:flex; gap:1rem; align-items:end; flex-wrap:wrap;">
+            <div class="form-group" style="margin:0;">
+                <label for="date">Date de l'appel</label>
+                <input type="date" name="date" id="date" class="form-control" value="{{ filter_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+            </div>
+            {% if presence %}
+            <span class="badge badge-success" style="margin-bottom:0.4rem;">Appel enregistré — consultation seule</span>
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+<section class="kpi-grid" style="margin-bottom: 1.5rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Élèves</div>
+            <div class="kpi-value">{{ stats.total }}</div>
+        </div>
+        <div class="kpi-footer">Effectif</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Présents</div>
+            <div class="kpi-value">{{ stats.presents }}</div>
+        </div>
+        <div class="kpi-footer">{{ stats.retards }} retard(s)</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Absents</div>
+            <div class="kpi-value">{{ stats.absents }}</div>
+        </div>
+        <div class="kpi-footer">{{ stats.excuses }} excusé(s)</div>
+    </div>
+</section>
+
+<div class="panel">
+    {% if presence %}
+        <div class="panel-header">
+            <h3>Liste — {{ filter_date|date:"d/m/Y" }}</h3>
+            <span class="badge badge-info">Non modifiable</span>
+        </div>
+        <div class="panel-body table-responsive" style="padding:0;">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Matricule</th>
+                        <th>Élève</th>
+                        <th>Statut</th>
+                        <th>Commentaire</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td><span class="font-mono">{{ row.inscription.eleve.matricule }}</span></td>
+                        <td><strong>{{ row.inscription.eleve.prenom }} {{ row.inscription.eleve.nom }}</strong></td>
+                        <td>
+                            {% if row.statut == 'PRESENT' %}
+                            <span class="badge badge-success">Présent</span>
+                            {% elif row.statut == 'ABSENT' %}
+                            <span class="badge badge-danger">Absent</span>
+                            {% elif row.statut == 'RETARD' %}
+                            <span class="badge badge-warning">Retard</span>
+                            {% else %}
+                            <span class="badge badge-info">Excusé</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.commentaire|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">Aucun élève inscrit.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if presence.remarque %}
+        <div class="panel-body" style="border-top:1px solid var(--border);">
+            <strong>Remarque :</strong> {{ presence.remarque }}
+        </div>
+        {% endif %}
+    {% else %}
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="date" value="{{ filter_date|date:'Y-m-d' }}">
+        <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+            <h3>Liste — {{ filter_date|date:"d/m/Y" }}</h3>
+            <div style="display:flex; gap:0.4rem;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setAllStatut('PRESENT')">Tous présents</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setAllStatut('ABSENT')">Tous absents</button>
+            </div>
+        </div>
+        <div class="panel-body table-responsive" style="padding:0;">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Matricule</th>
+                        <th>Élève</th>
+                        <th>Statut</th>
+                        <th>Commentaire</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in rows %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td><span class="font-mono">{{ row.inscription.eleve.matricule }}</span></td>
+                        <td><strong>{{ row.inscription.eleve.prenom }} {{ row.inscription.eleve.nom }}</strong></td>
+                        <td>
+                            <select name="statut_{{ row.inscription.id }}" class="form-control statut-select">
+                                {% for value, label in statuts %}
+                                <option value="{{ value }}" {% if row.statut == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input type="text" name="commentaire_{{ row.inscription.id }}" class="form-control" value="{{ row.commentaire }}" maxlength="200" placeholder="—">
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">Aucun élève inscrit.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if rows %}
+        <div class="panel-body" style="display:flex; gap:1rem; align-items:end; flex-wrap:wrap; border-top:1px solid var(--border);">
+            <div class="form-group" style="flex:1; margin:0; min-width:200px;">
+                <label for="remarque">Remarque</label>
+                <input type="text" name="remarque" id="remarque" class="form-control" value="" maxlength="255">
+            </div>
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+        {% endif %}
+    </form>
+    {% endif %}
+</div>
+
+{% if historique %}
+<div class="panel" style="margin-top:1.5rem;">
+    <div class="panel-header"><h3>Historique</h3></div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>P</th>
+                    <th>A</th>
+                    <th>R</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for h in historique %}
+                <tr>
+                    <td>{{ h.date|date:"d/m/Y" }}</td>
+                    <td>{{ h.nb_presents }}</td>
+                    <td>{{ h.nb_absents }}</td>
+                    <td>{{ h.nb_retards }}</td>
+                    <td><a href="?date={{ h.date|date:'Y-m-d' }}" class="btn btn-secondary btn-sm">Ouvrir</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function setAllStatut(value) {
+    document.querySelectorAll('.statut-select').forEach(function (el) { el.value = value; });
+}
+</script>
+{% endblock %}

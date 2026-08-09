@@ -1,0 +1,51 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>{{ title }}</h1>
+    <p>Renseignez une fiche de cours détaillée (style e-learning) avant de publier.</p>
+</div>
+
+<div style="margin-bottom:1.25rem;">
+    <a href="{% if cours %}{% url 'utilisateur:cours_enseignant_detail' cours.id %}{% else %}{% url 'utilisateur:cours_enseignant_list' %}{% endif %}" class="btn btn-secondary">Annuler</a>
+</div>
+
+<div class="qb-form">
+    <form method="post" enctype="multipart/form-data" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Identité du cours</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.titre %}
+                        {% include 'includes/form_field.html' with field=form.sous_titre %}
+                        {% include 'includes/form_field.html' with field=form.annee_scolaire %}
+                        {% include 'includes/form_field.html' with field=form.classe %}
+                        {% include 'includes/form_field.html' with field=form.matiere %}
+                        {% include 'includes/form_field.html' with field=form.niveau %}
+                        {% include 'includes/form_field.html' with field=form.duree_minutes %}
+                        {% include 'includes/form_field.html' with field=form.public_cible %}
+                        {% include 'includes/form_field.html' with field=form.image_couverture %}
+                        {% include 'includes/form_field.html' with field=form.competences %}
+                    </div>
+                </div>
+            </div>
+            <div class="qb-form__document" style="margin-top:1rem;">
+                <div class="qb-form__section-head">Présentation détaillée</div>
+                <div class="qb-form__body">
+                    {% include 'includes/form_field.html' with field=form.description %}
+                    {% include 'includes/form_field.html' with field=form.objectifs %}
+                    {% include 'includes/form_field.html' with field=form.prerequis %}
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:1rem;">
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

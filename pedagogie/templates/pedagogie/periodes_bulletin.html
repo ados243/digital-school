@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block title %}Répartition année scolaire{% endblock %}
+{% block page_title %}Répartition de l'année scolaire{% endblock %}
+{% block page_subtitle %}
+Calendrier national MINEDU-NC — année partagée par toutes les écoles
+{% if annee_courante %} · {{ annee_courante.anne_scolaire }}
+( {{ annee_courante.date_debut|date:"d/m/Y" }} → {{ annee_courante.date_fin|date:"d/m/Y" }} )
+{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+<form method="post" style="display:inline; margin-right:0.5rem;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="sync">
+    <button type="submit" class="btn btn-primary">⟳ Sync. en cours</button>
+</form>
+<a href="{% url 'pedagogie:dashboard' %}" class="btn btn-secondary">← Pédagogie</a>
+{% endblock %}
+
+{% block content %}
+{% if not annee_courante %}
+<div class="panel">
+    <div class="panel-body" style="text-align:center; padding:2.5rem; color:var(--text-muted);">
+        Aucune année scolaire nationale configurée.<br>
+        Exécutez <code>python manage.py charger_periodes_rdc --creer 2025-2026 --encours --align-dates</code>
+    </div>
+</div>
+{% elif not cycles_data %}
+<div class="panel">
+    <div class="panel-body" style="text-align:center; padding:2.5rem; color:var(--text-muted);">
+        Aucune période chargée.<br>
+        Exécutez <code>python manage.py charger_periodes_rdc --align-dates --replace</code>
+    </div>
+</div>
+{% else %}
+
+{% if calendrier_encours.lignes %}
+<div class="panel" style="margin-bottom:1.5rem; border-left:4px solid var(--primary);">
+    <div class="panel-header">
+        <h3>Actuellement en cours</h3>
+        <span class="badge badge-success">{{ aujourdhui|date:"d/m/Y" }}</span>
+    </div>
+    <div class="panel-body" style="padding-top:0.5rem;">
+        <div style="display:grid; gap:0.5rem;">
+            {% for ligne in calendrier_encours.lignes %}
+            <div style="display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center;">
+                <strong>{{ ligne.cycle.get_cycle_display|default:ligne.cycle.cycle }}</strong>
+                {% if ligne.division %}
+                <span class="badge badge-success">{{ ligne.division.libelle }}</span>
+                {% endif %}
+                {% if ligne.periode %}
+                <span class="badge badge-info">{{ ligne.periode.libelle }}</span>
+                {% else %}
+                <span style="color:var(--text-muted); font-size:0.9rem;">Aucune période TJ active</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="panel" style="margin-bottom:1.5rem;">
+    <div class="panel-body">
+        <p style="margin:0; color:var(--text-muted); line-height:1.6;">
+            Dates issues du <strong>calendrier officiel MINEDU-NC</strong> (rentrée 1<sup>er</sup> septembre → clôture 2 juillet).<br>
+            Utilisez le bouton <strong>En cours</strong> pour marquer le trimestre/semestre ou la période active.
+            Le statut passe automatiquement à <em>false</em> dès que la date de fin est dépassée.
+        </p>
+    </div>
+</div>
+
+{% for item in cycles_data %}
+<div class="panel" style="margin-bottom:1.5rem;">
+    <div class="panel-header">
+        <h3>{{ item.cycle.get_cycle_display|default:item.cycle.cycle }} — {{ item.mode }}s</h3>
+        <span class="badge badge-info">{{ item.nb_periodes }} période{{ item.nb_periodes|pluralize }}</span>
+    </div>
+    <div class="panel-body" style="padding-top:0.75rem;">
+        {% if item.sections %}
+        <p style="margin:0 0 1rem; font-size:0.9rem; color:var(--text-muted);">
+            Sections concernées :
+            {% for s in item.sections %}<span class="badge badge-secondary" style="margin-right:0.25rem;">{{ s }}</span>{% endfor %}
+        </p>
+        {% endif %}
+
+        <div style="display:grid; gap:1rem;">
+            {% for div in item.divisions %}
+            <div style="border:1px solid {% if div.obj.est_encours %}var(--primary){% else %}var(--border){% endif %}; border-radius:8px; overflow:hidden;{% if div.obj.est_encours %} box-shadow:0 0 0 1px var(--primary);{% endif %}">
+                <div style="padding:0.75rem 1rem; background:{% if div.obj.est_encours %}rgba(37,99,235,0.08){% else %}var(--bg-muted, #f7f8fa){% endif %}; font-weight:700; display:flex; flex-wrap:wrap; gap:0.75rem; align-items:center; justify-content:space-between;">
+                    <div>
+                        {{ div.obj.libelle }}
+                        {% if div.obj.est_encours %}
+                        <span class="badge badge-success" style="margin-left:0.35rem;">En cours</span>
+                        {% elif div.obj.date_fin < aujourdhui %}
+                        <span class="badge badge-secondary" style="margin-left:0.35rem;">Terminé</span>
+                        {% endif %}
+                        <span style="font-weight:500; color:var(--text-muted); margin-left:0.5rem;">
+                            {{ div.obj.date_debut|date:"d/m/Y" }} → {{ div.obj.date_fin|date:"d/m/Y" }}
+                        </span>
+                    </div>
+                    <form method="post" action="{% url 'pedagogie:division_toggle_encours' div.obj.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{% url 'pedagogie:periodes_bulletin' %}">
+                        <button type="submit"
+                                class="btn {% if div.obj.est_encours %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
+                                {% if not div.obj.est_encours and div.obj.date_fin < aujourdhui %}disabled title="Date de fin dépassée"{% endif %}>
+                            {% if div.obj.est_encours %}● En cours{% else %}○ Marquer en cours{% endif %}
+                        </button>
+                    </form>
+                </div>
+                <div class="table-responsive" style="padding:0;">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Période (bulletin)</th>
+                                <th>Début</th>
+                                <th>Fin</th>
+                                <th style="text-align:right; padding-right:1rem;">Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in div.periodes %}
+                            <tr {% if p.est_encours %}style="background:rgba(0,119,197,0.08);"{% endif %}>
+                                <td>
+                                    <strong>{{ p.libelle }}</strong>
+                                    {% if p.est_encours %}
+                                    <span class="badge badge-success" style="margin-left:0.35rem;">En cours</span>
+                                    {% elif p.date_fin < aujourdhui %}
+                                    <span class="badge badge-secondary" style="margin-left:0.35rem;">Terminée</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ p.date_debut|date:"d/m/Y" }}</td>
+                                <td>{{ p.date_fin|date:"d/m/Y" }}</td>
+                                <td style="text-align:right; padding-right:1rem;">
+                                    <form method="post" action="{% url 'pedagogie:periode_toggle_encours' p.id %}" style="display:inline;">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="next" value="{% url 'pedagogie:periodes_bulletin' %}">
+                                        <button type="submit"
+                                                class="btn {% if p.est_encours %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
+                                                {% if not p.est_encours and p.date_fin < aujourdhui %}disabled title="Date de fin dépassée"{% endif %}>
+                                            {% if p.est_encours %}● En cours{% else %}○ En cours{% endif %}
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

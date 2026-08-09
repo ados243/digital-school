@@ -1,0 +1,171 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Saisie des notes{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Saisie des notes</h1>
+    <p>{{ travail.get_type_travail_display }} · {{ travail.matiere.libelle }} · Classe {{ travail.classe.classe }} · {{ travail.date_travail|date:"d/m/Y" }}</p>
+</div>
+
+<div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:travail_update' travail.id %}" class="btn btn-secondary">✏️ Modifier le travail</a>
+    <a href="{% url 'utilisateur:travail_list' %}" class="btn btn-secondary">Retour à la liste</a>
+</div>
+
+{% if nb_verrouillees %}
+<div class="panel" style="margin-bottom:1rem;">
+    <div class="panel-body" style="color:var(--text-muted); font-size:0.9rem;">
+        Les notes déjà enregistrées sont <strong>verrouillées</strong> et ne peuvent plus être modifiées
+        ({{ nb_verrouillees }}/{{ nb_attendus }}). Vous pouvez encore saisir les lignes restantes.
+    </div>
+</div>
+{% endif %}
+
+<div class="qb-form">
+    <div class="qb-form__status">
+        <div class="qb-form__status-item qb-form__status-item--ok">
+            <span class="qb-form__status-icon">🎯</span>
+            <div>
+                <div class="qb-form__status-label">Barème</div>
+                <div class="qb-form__status-value">/ {{ travail.bareme }}</div>
+                <div class="qb-form__status-meta">Coefficient {{ travail.coefficient }}</div>
+            </div>
+        </div>
+        <div class="qb-form__status-item {% if nb_saisies >= nb_attendus and nb_attendus > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">📝</span>
+            <div>
+                <div class="qb-form__status-label">Notes verrouillées</div>
+                <div class="qb-form__status-value">{{ nb_saisies }}/{{ nb_attendus }}</div>
+                <div class="qb-form__status-meta">Élèves de la classe {{ travail.classe.classe }}</div>
+            </div>
+        </div>
+        <div class="qb-form__status-item qb-form__status-item--ok">
+            <span class="qb-form__status-icon">📅</span>
+            <div>
+                <div class="qb-form__status-label">Année scolaire</div>
+                <div class="qb-form__status-value">{{ travail.annee_scolaire.anne_scolaire }}</div>
+                <div class="qb-form__status-meta">{{ travail.matiere.libelle }}</div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">
+                    Feuille de notes
+                    <span style="font-weight:600; text-transform:none; letter-spacing:normal; font-size:.78rem; color:var(--text-muted);">
+                        {{ rows|length }} élève{{ rows|length|pluralize }}
+                    </span>
+                </div>
+                <div class="qb-form__body" style="padding:0;">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th style="width:60px;">#</th>
+                                <th>Élève</th>
+                                <th>Matricule</th>
+                                <th style="width:160px;">Note (/ {{ travail.bareme }})</th>
+                                <th style="width:100px; text-align:center;">Absent</th>
+                                <th style="width:110px;">Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                            <tr {% if row.verrouillee %}style="background:rgba(0,0,0,0.03);"{% endif %}>
+                                <td>{{ forloop.counter }}</td>
+                                <td><strong>{{ row.inscription.eleve.nom }} {{ row.inscription.eleve.prenom }}</strong></td>
+                                <td style="font-family: monospace; color: var(--text-muted);">{{ row.inscription.eleve.matricule }}</td>
+                                <td>
+                                    {% if row.verrouillee %}
+                                    <input
+                                        type="text"
+                                        class="form-control"
+                                        value="{% if row.absent %}ABS{% elif row.note is not None %}{{ row.note }}{% endif %}"
+                                        disabled
+                                        readonly
+                                    >
+                                    {% else %}
+                                    <input
+                                        type="text"
+                                        inputmode="decimal"
+                                        name="note_{{ row.inscription.id }}"
+                                        class="form-control note-input"
+                                        value=""
+                                        placeholder="—"
+                                        data-bareme="{{ travail.bareme }}"
+                                    >
+                                    {% endif %}
+                                </td>
+                                <td style="text-align:center;">
+                                    {% if row.verrouillee %}
+                                    <input type="checkbox" class="form-check-input" {% if row.absent %}checked{% endif %} disabled>
+                                    {% else %}
+                                    <input
+                                        type="checkbox"
+                                        class="form-check-input absent-checkbox"
+                                        name="absent_{{ row.inscription.id }}"
+                                    >
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if row.verrouillee %}
+                                    <span class="badge badge-success">Verrouillée</span>
+                                    {% else %}
+                                    <span class="badge badge-warning">À saisir</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="6" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                                    Aucun élève inscrit dans cette classe pour cette année scolaire.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="qb-form__footer">
+                    <a href="{% url 'utilisateur:travail_list' %}" class="btn btn-secondary">Retour</a>
+                    {% if peut_saisir %}
+                    <button type="submit" class="btn btn-primary btn-lg btn-form-submit">Enregistrer les notes</button>
+                    {% else %}
+                    <button type="button" class="btn btn-secondary btn-lg" disabled>Toutes les notes sont verrouillées</button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    document.querySelectorAll('.absent-checkbox').forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            var row = checkbox.closest('tr');
+            var input = row.querySelector('.note-input');
+            if (!input) return;
+            input.disabled = checkbox.checked;
+            if (checkbox.checked) input.value = '';
+        });
+    });
+
+    document.querySelectorAll('.note-input').forEach(function (input) {
+        input.addEventListener('blur', function () {
+            var bareme = parseFloat(input.dataset.bareme || '20');
+            var value = parseFloat((input.value || '').replace(',', '.'));
+            if (!isNaN(value) && (value < 0 || value > bareme)) {
+                input.style.borderColor = 'var(--danger)';
+            } else {
+                input.style.borderColor = '';
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

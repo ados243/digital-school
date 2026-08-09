@@ -1,0 +1,61 @@
+﻿{% extends 'base.html' %}
+{% block title %}Balance{% endblock %}
+{% block page_title %}Balance (HOADA){% endblock %}
+{% block page_subtitle %}Synthèse des mouvements et soldes par compte.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:hoada_ecritures_create' %}" class="btn btn-primary">+ Nouvelle écriture</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h3>Balance générale</h3>
+    </div>
+
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Compte</th>
+                    <th>Libellé</th>
+                    <th style="text-align:right;">Débit</th>
+                    <th style="text-align:right;">Crédit</th>
+                    <th style="text-align:right;">Solde débiteur</th>
+                    <th style="text-align:right;">Solde créditeur</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.compte.numero }}</td>
+                    <td>{{ row.compte.libelle }}</td>
+                    <td style="text-align:right;">{{ row.debit }}</td>
+                    <td style="text-align:right;">{{ row.credit }}</td>
+                    <td style="text-align:right;">{% if row.solde_debiteur %}{{ row.solde_debiteur }}{% else %}-{% endif %}</td>
+                    <td style="text-align:right;">{% if row.solde_crediteur %}{{ row.solde_crediteur }}{% else %}-{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center; color:var(--text-muted); padding:3rem 1.5rem;">
+                        Aucune écriture comptable pour cette école.
+                        <a href="{% url 'finances:hoada_ecritures_create' %}">Saisir une écriture</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if rows %}
+            <tfoot>
+                <tr style="background:var(--bg-light); font-weight:700;">
+                    <td colspan="2">Totaux</td>
+                    <td style="text-align:right;">{{ total_debit }}</td>
+                    <td style="text-align:right;">{{ total_credit }}</td>
+                    <td style="text-align:right;">{{ total_solde_debiteur }}</td>
+                    <td style="text-align:right;">{{ total_solde_crediteur }}</td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}Tableau de bord Inscriptions{% endblock %}
+
+{% block page_title %}Tableau de bord Inscriptions{% endblock %}
+{% block page_subtitle %}Vue d'ensemble de la scolarité et des effectifs élèves.{% endblock %}
+
+{% block content %}
+<!-- KPI Cards -->
+<section class="kpi-grid">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Total Fiches Élèves</div>
+            <div class="kpi-value">{{ total_eleves }}</div>
+        </div>
+        <div class="kpi-footer">👥 Élèves enregistrés en BD</div>
+    </div>
+    
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Inscriptions Actives</div>
+            <div class="kpi-value">{{ total_inscriptions }}</div>
+        </div>
+        <div class="kpi-footer">✍️ Élèves inscrits cette année</div>
+    </div>
+    
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Classes existantes</div>
+            <div class="kpi-value">{{ total_classes }}</div>
+        </div>
+        <div class="kpi-footer">🏫 Sections et salles de classe</div>
+    </div>
+    
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Capacité Globale</div>
+            <div class="kpi-value">{{ total_capacity }}</div>
+        </div>
+        <div class="kpi-footer">📊 Capacité maximale d'accueil</div>
+    </div>
+</section>
+
+<!-- Sex Distribution & Quick Links -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+    <!-- Sex stats -->
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Répartition des Élèves par Sexe</h3>
+        </div>
+        <div class="panel-body">
+            <div style="display: flex; gap: 2rem; justify-content: space-around; text-align: center; padding: 1rem 0;">
+                <div>
+                    <div style="font-size: 2.5rem; font-weight: 300; color: var(--secondary);">{{ garcons }}</div>
+                    <div style="color: var(--text-muted); font-size: 0.8rem; font-weight:600; text-transform: uppercase;">Garçons (Masculin)</div>
+                </div>
+                <div>
+                    <div style="font-size: 2.5rem; font-weight: 300; color: var(--danger);">{{ filles }}</div>
+                    <div style="color: var(--text-muted); font-size: 0.8rem; font-weight:600; text-transform: uppercase;">Filles (Féminin)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions Panel -->
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Actions rapides</h3>
+        </div>
+        <div class="panel-body" style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <a href="{% url 'inscription:eleve_create' %}" class="btn btn-primary" style="justify-content: flex-start;">➕ Enregistrer un nouvel élève</a>
+            <a href="{% url 'inscription:inscription_create' %}" class="btn btn-secondary" style="justify-content: flex-start;">✍️ Inscrire un élève à une classe</a>
+            <a href="{% url 'inscription:tuteur_create' %}" class="btn btn-secondary" style="justify-content: flex-start;">👤 Enregistrer un parent / tuteur</a>
+        </div>
+    </div>
+</div>
+
+<!-- Dashboard Grid (Split) -->
+<div class="dashboard-grid">
+    <!-- Left Column: Recent Inscriptions -->
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Dernières inscriptions enregistrées</h3>
+            <a href="{% url 'inscription:inscription_list' %}" class="btn btn-secondary btn-sm">Voir tout</a>
+        </div>
+        <div class="panel-body table-responsive" style="padding: 0;">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>N° Ins.</th>
+                        <th>Élève</th>
+                        <th>Classe</th>
+                        <th>Frais d'Ins.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ins in recent_inscriptions %}
+                    <tr>
+                        <td>{{ ins.date|date:"d/m/Y" }}</td>
+                        <td><span style="font-family: monospace; font-weight: 700; color: var(--primary);">{{ ins.numero_ins }}</span></td>
+                        <td><strong>{{ ins.eleve.prenom }} {{ ins.eleve.nom }}</strong></td>
+                        <td><span class="badge badge-info">{{ ins.classe.classe }}</span></td>
+                        <td>
+                            {% if ins.frais_inscription %}
+                            <span class="badge badge-success">Payé</span>
+                            {% else %}
+                            <span class="badge badge-danger">Non payé</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">Aucune inscription récente</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Right Column: Recent Students -->
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Nouveaux élèves enregistrés</h3>
+            <a href="{% url 'inscription:eleve_list' %}" class="btn btn-secondary btn-sm">Liste complète</a>
+        </div>
+        <div class="panel-body" style="padding: 1rem;">
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                {% for el in recent_eleves %}
+                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem; border-bottom: 1px solid var(--border);">
+                    <div style="width: 36px; height: 36px; border-radius: 50%; background-color: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.95rem;">
+                        {{ el.prenom|slice:":1" }}{{ el.nom|slice:":1" }}
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.9rem;">{{ el.prenom }} {{ el.nom }}</div>
+                        <div style="color: var(--text-muted); font-size: 0.75rem;">Matricule : {{ el.matricule }} | Sexe : {{ el.sexe }}</div>
+                    </div>
+                </div>
+                {% empty %}
+                <div style="text-align: center; color: var(--text-muted); padding: 1rem;">Aucun élève</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

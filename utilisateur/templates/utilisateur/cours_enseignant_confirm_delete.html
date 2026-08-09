@@ -1,0 +1,21 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Supprimer le cours{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Supprimer le cours</h1>
+    <p>Cette action est définitive (leçons et fichiers inclus).</p>
+</div>
+
+<div class="panel">
+    <div class="panel-body">
+        <p>Confirmer la suppression de « <strong>{{ cours.titre }}</strong> » ({{ cours.matiere.libelle }} — {{ cours.classe.classe }}) ?</p>
+        <form method="post" style="display:flex; gap:.5rem; margin-top:1rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger" style="background:var(--danger); border-color:var(--danger);">Supprimer</button>
+            <a href="{% url 'utilisateur:cours_enseignant_detail' cours.id %}" class="btn btn-secondary">Annuler</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

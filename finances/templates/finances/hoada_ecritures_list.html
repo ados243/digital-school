@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}Écritures{% endblock %}
+{% block page_title %}Écritures (HOADA){% endblock %}
+{% block page_subtitle %}Consultation par école{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div class="panel-header">
+    <h3>Écritures</h3>
+    <a href="{% url 'finances:hoada_ecritures_create' %}" class="btn btn-primary btn-sm">+ Nouvelle écriture</a>
+  </div>
+
+  <div class="panel-body table-responsive" style="padding:0;">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Date</th>
+          <th>Journal</th>
+          <th>Pièce</th>
+          <th>Libellé</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in object_list %}
+        <tr>
+          <td style="font-family: monospace; font-weight:700;">{{ e.id }}</td>
+          <td>{{ e.date_ecriture|date:"d/m/Y" }}</td>
+          <td>{{ e.journal.code }}</td>
+          <td>{% if e.piece %}{{ e.piece.reference }}{% else %}-{% endif %}</td>
+          <td>{{ e.libelle }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" style="text-align:center; color: var(--text-muted); padding:2rem;">
+            Aucune écriture pour cette école.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

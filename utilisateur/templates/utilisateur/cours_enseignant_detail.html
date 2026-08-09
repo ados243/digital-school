@@ -1,0 +1,123 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ cours.titre }}{% endblock %}
+{% block portal_main_class %}portal-main--wide{% endblock %}
+
+{% block content %}
+<div class="ll-course ll-course--manage">
+    <div class="ll-course__banner">
+        <a href="{% url 'utilisateur:cours_enseignant_list' %}" class="ll-back">← Mes cours</a>
+        <div class="ll-course__banner-grid">
+            <div class="ll-course__intro">
+                <p class="ll-eyebrow">{{ cours.matiere.libelle }} · {{ cours.classe.classe }}</p>
+                <h1>{{ cours.titre }}</h1>
+                {% if cours.sous_titre %}<p class="ll-course__tagline">{{ cours.sous_titre }}</p>{% endif %}
+                <div class="ll-course__stats">
+                    <span>{{ structure|length }} chapitre{{ structure|length|pluralize }}</span>
+                    <span>{{ nb_sous }} sous-chapitre{{ nb_sous|pluralize }}</span>
+                    <span>{{ cours.duree_affichee }}</span>
+                    {% if cours.publie %}<span class="badge badge-success">Publié</span>
+                    {% else %}<span class="badge badge-secondary">Brouillon</span>{% endif %}
+                </div>
+                <div style="display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1rem;">
+                    <a href="{% url 'utilisateur:cours_enseignant_update' cours.id %}" class="btn btn-secondary btn-sm">Modifier la fiche</a>
+                    <form method="post" action="{% url 'utilisateur:cours_enseignant_publier' cours.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        {% if cours.publie %}
+                        <input type="hidden" name="action" value="depublier">
+                        <button type="submit" class="btn btn-secondary btn-sm">Dépublier</button>
+                        {% else %}
+                        <input type="hidden" name="action" value="publier">
+                        <button type="submit" class="btn btn-primary btn-sm">Publier en ligne</button>
+                        {% endif %}
+                    </form>
+                    <a href="{% url 'utilisateur:cours_enseignant_delete' cours.id %}" class="btn btn-danger btn-sm" style="background:var(--danger);border-color:var(--danger);">Supprimer</a>
+                </div>
+            </div>
+            <div class="ll-course__cover ll-course__cover--enseignant">
+                {% if cours.image_couverture %}
+                <img src="{{ cours.image_couverture.url }}" alt="">
+                {% else %}
+                <div class="ll-course__cover-fallback">
+                    <span>{{ cours.matiere.libelle }}</span>
+                    <strong>{{ cours.titre|truncatechars:40 }}</strong>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-header">
+        <h3>Structure du cours</h3>
+        <span class="badge badge-info">Chapitres → sous-chapitres</span>
+    </div>
+    <div class="panel-body" style="padding:0;">
+        {% for chapitre, sous in structure %}
+        <div class="ll-ch-block">
+            <div class="ll-ch-block__head">
+                <div>
+                    <strong>Chapitre {{ chapitre.ordre }} — {{ chapitre.titre }}</strong>
+                    <div class="ll-muted">
+                        {{ sous|length }} sous-chapitre{{ sous|length|pluralize }}
+                        {% if chapitre.video_url %} · Vidéo{% endif %}
+                        {% if chapitre.image %} · Image{% endif %}
+                        {% if not chapitre.publie %} · <span class="badge badge-secondary">Brouillon</span>{% endif %}
+                    </div>
+                </div>
+                <div style="display:flex; gap:.35rem;">
+                    <a href="{% url 'utilisateur:chapitre_enseignant_detail' chapitre.id %}" class="btn btn-primary btn-sm">Organiser</a>
+                    <a href="{% url 'utilisateur:chapitre_enseignant_update' chapitre.id %}" class="btn btn-secondary btn-sm">✏️</a>
+                </div>
+            </div>
+            {% if sous %}
+            <ul class="ll-ch-block__list">
+                {% for sc in sous %}
+                <li>
+                    <span>{{ chapitre.ordre }}.{{ sc.ordre }} {{ sc.titre }}</span>
+                    <span class="ll-muted">
+                        {{ sc.get_type_contenu_display }} · {{ sc.duree_affichee }}
+                        {% if sc.video_url %} · ▶{% endif %}
+                        {% if sc.image %} · 🖼{% endif %}
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="ll-muted" style="padding:.75rem 1.1rem; margin:0;">Aucun sous-chapitre — ouvrez le chapitre pour en ajouter.</p>
+            {% endif %}
+        </div>
+        {% empty %}
+        <div class="portal-empty">Aucun chapitre. Créez le premier ci-dessous.</div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="qb-form">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="ajouter_chapitre">
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Ajouter un chapitre</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=chapitre_form.titre %}
+                        {% include 'includes/form_field.html' with field=chapitre_form.resume %}
+                        {% include 'includes/form_field.html' with field=chapitre_form.ordre %}
+                        {% include 'includes/form_field.html' with field=chapitre_form.video_url %}
+                        {% include 'includes/form_field.html' with field=chapitre_form.image %}
+                        {% include 'includes/form_field.html' with field=chapitre_form.publie %}
+                    </div>
+                    {% include 'includes/form_field.html' with field=chapitre_form.contenu %}
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:1rem;">
+            <button type="submit" class="btn btn-primary">Ajouter le chapitre</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

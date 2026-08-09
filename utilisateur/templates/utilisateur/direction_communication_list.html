@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Communications direction{% endblock %}
+{% block page_title %}Communications aux parents{% endblock %}
+{% block page_subtitle %}Messages de la direction vers un parent, une classe, une section ou toute l'école.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'utilisateur:direction_communication_create' %}" class="btn btn-primary">✉️ Nouvelle communication</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h3>{{ ecole.ecole }} — Historique</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Sujet</th>
+                    <th>Destinataires</th>
+                    <th>Auteur</th>
+                    <th>Lectures</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.communication.created_at|date:"d/m/Y H:i" }}</td>
+                    <td><strong>{{ row.communication.sujet }}</strong></td>
+                    <td>
+                        <span class="badge badge-info">{{ row.communication.get_cible_type_display }}</span>
+                        <span style="display:block; font-size:.8rem; color:var(--text-muted); margin-top:.2rem;">
+                            {{ row.communication.libelle_cible }} · {{ row.nb_destinataires }} parent{{ row.nb_destinataires|pluralize }}
+                        </span>
+                    </td>
+                    <td>{% if row.communication.auteur %}{{ row.communication.auteur.nom_complet }}{% else %}—{% endif %}</td>
+                    <td>{{ row.nb_lus }} / {{ row.nb_destinataires }}</td>
+                    <td style="text-align:right; padding-right:1.5rem;">
+                        <a href="{% url 'utilisateur:direction_communication_detail' row.communication.id %}" class="btn btn-secondary btn-sm">Voir</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center; padding:2.5rem; color:var(--text-muted);">
+                        Aucune communication envoyée.
+                        <br>
+                        <a href="{% url 'utilisateur:direction_communication_create' %}" class="btn btn-primary btn-sm" style="margin-top:1rem;">Créer la première</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

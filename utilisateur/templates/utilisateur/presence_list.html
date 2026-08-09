@@ -1,0 +1,94 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Présences{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Présences quotidiennes</h1>
+    <p>
+        Appel des élèves de vos classes
+        {% if annee_courante %} · Année {{ annee_courante.anne_scolaire }}{% endif %}
+    </p>
+</div>
+
+<form method="get" style="margin-bottom: 1.25rem;">
+    <div class="panel">
+        <div class="panel-body" style="display:flex; gap:1rem; align-items:end; flex-wrap:wrap;">
+            <div class="form-group" style="margin:0;">
+                <label for="date">Date de l'appel</label>
+                <input type="date" name="date" id="date" class="form-control" value="{{ filter_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+            </div>
+        </div>
+    </div>
+</form>
+
+<section class="kpi-grid" style="margin-bottom: 1.5rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Classes</div>
+            <div class="kpi-value">{{ total_classes }}</div>
+        </div>
+        <div class="kpi-footer">Suivies pour le {{ filter_date|date:"d/m/Y" }}</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Appels faits</div>
+            <div class="kpi-value">{{ total_faites }}</div>
+        </div>
+        <div class="kpi-footer">Appels réalisés à cette date</div>
+    </div>
+</section>
+
+<div class="panel">
+    <div class="panel-header">
+        <h3>Mes classes — {{ filter_date|date:"d F Y" }}</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Classe</th>
+                    <th>Section</th>
+                    <th>Effectif</th>
+                    <th>Statut appel</th>
+                    <th>Présents</th>
+                    <th>Absents</th>
+                    <th>Retards</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td><strong>{{ row.classe.classe }}</strong></td>
+                    <td>{{ row.classe.section.section }}</td>
+                    <td>{{ row.inscrits }}</td>
+                    <td>
+                        {% if row.fait %}
+                        <span class="badge badge-success">Fait</span>
+                        {% else %}
+                        <span class="badge badge-warning">À faire</span>
+                        {% endif %}
+                    </td>
+                    <td>{% if row.fait %}{{ row.presents }}{% else %}—{% endif %}</td>
+                    <td>{% if row.fait %}{{ row.absents }}{% else %}—{% endif %}</td>
+                    <td>{% if row.fait %}{{ row.retards }}{% else %}—{% endif %}</td>
+                    <td style="text-align:right; white-space:nowrap;">
+                        <a href="{% url 'utilisateur:presence_classe' row.classe.id %}?date={{ filter_date|date:'Y-m-d' }}" class="btn btn-primary btn-sm">
+                            {% if row.fait %}Consulter{% else %}Faire l'appel{% endif %}
+                        </a>
+                        <a href="{% url 'utilisateur:presence_recap' row.classe.id %}" class="btn btn-secondary btn-sm" title="Récapitulatif">📊</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align:center; padding:2.5rem; color:var(--text-muted);">
+                        Aucune classe disponible.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container" style="padding: 24px;">
+  <h2>Frais scolaires</h2>
+
+  <div style="margin: 1rem 0; display: flex; gap: 1rem; align-items: center;">
+    <a href="{% url 'finances:frais_scolaire_create' %}" class="btn btn-primary">➕ Ajouter</a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Liste</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Année</th>
+            <th>Section</th>
+            <th>Montant</th>
+            <th>Devise</th>
+            <th>Échéance</th>
+            <th>Obligatoire</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in object_list %}
+          <tr>
+            <td>{{ item.type_frais.libelle }}</td>
+            <td>{{ item.annee }}</td>
+            <td>{{ item.section }}</td>
+            <td>{{ item.montant }}</td>
+            <td>{{ item.devise }}</td>
+            <td>{{ item.echeance|date:"d/m/Y" }}</td>
+            <td>{% if item.est_obligatoire %}<span class="badge badge-success">Oui</span>{% else %}<span class="badge badge-warning">Non</span>{% endif %}</td>
+            <td>
+              <a class="btn btn-secondary btn-sm" href="{% url 'finances:frais_scolaire_update' item.id %}">Modifier</a>
+              <a class="btn btn-danger btn-sm" href="{% url 'finances:frais_scolaire_delete' item.id %}">Supprimer</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" style="text-align:center; color: var(--text-muted); padding: 2rem;">Aucun frais scolaire.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

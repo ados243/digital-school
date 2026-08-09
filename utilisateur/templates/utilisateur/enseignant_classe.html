@@ -1,0 +1,214 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Classe {{ classe.classe }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom: .5rem;">
+        <a href="{% url 'utilisateur:enseignant_dashboard' %}" style="color: var(--secondary); text-decoration: none; font-weight: 600;">← Mes classes</a>
+    </p>
+    <h1>Classe {{ classe.classe }}</h1>
+    <p>
+        {{ classe.section.section }} · Salle {{ classe.salle }}
+        {% if annee_courante %} · {{ annee_courante.anne_scolaire }}{% endif %}
+    </p>
+</div>
+
+<section class="kpi-grid" style="margin-bottom: 1.75rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Élèves</div>
+            <div class="kpi-value">{{ inscrits }} / {{ classe.capacite_max }}</div>
+        </div>
+        <div class="kpi-footer">{{ places_restantes }} place(s) restante(s)</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Garçons / Filles</div>
+            <div class="kpi-value">{{ garcons }} / {{ filles }}</div>
+        </div>
+        <div class="kpi-footer">Répartition par sexe</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Matières</div>
+            <div class="kpi-value">{{ matieres|length }}</div>
+        </div>
+        <div class="kpi-footer">De la section {{ classe.section.section }}</div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom: 1.5rem;">
+    <div class="panel-header">
+        <h3>Mes élèves</h3>
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+            {% if est_titulaire %}
+            <a href="{% url 'utilisateur:bulletin_classe' classe.id %}" class="btn btn-secondary btn-sm">📜 Bulletins</a>
+            <a href="{% url 'utilisateur:presence_classe' classe.id %}" class="btn btn-primary btn-sm">📋 Présence</a>
+            <a href="{% url 'utilisateur:presence_recap' classe.id %}" class="btn btn-secondary btn-sm">📊 Récap</a>
+            {% endif %}
+            <a href="{% url 'utilisateur:evolution_classe' classe.id %}" class="btn btn-primary btn-sm">📈 Évolution</a>
+            <a href="{% url 'utilisateur:cours_enseignant_create' %}?classe={{ classe.id }}" class="btn btn-secondary btn-sm">📚 Cours en ligne</a>
+            <span class="badge badge-info">{{ inscrits }} élève{{ inscrits|pluralize }}</span>
+            {% if not est_titulaire %}
+            <span class="badge badge-info" title="Bulletins et appel réservés au titulaire">Cours</span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Matricule</th>
+                    <th>Élève</th>
+                    <th>Sexe</th>
+                    {% if est_titulaire %}
+                    <th style="text-align:center;" title="Présents">P</th>
+                    <th style="text-align:center;" title="Absents">A</th>
+                    <th style="text-align:center;" title="Retards">R</th>
+                    <th style="text-align:center;" title="Excusés">E</th>
+                    <th>Taux</th>
+                    <th>Bulletin %</th>
+                    {% endif %}
+                    <th>Tuteur / parent</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in eleves_rows %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td><span style="font-family: monospace; font-weight: 700; color: var(--primary);">{{ row.eleve.matricule }}</span></td>
+                    <td>
+                        <strong>{{ row.eleve.prenom }} {{ row.eleve.nom }} {{ row.eleve.Post_nom }}</strong>
+                    </td>
+                    <td>{{ row.eleve.get_sexe_display }}</td>
+                    {% if est_titulaire %}
+                    <td style="text-align:center; color:var(--success); font-weight:700;">{{ row.presents }}</td>
+                    <td style="text-align:center; color:var(--danger); font-weight:700;">{{ row.absents }}</td>
+                    <td style="text-align:center; color:var(--warning); font-weight:700;">{{ row.retards }}</td>
+                    <td style="text-align:center;">{{ row.excuses }}</td>
+                    <td>{% if row.taux is not None %}<strong>{{ row.taux }}%</strong>{% else %}—{% endif %}</td>
+                    <td>
+                        {% if row.bulletin and row.bulletin.pourcentage is not None %}
+                        <strong>{{ row.bulletin.pourcentage }} %</strong>
+                        {% else %}
+                        <span style="color:var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td>
+                        {% if row.tuteur %}
+                        {{ row.tuteur.prenom }} {{ row.tuteur.nom }}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        {% if est_titulaire %}
+                        <a href="{% url 'utilisateur:bulletin_eleve' row.inscription.id %}" class="btn btn-primary btn-sm" title="Bulletin">📜</a>
+                        <a href="{% url 'utilisateur:messagerie_nouveau_enseignant' classe.id row.inscription.id %}" class="btn btn-secondary btn-sm" title="Contacter le parent">💬</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if est_titulaire %}12{% else %}6{% endif %}" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                        {% if not annee_courante %}
+                        Aucune année scolaire en cours.
+                        {% else %}
+                        Aucun élève inscrit dans cette classe pour l'année en cours.
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if est_titulaire %}
+    <p style="padding: 0.75rem 1.25rem; margin: 0; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border);">
+        P = Présent · A = Absent · R = Retard · E = Excusé
+        {% if jours_appeles %} · {{ jours_appeles }} jour(s) d'appel{% endif %}
+        {% if taux_classe is not None %} · taux classe {{ taux_classe }} %{% endif %}
+    </p>
+    {% endif %}
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+    <div class="panel">
+        <div class="panel-header"><h3>Matières de la section</h3></div>
+        <div class="panel-body table-responsive" style="padding: 0;">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Matière</th>
+                        <th>Enseignant</th>
+                        <th>Coef.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in matieres %}
+                    <tr>
+                        <td>
+                            {{ row.matiere.libelle }}
+                            {% if row.source == 'affectation' %}
+                            <span class="badge badge-info" style="font-size:.7rem;">Spécifique</span>
+                            {% elif row.source == 'titulaire' %}
+                            <span class="badge badge-success" style="font-size:.7rem;">Titulaire</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if row.enseignant %}
+                            {{ row.enseignant.prenom }} {{ row.enseignant.nom }}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>{{ row.matiere.coefficient }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" style="text-align:center; color: var(--text-muted); padding: 1.5rem;">Aucune matière</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Travaux de la classe</h3>
+            <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+                <a href="{% url 'utilisateur:travail_create' %}?classe={{ classe.id }}" class="btn btn-primary btn-sm">+ Nouveau</a>
+                <a href="{% url 'utilisateur:travail_list' %}?classe={{ classe.id }}" class="btn btn-secondary btn-sm">Gérer</a>
+            </div>
+        </div>
+        <div class="panel-body table-responsive" style="padding: 0;">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Matière</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in travaux %}
+                    <tr>
+                        <td>{{ t.date_travail|date:"d/m/Y" }}</td>
+                        <td>{{ t.get_type_travail_display }}</td>
+                        <td>{{ t.matiere.libelle }}</td>
+                        <td style="text-align:right;">
+                            <a href="{% url 'utilisateur:travail_notes' t.id %}" class="btn btn-primary btn-sm">Notes</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align:center; color: var(--text-muted); padding: 1.5rem;">Aucun travail coté</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

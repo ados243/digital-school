@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Supprimer la Classe | Inscriptions{% endblock %}
+
+{% block page_title %}Supprimer la Classe{% endblock %}
+{% block page_subtitle %}Confirmation de suppression définitive de la classe.{% endblock %}
+
+{% block content %}
+<div class="confirm-delete">
+    <div class="confirm-delete__head">
+        <div class="confirm-delete__icon" aria-hidden="true">⚠️</div>
+        <h3>Êtes-vous sûr&nbsp;?</h3>
+    </div>
+    <div class="confirm-delete__body">
+        <p>Vous êtes sur le point de supprimer définitivement la classe&nbsp;:</p>
+        <span class="confirm-delete__target">{{ classe.classe }}</span>
+        <p class="confirm-delete__note">
+            {% if inscrits > 0 %}
+            Cette classe compte <strong>{{ inscrits }} élève(s) inscrit(s)</strong> pour l'année en cours. Supprimez ou réaffectez ces inscriptions avant de continuer.
+            {% else %}
+            Cette action est irréversible. Aucun élève n'est inscrit dans cette classe pour l'année en cours.
+            {% endif %}
+        </p>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="confirm-delete__actions">
+            <a href="{% url 'inscription:classe_list' %}" class="btn btn-secondary">Annuler</a>
+            <button type="submit" class="btn btn-danger" {% if inscrits > 0 %}disabled{% endif %}>Oui, supprimer</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

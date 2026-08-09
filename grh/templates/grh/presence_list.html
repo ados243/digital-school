@@ -1,0 +1,149 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Présences & Pointage{% endblock %}
+
+{% block page_title %}Présences & Pointage{% endblock %}
+{% block page_subtitle %}Suivi des présences quotidiennes du personnel.{% endblock %}
+
+{% block content %}
+<div class="form-layout-split">
+    <div class="qb-form">
+        <form method="post" action="{% url 'grh:presence_record' %}" class="form-horizontal">
+            {% csrf_token %}
+            <input type="hidden" name="date" value="{{ filter_date|date:'Y-m-d' }}">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Enregistrer un pointage</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        <div class="form-group">
+                            <label for="personnel">Employé</label>
+                            <select name="personnel" id="personnel" class="form-control" required>
+                                <option value="">-- Sélectionner l'employé --</option>
+                                {% for p in personnel_non_pointes %}
+                                <option value="{{ p.id }}">{{ p.prenom }} {{ p.nom }} ({{ p.fonction }})</option>
+                                {% endfor %}
+                            </select>
+                            {% if not personnel_non_pointes %}
+                            <small class="form-help" style="color: var(--success); font-weight: 600;">Tout le personnel a été pointé.</small>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            <label for="statut">Statut</label>
+                            <select name="statut" id="statut" class="form-control" required onchange="toggleTimeFields(this.value)">
+                                <option value="PRESENT" selected>Présent</option>
+                                <option value="RETARD">En Retard</option>
+                                <option value="ABSENT">Absent</option>
+                                <option value="CONGE">En Congé</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="time-fields" class="form-grid-2">
+                        <div class="form-group">
+                            <label for="heure_arrivee">Heure d'arrivée</label>
+                            <input type="time" name="heure_arrivee" id="heure_arrivee" class="form-control" value="07:30">
+                        </div>
+                        <div class="form-group">
+                            <label for="heure_depart">Heure de départ</label>
+                            <input type="time" name="heure_depart" id="heure_depart" class="form-control" value="16:00">
+                        </div>
+                    </div>
+                </div>
+                <div class="qb-form__footer">
+                    {% if not personnel_non_pointes and not presences %}
+                    {% include 'includes/form_actions.html' with submit_label="Enregistrer le pointage" submit_disabled=True %}
+                    {% else %}
+                    {% include 'includes/form_actions.html' with submit_label="Enregistrer le pointage" %}
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+
+        <form method="get" action="{% url 'grh:presence_list' %}" class="form-horizontal" style="margin-top: 1rem;">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Filtrer par date</div>
+                <div class="qb-form__body">
+                    <div class="form-group" style="padding: .85rem 1.25rem; margin: 0;">
+                        <label for="filter_date">Date</label>
+                        <input type="date" name="date" id="filter_date" class="form-control" value="{{ filter_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+    
+    <div>
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Registre du {{ filter_date|date:"d F Y" }}</h3>
+            </div>
+            <div class="panel-body table-responsive" style="padding: 0;">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Employé</th>
+                            <th>Statut</th>
+                            <th>Arrivée</th>
+                            <th>Départ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pres in presences %}
+                        <tr>
+                            <td>
+                                <strong>{{ pres.personnel.nom }} {{ pres.personnel.prenom }}</strong>
+                                <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ pres.personnel.fonction }}</span>
+                            </td>
+                            <td>
+                                {% if pres.statut == 'PRESENT' %}
+                                    <span class="badge badge-success">Présent</span>
+                                {% elif pres.statut == 'RETARD' %}
+                                    <span class="badge badge-warning">Retard</span>
+                                {% elif pres.statut == 'ABSENT' %}
+                                    <span class="badge badge-danger">Absent</span>
+                                {% else %}
+                                    <span class="badge badge-info">Congé</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if pres.heure_arrivee %}
+                                    {{ pres.heure_arrivee|time:"H:i" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if pres.heure_depart %}
+                                    {{ pres.heure_depart|time:"H:i" }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                Aucun pointage enregistré pour cette date. <br>
+                                Utilisez le formulaire de gauche pour ajouter des pointages.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleTimeFields(val) {
+        const timeFields = document.getElementById('time-fields');
+        if (val === 'ABSENT' || val === 'CONGE') {
+            timeFields.style.display = 'none';
+        } else {
+            timeFields.style.display = 'grid';
+        }
+    }
+</script>
+{% endblock %}

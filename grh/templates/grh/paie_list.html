@@ -1,0 +1,127 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Paie & Rémunération{% endblock %}
+
+{% block page_title %}Paie & Rémunération{% endblock %}
+{% block page_subtitle %}
+  Génération des fiches de paie{% if ecole %} — {{ ecole.ecole }}{% endif %}.
+{% endblock %}
+
+{% block content %}
+<div class="form-layout-split">
+    <div class="qb-form">
+        <form method="post" action="{% url 'grh:paie_generate' %}" class="form-horizontal">
+            {% csrf_token %}
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Générer la paie mensuelle</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        <div class="form-group">
+                            <label for="mois">Mois</label>
+                            <select name="mois" id="mois" class="form-control" required>
+                                <option value="1" {% if mois_courant == 1 %}selected{% endif %}>Janvier</option>
+                                <option value="2" {% if mois_courant == 2 %}selected{% endif %}>Février</option>
+                                <option value="3" {% if mois_courant == 3 %}selected{% endif %}>Mars</option>
+                                <option value="4" {% if mois_courant == 4 %}selected{% endif %}>Avril</option>
+                                <option value="5" {% if mois_courant == 5 %}selected{% endif %}>Mai</option>
+                                <option value="6" {% if mois_courant == 6 %}selected{% endif %}>Juin</option>
+                                <option value="7" {% if mois_courant == 7 %}selected{% endif %}>Juillet</option>
+                                <option value="8" {% if mois_courant == 8 %}selected{% endif %}>Août</option>
+                                <option value="9" {% if mois_courant == 9 %}selected{% endif %}>Septembre</option>
+                                <option value="10" {% if mois_courant == 10 %}selected{% endif %}>Octobre</option>
+                                <option value="11" {% if mois_courant == 11 %}selected{% endif %}>Novembre</option>
+                                <option value="12" {% if mois_courant == 12 %}selected{% endif %}>Décembre</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="annee">Année</label>
+                            <select name="annee" id="annee" class="form-control" required>
+                                <option value="{{ annee_courante|add:'-1' }}">{{ annee_courante|add:"-1" }}</option>
+                                <option value="{{ annee_courante }}" selected>{{ annee_courante }}</option>
+                                <option value="{{ annee_courante|add:'1' }}">{{ annee_courante|add:"1" }}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="form-help" style="padding: 0 1.25rem 0.5rem;">
+                        Contrats actifs sur votre école :
+                        <strong>{{ contrats_actifs_count }}</strong>.
+                        {% if contrats_actifs_count == 0 %}
+                        <br>
+                        <span style="color: var(--danger);">
+                            Aucun contrat actif — la génération ne créera aucune fiche.
+                            <a href="{% url 'grh:contrat_create' %}">Créer un contrat</a>
+                        </span>
+                        {% else %}
+                        Une fiche sera créée par agent ayant un contrat ACTIF (si elle n'existe pas déjà pour le mois choisi).
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="qb-form__footer">
+                    <button type="submit" class="btn btn-primary btn-lg"
+                            {% if contrats_actifs_count == 0 %}disabled title="Aucun contrat actif"{% endif %}>
+                        Lancer la génération
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+    
+    <div>
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Fiches de paie générées</h3>
+                <a href="{% url 'finances:salaires_list' %}" class="btn btn-secondary btn-sm">💵 Payer (Finances)</a>
+            </div>
+            <div class="panel-body table-responsive" style="padding: 0;">
+                <table class="custom-table">
+                    <thead>
+                        <tr>
+                            <th>Mois</th>
+                            <th>Employé</th>
+                            <th>Net à Payer</th>
+                            <th>Statut</th>
+                            <th style="text-align: right; padding-right: 1.5rem;">Détails</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in paies %}
+                        <tr>
+                            <td><strong>{{ p.mois }}/{{ p.annee }}</strong></td>
+                            <td>
+                                <strong>{{ p.personnel.nom }} {{ p.personnel.prenom }}</strong>
+                                <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ p.personnel.fonction }}</span>
+                            </td>
+                            <td><strong>{{ p.net_a_payer }} {{ p.devise.devise }}</strong></td>
+                            <td>
+                                {% if p.statut_paiement == 'PAYE' %}
+                                    <span class="badge badge-success">Payé</span>
+                                {% elif p.statut_paiement == 'ANNULE' %}
+                                    <span class="badge badge-danger">Annulé</span>
+                                {% else %}
+                                    <span class="badge badge-warning">En attente</span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right; padding-right: 1.5rem;">
+                                <a href="{% url 'grh:paie_detail' p.pk %}" class="btn btn-secondary btn-sm">📄 Consulter</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                                Aucun bulletin de paie généré pour {% if ecole %}{{ ecole.ecole }}{% else %}votre école{% endif %}.
+                                <br>
+                                {% if contrats_actifs_count > 0 %}
+                                Utilisez le formulaire pour générer le mois souhaité.
+                                {% else %}
+                                Commencez par <a href="{% url 'grh:contrat_create' %}">créer un contrat actif</a>.
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

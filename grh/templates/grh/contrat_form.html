@@ -1,0 +1,79 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Contrat de travail{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block page_subtitle %}Saisissez les informations contractuelles du membre du personnel.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'grh:contrat_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{% url 'grh:contrat_list' as list_url %}
+<div class="qb-form">
+    {% if personnel_count is not None %}
+    <div class="qb-form__status">
+        <div class="qb-form__status-item {% if personnel_count > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">👥</span>
+            <div>
+                <div class="qb-form__status-label">Personnel</div>
+                <div class="qb-form__status-value">{{ personnel_count }}</div>
+                <div class="qb-form__status-meta">
+                    {% if personnel_count == 0 %}
+                    <a href="{% url 'grh:personnel_create' %}">Créer une fiche personnel</a>
+                    {% else %}Membres enregistrés{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="qb-form__status-item qb-form__status-item--ok">
+            <span class="qb-form__status-icon">📄</span>
+            <div>
+                <div class="qb-form__status-label">Contrats actifs</div>
+                <div class="qb-form__status-value">{{ contrats_actifs_count }}</div>
+                <div class="qb-form__status-meta">En cours de validité</div>
+            </div>
+        </div>
+        <div class="qb-form__status-item {% if devises_count > 0 %}qb-form__status-item--ok{% else %}qb-form__status-item--warn{% endif %}">
+            <span class="qb-form__status-icon">💱</span>
+            <div>
+                <div class="qb-form__status-label">Devises</div>
+                <div class="qb-form__status-value">{{ devises_count }}</div>
+                <div class="qb-form__status-meta">Disponibles pour le salaire</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Contrat de travail</div>
+                <div class="qb-form__body">
+                    {% include 'includes/form_field.html' with field=form.personnel full_width=True %}
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.type_contrat %}
+                        {% include 'includes/form_field.html' with field=form.statut %}
+                        {% include 'includes/form_field.html' with field=form.date_debut %}
+                        {% include 'includes/form_field.html' with field=form.date_fin %}
+                        {% include 'includes/form_field.html' with field=form.salaire_base %}
+                        {% include 'includes/form_field.html' with field=form.devise %}
+                    </div>
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with cancel_url=list_url submit_label="Enregistrer le contrat" %}
+                </div>
+            </div>
+            <aside class="qb-form__sidebar">
+                <div class="panel">
+                    <div class="qb-form__sidebar-head">
+                        <h3>Validation</h3>
+                        <p>Vérifiez les dates et le salaire avant d'enregistrer.</p>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}

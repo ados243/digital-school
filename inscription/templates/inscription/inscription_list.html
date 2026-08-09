@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des Inscriptions{% endblock %}
+
+{% block page_title %}Registre des Inscriptions Scolaires{% endblock %}
+{% block page_subtitle %}Suivi des inscriptions annuelles par classe et règlements des frais.{% endblock %}
+
+{% block header_actions %}
+    <a href="{% url 'inscription:inscription_create' %}" class="btn btn-primary">➕ Inscrire un élève</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h3>Historique des Inscriptions</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Numéro d'Ins.</th>
+                    <th>Élève</th>
+                    <th>Classe affectée</th>
+                    <th>Année Scolaire</th>
+                    <th>Type d'ins.</th>
+                    <th>Frais d'inscription</th>
+                    <th style="text-align: right; padding-right: 1.5rem;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ins in inscriptions %}
+                <tr>
+                    <td>{{ ins.date|date:"d/m/Y" }}</td>
+                    <td><span style="font-family: monospace; font-weight: 700; color: var(--primary);">{{ ins.numero_ins }}</span></td>
+                    <td>
+                        <strong>{{ ins.eleve.nom }} {{ ins.eleve.prenom }}</strong>
+                        <span style="display:block; font-size:0.8rem; color:var(--text-muted);">Matricule : {{ ins.eleve.matricule }}</span>
+                    </td>
+                    <td><span class="badge badge-info">{{ ins.classe.classe }}</span></td>
+                    <td><strong>{{ ins.annee_s.anne_scolaire }}</strong></td>
+                    <td>{{ ins.get_type_iscription_display }}</td>
+                    <td>
+                        {% if ins.frais_inscription %}
+                            <span class="badge badge-success">Payé</span>
+                        {% else %}
+                            <span class="badge badge-danger">En attente</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; padding-right: 1.5rem;">
+                        <a href="{% url 'inscription:inscription_update' ins.pk %}" class="btn btn-secondary btn-sm">✏️ Modifier</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        Aucune inscription enregistrée. <br>
+                        <a href="{% url 'inscription:inscription_create' %}" class="btn btn-primary btn-sm" style="margin-top: 1rem;">Inscrire le premier élève</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

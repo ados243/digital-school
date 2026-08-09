@@ -1,0 +1,40 @@
+<a href="{% url 'utilisateur:cours_eleve_detail' c.id %}" class="ll-card">
+    <div class="ll-card__media">
+        {% if c.image_couverture %}
+        <img src="{{ c.image_couverture.url }}" alt="">
+        {% else %}
+        <div class="ll-card__placeholder">
+            <span>{{ c.matiere.libelle|truncatechars:22 }}</span>
+        </div>
+        {% endif %}
+        <span class="ll-card__duration">{{ c.duree_affichee }}</span>
+        <span class="ll-card__play">▶</span>
+    </div>
+    <div class="ll-card__body">
+        <div class="ll-card__meta">
+            <span class="ll-pill">{{ c.get_niveau_display }}</span>
+            <span>{{ c.lecons_pub }} leçon{{ c.lecons_pub|pluralize }}</span>
+        </div>
+        <h3>{{ c.titre }}</h3>
+        {% if c.sous_titre %}
+        <p class="ll-card__subtitle">{{ c.sous_titre|truncatechars:100 }}</p>
+        {% elif c.description %}
+        <p class="ll-card__subtitle">{{ c.description|truncatechars:100 }}</p>
+        {% else %}
+        <p class="ll-card__subtitle">Cours de {{ c.matiere.libelle }} — {{ c.classe.classe }}</p>
+        {% endif %}
+        <div class="ll-card__author">
+            <span class="ll-avatar">{{ c.enseignant.prenom|slice:":1"|upper }}{{ c.enseignant.nom|slice:":1"|upper }}</span>
+            <span>{{ c.enseignant.prenom }} {{ c.enseignant.nom }}</span>
+        </div>
+        {% with skills=c.liste_competences %}
+        {% if skills %}
+        <div class="ll-skills">
+            {% for skill in skills|slice:":3" %}
+            <span>{{ skill }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+    </div>
+</a>

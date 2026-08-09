@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container" style="padding: 24px;">
+  <h2>Types de frais</h2>
+
+  <div style="margin: 1rem 0; display: flex; gap: 1rem; align-items: center;">
+    <a href="{% url 'finances:type_frais_create' %}" class="btn btn-primary">➕ Ajouter</a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Liste</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>École</th>
+            <th>Libellé</th>
+            <th>Description</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in object_list %}
+          <tr>
+            <td>{{ item.ecole }}</td>
+            <td><strong>{{ item.libelle }}</strong></td>
+            <td>{{ item.description }}</td>
+            <td>
+              <a class="btn btn-secondary btn-sm" href="{% url 'finances:type_frais_update' item.id %}">Modifier</a>
+              <a class="btn btn-danger btn-sm" href="{% url 'finances:type_frais_delete' item.id %}">Supprimer</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" style="text-align:center; color: var(--text-muted); padding: 2rem;">Aucun type de frais.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

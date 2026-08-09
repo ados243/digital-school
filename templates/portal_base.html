@@ -1,0 +1,56 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Mon espace{% endblock %} | Digital School</title>
+    <link rel="icon" type="image/png" href="{% static 'images/logo-ds.png' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="portal-page">
+        <header class="portal-topbar">
+            <div class="portal-topbar__brand"><img src="{% static 'images/logo-ds.png' %}" alt="Digital School"> Digital School</div>
+            <div class="portal-topbar__user">
+                {% if request.user.is_professeur %}
+                <a href="{% url 'utilisateur:enseignant_dashboard' %}" class="btn btn-secondary btn-sm">Mes classes</a>
+                <a href="{% url 'utilisateur:cours_enseignant_list' %}" class="btn btn-secondary btn-sm">Cours en ligne</a>
+                <a href="{% url 'utilisateur:messagerie_inbox' %}" class="btn btn-secondary btn-sm">Messages</a>
+                {% if est_titulaire_quelconque %}
+                <a href="{% url 'utilisateur:presence_list' %}" class="btn btn-secondary btn-sm">Présences</a>
+                {% endif %}
+                <a href="{% url 'utilisateur:travail_list' %}" class="btn btn-secondary btn-sm">Travaux</a>
+                {% elif request.user.is_parent %}
+                <a href="{% url 'utilisateur:portail' %}" class="btn btn-secondary btn-sm">Mes enfants</a>
+                <a href="{% url 'utilisateur:parent_annonces' %}" class="btn btn-secondary btn-sm">Annonces</a>
+                <a href="{% url 'utilisateur:messagerie_inbox' %}" class="btn btn-secondary btn-sm">Messages</a>
+                {% elif request.user.is_eleve %}
+                <a href="{% url 'utilisateur:portail' %}" class="btn btn-secondary btn-sm">Mon espace</a>
+                <a href="{% url 'utilisateur:cours_eleve_list' %}" class="btn btn-secondary btn-sm">Étudier en ligne</a>
+                {% endif %}
+                <span class="badge badge-info">{{ request.user.get_role_display }}</span>
+                <span>{{ request.user.nom_complet }}</span>
+                <a href="{% url 'utilisateur:logout' %}" class="btn btn-secondary btn-sm">Déconnexion</a>
+            </div>
+        </header>
+        <main class="portal-main {% block portal_main_class %}{% endblock %}">
+            {% block breadcrumbs %}
+            {% include 'includes/breadcrumbs.html' %}
+            {% endblock %}
+            {% if messages %}
+            <div class="messages-container">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

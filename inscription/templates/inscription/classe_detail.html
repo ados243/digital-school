@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+
+{% block title %}Classe {{ classe.classe }} | Détails{% endblock %}
+
+{% block page_title %}Classe {{ classe.classe }}{% endblock %}
+{% block page_subtitle %}
+Section {{ classe.section.section }} — Cycle {{ classe.section.cycle }}
+{% if annee_courante %} · Année {{ annee_courante.anne_scolaire }}{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inscription:classe_list' %}" class="btn btn-secondary">⬅️ Retour à la liste</a>
+<a href="{% url 'pedagogie:affectations_classe' classe.id %}" class="btn btn-secondary" style="margin-left: 0.5rem;">👩‍🏫 Enseignants / cours</a>
+<a href="{% url 'inscription:classe_update' classe.id %}?next={% url 'inscription:classe_detail' classe.id %}" class="btn btn-secondary" style="margin-left: 0.5rem;">✏️ Modifier</a>
+{% if not stats.is_full %}
+<a href="{% url 'inscription:inscription_create' %}" class="btn btn-primary" style="margin-left: 0.5rem;">✍️ Inscrire un élève</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if not annee_courante %}
+<div class="alert alert-warning" style="margin-bottom: 1rem;">
+    Aucune année scolaire n'est marquée « en cours ». Les effectifs et la liste des élèves peuvent être incomplets.
+</div>
+{% endif %}
+
+<section class="kpi-grid">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Élèves inscrits</div>
+            <div class="kpi-value">{{ stats.inscrits }} / {{ classe.capacite_max }}</div>
+        </div>
+        <div class="kpi-footer">
+            {% if stats.is_full %}
+            🔴 Classe complète
+            {% else %}
+            🟢 {{ places_restantes }} place(s) restante(s)
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Taux de remplissage</div>
+            <div class="kpi-value">{{ stats.percent }}%</div>
+        </div>
+        <div class="kpi-footer">📊 Capacité maximale : {{ classe.capacite_max }} élèves</div>
+    </div>
+
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Répartition par sexe</div>
+            <div class="kpi-value">{{ garcons }} / {{ filles }}</div>
+        </div>
+        <div class="kpi-footer">👦 Garçons · 👧 Filles</div>
+    </div>
+
+    <a href="{% url 'pedagogie:matiere_list' %}?section={{ classe.section_id }}" class="kpi-card kpi-card--link">
+        <div>
+            <div class="kpi-title">Matières (section)</div>
+            <div class="kpi-value">{{ matieres.count }}</div>
+        </div>
+        <div class="kpi-footer">📖 Coefficient total : {{ total_coefficient }} · Voir la liste →</div>
+    </a>
+</section>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 2rem;">
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Informations générales</h3>
+        </div>
+        <div class="panel-body">
+            <table class="custom-table" style="font-size: 0.95rem;">
+                <tbody>
+                    <tr>
+                        <th style="width: 40%;">Classe</th>
+                        <td><strong>{{ classe.classe }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>École</th>
+                        <td>{{ classe.ecole.ecole }}</td>
+                    </tr>
+                    <tr>
+                        <th>Section</th>
+                        <td>{{ classe.section.section }}</td>
+                    </tr>
+                    <tr>
+                        <th>Cycle</th>
+                        <td>{{ classe.section.cycle }}</td>
+                    </tr>
+                    <tr>
+                        <th>Salle</th>
+                        <td>{{ classe.salle|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Enseignant titulaire</th>
+                        <td>
+                            {% if classe.titulaire %}
+                            <strong>{{ classe.titulaire.prenom }} {{ classe.titulaire.nom }} {{ classe.titulaire.Post_nom }}</strong>
+                            <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ classe.titulaire.fonction }} · {{ classe.titulaire.matricule }}</span>
+                            {% else %}
+                            <span style="color: var(--text-muted);">Aucun enseignant affecté</span>
+                            — <a href="{% url 'inscription:classe_update' classe.id %}?next={% url 'inscription:classe_detail' classe.id %}">Affecter</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Capacité maximale</th>
+                        <td>{{ classe.capacite_max }} élèves</td>
+                    </tr>
+                    {% if annee_courante %}
+                    <tr>
+                        <th>Année scolaire</th>
+                        <td>{{ annee_courante.anne_scolaire }}</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+
+            <div style="margin-top: 1.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <span style="font-size: 0.85rem; font-weight: 600;">Remplissage</span>
+                    <span style="font-size: 0.85rem; color: var(--text-muted);">{{ stats.percent }}%</span>
+                </div>
+                <div style="background-color: var(--border); border-radius: 99px; height: 10px; overflow: hidden;">
+                    <div style="
+                        height: 100%;
+                        width: {{ stats.percent }}%;
+                        background-color: {% if stats.is_full %}var(--danger){% elif stats.percent > 70 %}var(--warning){% else %}var(--primary){% endif %};
+                        border-radius: 99px;
+                    "></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">
+            <h3>Matières de la section</h3>
+        </div>
+        <div class="panel-body" style="padding: 0;">
+            {% if matieres %}
+            <div class="table-responsive">
+                <table class="custom-table" style="font-size: 0.9rem;">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Libellé</th>
+                            <th style="text-align: center;">Coef.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in matieres %}
+                        <tr>
+                            <td><strong>{{ m.code }}</strong></td>
+                            <td>{{ m.libelle }}</td>
+                            <td style="text-align: center; font-weight: 600;">{{ m.coefficient }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p style="padding: 1.5rem; color: var(--text-muted); margin: 0;">
+                Aucune matière définie pour cette section.
+                <a href="{% url 'pedagogie:matiere_create' %}">Créer une matière</a>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="panel" style="margin-top: 1.5rem;">
+    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h3>Élèves inscrits ({{ eleves_rows|length }})</h3>
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+            {% if jours_appeles %}
+            <span class="badge badge-info">{{ jours_appeles }} appel{{ jours_appeles|pluralize }} · {% if taux_classe is not None %}{{ taux_classe }} %{% else %}—{% endif %}</span>
+            {% endif %}
+            {% if not stats.is_full %}
+            <a href="{% url 'inscription:inscription_create' %}" class="btn btn-success btn-sm">✍️ Inscrire</a>
+            {% endif %}
+        </div>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Matricule</th>
+                    <th>Nom complet</th>
+                    <th>Sexe</th>
+                    <th>N° inscription</th>
+                    <th style="text-align:center;" title="Présents">P</th>
+                    <th style="text-align:center;" title="Absents">A</th>
+                    <th style="text-align:center;" title="Retards">R</th>
+                    <th style="text-align:center;" title="Excusés">E</th>
+                    <th style="min-width:110px;">Taux</th>
+                    <th style="text-align: right; padding-right: 1.5rem;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in eleves_rows %}
+                <tr>
+                    <td><strong>{{ row.eleve.matricule }}</strong></td>
+                    <td>{{ row.eleve.nom }} {{ row.eleve.prenom }}</td>
+                    <td>{{ row.eleve.get_sexe_display }}</td>
+                    <td>{{ row.inscription.numero_ins }}</td>
+                    <td style="text-align:center; color:var(--success); font-weight:700;">{{ row.presents }}</td>
+                    <td style="text-align:center; color:var(--danger); font-weight:700;">{{ row.absents }}</td>
+                    <td style="text-align:center; color:var(--warning); font-weight:700;">{{ row.retards }}</td>
+                    <td style="text-align:center;">{{ row.excuses }}</td>
+                    <td>
+                        {% if row.taux is not None %}
+                        <strong>{{ row.taux }}%</strong>
+                        {% else %}
+                        <span style="color:var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; padding-right: 1.5rem;">
+                        <a href="{% url 'inscription:inscription_update' row.inscription.id %}" class="btn btn-secondary btn-sm" title="Modifier l'inscription">✏️</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                        Aucun élève inscrit dans cette classe
+                        {% if annee_courante %} pour l'année {{ annee_courante.anne_scolaire }}{% endif %}.
+                        {% if not stats.is_full %}
+                        <br>
+                        <a href="{% url 'inscription:inscription_create' %}" class="btn btn-primary btn-sm" style="margin-top: 1rem;">Inscrire un élève</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p style="padding: 0.75rem 1.25rem; margin: 0; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border);">
+        P = Présent · A = Absent · R = Retard · E = Excusé — taux = (présents + retards) / pointages
+    </p>
+</div>
+{% endblock %}

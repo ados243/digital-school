@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+
+{% block title %}Nouvelle communication{% endblock %}
+{% block page_title %}Nouvelle communication{% endblock %}
+{% block page_subtitle %}Envoyer un message aux parents — {{ ecole.ecole }}{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'utilisateur:direction_communication_list' %}" class="btn btn-secondary">← Retour</a>
+{% endblock %}
+
+{% block content %}
+{% if not annee_courante %}
+<div class="alert alert-warning" style="margin-bottom:1rem;">
+    Aucune année scolaire n'est marquée « en cours ». Le ciblage classe / section / école peut être incomplet.
+</div>
+{% endif %}
+
+<div class="qb-form">
+    <form method="post" class="form-horizontal" id="form-communication">
+        {% csrf_token %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Destinataires</div>
+                <div class="qb-form__body">
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label>Envoyer à</label>
+                        <div class="cible-picker">
+                            {% for value, label in cible_choices %}
+                            <label class="cible-picker__option">
+                                <input type="radio" name="cible_type" value="{{ value }}"
+                                    {% if form.cible_type == value %}checked{% endif %}
+                                    onchange="syncCibleFields()">
+                                <span>{{ label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="field-parent" style="margin-bottom:1rem; display:none;">
+                        <label for="cible_parent">Parent</label>
+                        <select name="cible_parent" id="cible_parent" class="form-control">
+                            <option value="">— Sélectionner un parent —</option>
+                            {% for p in parents %}
+                            <option value="{{ p.id }}" {% if form.cible_parent == p.id|stringformat:"s" %}selected{% endif %}>
+                                {{ p.nom_complet }}{% if p.tuteur %} ({{ p.tuteur.matricule }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% if not parents %}
+                        <small class="form-help">Aucun compte parent rattaché pour cette école.</small>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-group" id="field-classe" style="margin-bottom:1rem; display:none;">
+                        <label for="cible_classe">Classe</label>
+                        <select name="cible_classe" id="cible_classe" class="form-control">
+                            <option value="">— Sélectionner une classe —</option>
+                            {% for c in classes %}
+                            <option value="{{ c.id }}" {% if form.cible_classe == c.id|stringformat:"s" %}selected{% endif %}>
+                                {{ c.classe }} · {{ c.section.section }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="field-section" style="margin-bottom:1rem; display:none;">
+                        <label for="cible_section">Section</label>
+                        <select name="cible_section" id="cible_section" class="form-control">
+                            <option value="">— Sélectionner une section —</option>
+                            {% for s in sections %}
+                            <option value="{{ s.id }}" {% if form.cible_section == s.id|stringformat:"s" %}selected{% endif %}>
+                                {{ s.section }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <p class="form-help" id="help-ecole" style="display:none;">
+                        Tous les parents ayant un enfant inscrit dans l'école (année en cours) recevront ce message.
+                    </p>
+                </div>
+
+                <div class="qb-form__section-head">Message</div>
+                <div class="qb-form__body">
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label for="sujet">Sujet</label>
+                        <input type="text" name="sujet" id="sujet" class="form-control" maxlength="200" required value="{{ form.sujet }}" placeholder="Ex. : Réunion parents, congés, rappel de frais…">
+                    </div>
+                    <div class="form-group">
+                        <label for="contenu">Contenu</label>
+                        <textarea name="contenu" id="contenu" class="form-control" rows="8" required placeholder="Votre message aux parents…">{{ form.contenu }}</textarea>
+                    </div>
+                </div>
+
+                <div class="qb-form__footer">
+                    <button type="submit" class="btn btn-primary">Envoyer la communication</button>
+                    <a href="{% url 'utilisateur:direction_communication_list' %}" class="btn btn-secondary">Annuler</a>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function syncCibleFields() {
+    var type = (document.querySelector('input[name="cible_type"]:checked') || {}).value || 'ECOLE';
+    document.getElementById('field-parent').style.display = type === 'PARENT' ? '' : 'none';
+    document.getElementById('field-classe').style.display = type === 'CLASSE' ? '' : 'none';
+    document.getElementById('field-section').style.display = type === 'SECTION' ? '' : 'none';
+    document.getElementById('help-ecole').style.display = type === 'ECOLE' ? '' : 'none';
+}
+document.querySelectorAll('input[name="cible_type"]').forEach(function (el) {
+    el.addEventListener('change', syncCibleFields);
+});
+syncCibleFields();
+</script>
+{% endblock %}

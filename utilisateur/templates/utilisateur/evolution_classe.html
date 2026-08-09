@@ -1,0 +1,258 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Évolution — {{ classe.classe }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        <a href="{% url 'utilisateur:enseignant_classe' classe.id %}" style="color:var(--secondary); text-decoration:none; font-weight:600;">← Classe {{ classe.classe }}</a>
+    </p>
+    <h1>Évolution des élèves</h1>
+    <p>
+        Suivi des notes (/20) pour vos cours
+        {% if matiere_filtre %}· {{ matiere_filtre.libelle }}{% endif %}
+        {% if annee_courante %} · {{ annee_courante.anne_scolaire }}{% endif %}
+    </p>
+</div>
+
+<section class="kpi-grid" style="margin-bottom:1.25rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Travaux</div>
+            <div class="kpi-value">{{ nb_travaux }}</div>
+        </div>
+        <div class="kpi-footer">Évaluations prises en compte</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Moyenne classe</div>
+            <div class="kpi-value">{% if moyenne_classe is not None %}{{ moyenne_classe }}{% else %}—{% endif %}</div>
+        </div>
+        <div class="kpi-footer">Sur 20 (pondérée)</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">En hausse</div>
+            <div class="kpi-value" style="color:var(--success);">{{ nb_en_hausse }}</div>
+        </div>
+        <div class="kpi-footer">{{ nb_en_baisse }} en baisse</div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-body">
+        <form method="get" class="form-fields-row" style="align-items:flex-end; gap:1rem;">
+            <div class="form-field" style="min-width:220px; margin-bottom:0;">
+                <label class="form-field__label" style="text-align:left; padding-top:0; margin-bottom:.35rem;">Matière</label>
+                <select name="matiere" class="form-control" onchange="this.form.submit()">
+                    <option value="">Toutes mes matières</option>
+                    {% for m in matieres %}
+                    <option value="{{ m.id }}" {% if matiere_filtre and matiere_filtre.id == m.id %}selected{% endif %}>{{ m.libelle }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if eleve_sel %}
+            <input type="hidden" name="eleve" value="{{ eleve_sel.inscription.id }}">
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div style="display:grid; grid-template-columns: 1.1fr .9fr; gap:1.25rem; margin-bottom:1.25rem;">
+    <div class="panel">
+        <div class="panel-header">
+            <h3>
+                Courbe
+                {% if eleve_sel %}
+                — {{ eleve_sel.eleve.prenom }} {{ eleve_sel.eleve.nom }}
+                {% endif %}
+            </h3>
+        </div>
+        <div class="panel-body">
+            {% if eleve_sel and eleve_sel.chart_values %}
+            <canvas id="chartEvolution" height="220"></canvas>
+            <p style="margin:.75rem 0 0; font-size:.85rem; color:var(--text-muted);">
+                Notes normalisées sur 20 · tendance :
+                {% if eleve_sel.tendance == 'hausse' %}
+                <strong style="color:var(--success);">en hausse{% if eleve_sel.delta %} (+{{ eleve_sel.delta }}){% endif %}</strong>
+                {% elif eleve_sel.tendance == 'baisse' %}
+                <strong style="color:var(--danger);">en baisse{% if eleve_sel.delta %} ({{ eleve_sel.delta }}){% endif %}</strong>
+                {% elif eleve_sel.tendance == 'stable' %}
+                <strong>stable</strong>
+                {% else %}
+                <strong>—</strong>
+                {% endif %}
+            </p>
+            {% else %}
+            <div class="portal-empty">Aucune note saisie pour cet élève sur la sélection.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header"><h3>Détail des notes</h3></div>
+        <div class="panel-body table-responsive" style="padding:0; max-height:340px; overflow:auto;">
+            {% if eleve_sel %}
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Travail</th>
+                        <th>Matière</th>
+                        <th style="text-align:right;">/20</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in eleve_sel.serie %}
+                    <tr>
+                        <td>{{ p.date|date:"d/m/Y" }}</td>
+                        <td>{{ p.label }}</td>
+                        <td>{{ p.matiere }}</td>
+                        <td style="text-align:right; font-weight:700;">
+                            {% if p.absent %}
+                            <span style="color:var(--text-muted);">Abs.</span>
+                            {% elif p.sur_20 is not None %}
+                            {{ p.sur_20 }}
+                            {% else %}
+                            <span style="color:var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" style="text-align:center; color:var(--text-muted); padding:1.5rem;">Aucun travail</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="portal-empty">Sélectionnez un élève.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header">
+        <h3>Classe — aperçu</h3>
+        <span class="badge badge-info">{{ eleves|length }} élève{{ eleves|length|pluralize }}</span>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Élève</th>
+                    <th style="text-align:center;">Notes</th>
+                    <th style="text-align:right;">Moyenne /20</th>
+                    <th style="text-align:right;">Dernière</th>
+                    <th>Tendance</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in eleves %}
+                <tr {% if eleve_sel and eleve_sel.inscription.id == row.inscription.id %}style="background:rgba(37,99,235,.06);"{% endif %}>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <strong>{{ row.eleve.prenom }} {{ row.eleve.nom }} {{ row.eleve.Post_nom }}</strong>
+                    </td>
+                    <td style="text-align:center;">{{ row.nb_notes }}</td>
+                    <td style="text-align:right; font-weight:700;">
+                        {% if row.moyenne is not None %}{{ row.moyenne }}{% else %}—{% endif %}
+                    </td>
+                    <td style="text-align:right;">
+                        {% if row.derniere is not None %}{{ row.derniere }}{% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if row.tendance == 'hausse' %}
+                        <span style="color:var(--success); font-weight:700;">↑ Hausse</span>
+                        {% elif row.tendance == 'baisse' %}
+                        <span style="color:var(--danger); font-weight:700;">↓ Baisse</span>
+                        {% elif row.tendance == 'stable' %}
+                        <span style="color:var(--text-muted);">→ Stable</span>
+                        {% else %}
+                        <span style="color:var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a
+                            class="btn btn-secondary btn-sm"
+                            href="?eleve={{ row.inscription.id }}{% if matiere_filtre %}&matiere={{ matiere_filtre.id }}{% endif %}"
+                        >Voir</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                        Aucun élève inscrit.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if eleve_sel and eleve_sel.chart_values %}
+{{ eleve_sel.chart_labels|json_script:"evo-labels" }}
+{{ eleve_sel.chart_values|json_script:"evo-values" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const labels = JSON.parse(document.getElementById('evo-labels').textContent);
+    const values = JSON.parse(document.getElementById('evo-values').textContent);
+    const ctx = document.getElementById('chartEvolution');
+    if (!ctx || !window.Chart) return;
+    ctx.parentElement.style.height = '260px';
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Note /20',
+                data: values,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37,99,235,.12)',
+                tension: 0.25,
+                fill: true,
+                pointRadius: 4,
+                pointBackgroundColor: '#2563eb',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    min: 0,
+                    max: 20,
+                    ticks: { stepSize: 5 },
+                    title: { display: true, text: '/ 20' }
+                },
+                x: {
+                    ticks: { maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: 8 }
+                }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function (ctx) { return ' ' + ctx.parsed.y + ' / 20'; }
+                    }
+                }
+            }
+        }
+    });
+})();
+</script>
+{% endif %}
+
+<style>
+@media (max-width: 900px) {
+    div[style*="grid-template-columns: 1.1fr .9fr"] {
+        display: block !important;
+    }
+}
+</style>
+{% endblock %}

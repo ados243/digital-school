@@ -1,0 +1,46 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        <a href="{% if chapitre %}{% url 'utilisateur:chapitre_enseignant_detail' chapitre.id %}{% else %}{% url 'utilisateur:cours_enseignant_detail' cours.id %}{% endif %}"
+           style="color:var(--secondary);text-decoration:none;font-weight:600;">
+            ← {% if chapitre %}{{ chapitre.titre }}{% else %}{{ cours.titre }}{% endif %}
+        </a>
+    </p>
+    <h1>{{ title }}</h1>
+    <p>{{ cours.matiere.libelle }}{% if chapitre %} · Chapitre {{ chapitre.ordre }}{% endif %}</p>
+</div>
+
+<div class="qb-form">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Sous-chapitre</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.titre %}
+                        {% include 'includes/form_field.html' with field=form.resume %}
+                        {% include 'includes/form_field.html' with field=form.type_contenu %}
+                        {% include 'includes/form_field.html' with field=form.duree_minutes %}
+                        {% include 'includes/form_field.html' with field=form.ordre %}
+                        {% include 'includes/form_field.html' with field=form.video_url %}
+                        {% include 'includes/form_field.html' with field=form.image %}
+                        {% include 'includes/form_field.html' with field=form.fichier %}
+                        {% include 'includes/form_field.html' with field=form.publie %}
+                    </div>
+                    {% include 'includes/form_field.html' with field=form.contenu %}
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:1rem;display:flex;gap:.5rem;">
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+            <a href="{% if chapitre %}{% url 'utilisateur:chapitre_enseignant_detail' chapitre.id %}{% else %}{% url 'utilisateur:cours_enseignant_detail' cours.id %}{% endif %}" class="btn btn-secondary">Annuler</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

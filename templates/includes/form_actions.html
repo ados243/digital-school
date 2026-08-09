@@ -1,0 +1,12 @@
+<div class="form-actions{% if stacked %} form-actions--stacked{% endif %}">
+    {% if cancel_url or cancel_onclick %}
+        {% if cancel_url %}
+        <a href="{{ cancel_url }}" class="btn btn-secondary">{{ cancel_label|default:"Annuler" }}</a>
+        {% elif cancel_onclick %}
+        <button type="button" onclick="{{ cancel_onclick }}" class="btn btn-secondary">{{ cancel_label|default:"Annuler" }}</button>
+        {% endif %}
+    {% endif %}
+    <button type="submit" class="btn btn-primary btn-lg btn-form-submit" {% if submit_disabled %}disabled title="{{ submit_disabled_title }}"{% endif %}>
+        {{ submit_label|default:"Enregistrer" }}
+    </button>
+</div>

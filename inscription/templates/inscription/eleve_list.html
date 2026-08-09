@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Gestion des Élèves{% endblock %}
+
+{% block page_title %}Registre des Élèves{% endblock %}
+{% block page_subtitle %}Consultez et modifiez les fiches individuelles des élèves.{% endblock %}
+
+{% block header_actions %}
+    <a href="{% url 'inscription:eleve_create' %}" class="btn btn-primary">➕ Enregistrer un élève</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <!-- Filter bar -->
+    <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <h3>Élèves enregistrés</h3>
+        <form method="get" action="{% url 'inscription:eleve_list' %}" style="display: flex; gap: 0.5rem; max-width: 350px; width: 100%;">
+            <input type="text" name="q" placeholder="Rechercher par nom, prénom, matricule..." class="form-control" value="{{ query }}" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">
+            <button type="submit" class="btn btn-secondary btn-sm" style="border-radius: var(--radius-sm);">Rechercher</button>
+        </form>
+    </div>
+    
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Matricule</th>
+                    <th>Nom & Prénom</th>
+                    <th>Sexe</th>
+                    <th>Date de naissance</th>
+                    <th>Quartier & Adresse</th>
+                    <th>Tuteur légal</th>
+                    <th style="text-align: right; padding-right: 1.5rem;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for el in eleves %}
+                <tr>
+                    <td><span style="font-family: monospace; font-weight: 700; color: var(--primary);">{{ el.matricule }}</span></td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background-color: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;">
+                                {{ el.prenom|slice:":1" }}{{ el.nom|slice:":1" }}
+                            </div>
+                            <div>
+                                <strong>{{ el.nom }} {{ el.Post_nom }}</strong>
+                                <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ el.prenom }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ el.sexe }}</td>
+                    <td>{{ el.date_de_naissance|date:"d/m/Y" }}</td>
+                    <td>{{ el.quartier.quartier }} <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ el.adresse }}</span></td>
+                    <td>
+                        <strong>{{ el.titeur.prenom }} {{ el.titeur.nom }}</strong>
+                        <span style="display:block; font-size:0.8rem; color:var(--text-muted);">Tél : {{ el.titeur.telephone }}</span>
+                    </td>
+                    <td style="text-align: right; padding-right: 1.5rem;">
+                        <a href="{% url 'inscription:inscription_create' %}?eleve={{ el.id }}" class="btn btn-success btn-sm" style="margin-right: 0.25rem;">✍️ Inscrire</a>
+                        <a href="{% url 'inscription:eleve_update' el.pk %}" class="btn btn-secondary btn-sm" style="margin-right: 0.25rem;">✏️ Modifier</a>
+                        <a href="{% url 'inscription:eleve_delete' el.pk %}" class="btn btn-danger btn-sm">🗑️ Supprimer</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        Aucun élève trouvé. <br>
+                        {% if query %}
+                            <a href="{% url 'inscription:eleve_list' %}" class="btn btn-secondary btn-sm" style="margin-top: 1rem;">Annuler la recherche</a>
+                        {% else %}
+                            <a href="{% url 'inscription:eleve_create' %}" class="btn btn-primary btn-sm" style="margin-top: 1rem;">Enregistrer le premier élève</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

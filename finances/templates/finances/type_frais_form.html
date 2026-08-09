@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if object %}Modifier{% else %}Créer{% endif %} un type de frais{% endblock %}
+{% block page_title %}{% if object %}Modifier{% else %}Nouveau{% endif %} type de frais{% endblock %}
+{% block page_subtitle %}Configurez les types de frais scolaires de votre établissement.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:type_frais_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block content %}
+{% url 'finances:type_frais_list' as list_url %}
+<div class="qb-form qb-form--narrow">
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Type de frais</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.libelle %}
+                        {% include 'includes/form_field.html' with field=form.description %}
+                    </div>
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with cancel_url=list_url submit_label="Enregistrer" %}
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

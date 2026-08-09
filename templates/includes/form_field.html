@@ -1,0 +1,38 @@
+<div class="form-field{% if full_width %} form-field--wide{% endif %}{% if field.field.widget.input_type == 'checkbox' %} form-field--checkbox{% endif %}{% if field.errors %} form-field--invalid{% endif %}">
+    {% if field.field.widget.input_type == 'checkbox' %}
+        <label class="form-check-card" for="{{ field.id_for_label }}">
+            <span class="form-check-card__control">{{ field }}</span>
+            <span class="form-check-card__content">
+                <span class="form-check-card__label">{{ field.label }}</span>
+                {% if field_help %}
+                <span class="form-check-card__help">{{ field_help }}</span>
+                {% elif field.help_text %}
+                <span class="form-check-card__help">{{ field.help_text }}</span>
+                {% endif %}
+            </span>
+        </label>
+        {% if field.errors %}
+        <p class="form-error" role="alert">{{ field.errors|striptags }}</p>
+        {% endif %}
+    {% else %}
+        <div class="form-field__row">
+            <label class="form-field__label" for="{{ field.id_for_label }}">
+                {{ field.label }}{% if field.field.required %}<span class="form-required" aria-hidden="true">*</span>{% endif %}
+            </label>
+            <div class="form-field__content">
+                {% if field_label_extra %}<div class="form-field__label-extra">{{ field_label_extra|safe }}</div>{% endif %}
+                <div class="form-field__control">
+                    {{ field }}
+                </div>
+                {% if field_help %}
+                <p class="form-help">{{ field_help }}</p>
+                {% elif field.help_text %}
+                <p class="form-help">{{ field.help_text }}</p>
+                {% endif %}
+                {% if field.errors %}
+                <p class="form-error" role="alert">{{ field.errors|striptags }}</p>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+</div>

@@ -1,0 +1,29 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Supprimer le membre du personnel{% endblock %}
+
+{% block page_title %}Suppression du membre du personnel{% endblock %}
+{% block page_subtitle %}Cette action est irréversible.{% endblock %}
+
+{% block content %}
+<div class="confirm-delete">
+    <div class="confirm-delete__head">
+        <div class="confirm-delete__icon" aria-hidden="true">⚠️</div>
+        <h3>Confirmer la suppression</h3>
+    </div>
+    <div class="confirm-delete__body">
+        <p>Êtes-vous sûr de vouloir supprimer le membre du personnel&nbsp;?</p>
+        <span class="confirm-delete__target">{{ personnel.prenom }} {{ personnel.nom }} — {{ personnel.matricule }}</span>
+        <p class="confirm-delete__note">
+            Toutes les données associées (contrats, demandes de congés, fiches de paie et pointages de présence) seront également supprimées de la base de données.
+        </p>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="confirm-delete__actions">
+            <a href="{% url 'grh:personnel_list' %}" class="btn btn-secondary">Annuler</a>
+            <button type="submit" class="btn btn-danger">Confirmer la suppression</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

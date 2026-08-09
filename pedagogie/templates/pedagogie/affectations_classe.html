@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}Enseignants — {{ classe.classe }}{% endblock %}
+{% block page_title %}Enseignants de la classe {{ classe.classe }}{% endblock %}
+{% block page_subtitle %}
+{% if titulaire_defaut %}
+Primaire / maternelle : le titulaire assure toutes les matières par défaut.
+{% else %}
+Affectez un professeur par cours, ou conservez l'enseignant de référence de la matière.
+{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inscription:classe_detail' classe.id %}" class="btn btn-secondary">← Fiche classe</a>
+{% endblock %}
+
+{% block content %}
+<section class="kpi-grid" style="margin-bottom:1.25rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Titulaire</div>
+            <div class="kpi-value" style="font-size:1.2rem;">
+                {% if classe.titulaire %}
+                {{ classe.titulaire.prenom }} {{ classe.titulaire.nom }}
+                {% else %}
+                —
+                {% endif %}
+            </div>
+        </div>
+        <div class="kpi-footer">
+            {% if titulaire_defaut %}Enseignant par défaut de tous les cours{% else %}Responsable de la classe{% endif %}
+        </div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Matières</div>
+            <div class="kpi-value">{{ rows|length }}</div>
+        </div>
+        <div class="kpi-footer">Section {{ classe.section.section }}</div>
+    </div>
+</section>
+
+{% if titulaire_defaut and not classe.titulaire %}
+<div class="alert alert-warning" style="margin-bottom:1rem;">
+    Aucun titulaire n'est encore désigné pour cette classe.
+    <a href="{% url 'inscription:classe_update' classe.id %}">Désigner un titulaire</a>
+    pour que les matières lui soient attribuées par défaut.
+</div>
+{% endif %}
+
+<div class="panel" style="margin-bottom:1.5rem;">
+    <div class="panel-header"><h3>Répartition actuelle</h3></div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Matière</th>
+                    <th>Enseignant effectif</th>
+                    <th>Origine</th>
+                    <th style="text-align:right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td><strong>{{ row.matiere.libelle }}</strong></td>
+                    <td>
+                        {% if row.enseignant %}
+                        {{ row.enseignant.prenom }} {{ row.enseignant.nom }}
+                        {% else %}
+                        <span style="color:var(--text-muted);">Non défini</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.source == 'affectation' %}
+                        <span class="badge badge-info">{{ row.libelle_source }}</span>
+                        {% elif row.source == 'titulaire' %}
+                        <span class="badge badge-success">{{ row.libelle_source }}</span>
+                        {% else %}
+                        <span class="badge badge-secondary">{{ row.libelle_source }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right;">
+                        {% if row.affectation %}
+                        <form method="post" style="display:inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="supprimer">
+                            <input type="hidden" name="affectation_id" value="{{ row.affectation.id }}">
+                            <button type="submit" class="btn btn-secondary btn-sm">Retirer l'affectation</button>
+                        </form>
+                        {% else %}
+                        <span style="color:var(--text-muted); font-size:0.85rem;">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                        Aucune matière pour cette section.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header"><h3>Affecter un professeur à un cours</h3></div>
+    <div class="panel-body">
+        {% if enseignants_count == 0 %}
+        <p style="color:var(--text-muted);">Aucun enseignant actif dans le GRH.</p>
+        {% else %}
+        <form method="post" class="form-horizontal">
+            {% csrf_token %}
+            {% include 'includes/form_errors.html' %}
+            <div class="form-grid-2">
+                {% include 'includes/form_field.html' with field=form.matiere %}
+                {% include 'includes/form_field.html' with field=form.enseignant %}
+            </div>
+            <div style="margin-top:1rem;">
+                <button type="submit" class="btn btn-primary">Enregistrer l'affectation</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

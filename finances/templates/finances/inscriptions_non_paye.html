@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container" style="padding: 24px;">
+  <h2>Élèves - Frais d'inscription non payés</h2>
+
+  <div style="margin: 1rem 0; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+    <a href="{% url 'finances:dashboard' %}" class="btn btn-secondary btn-sm">Retour</a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Liste</h3>
+    </div>
+
+    <div class="panel-body table-responsive" style="padding: 0;">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>N° Inscription</th>
+            <th>Élève</th>
+            <th>Classe</th>
+            <th>Année scolaire</th>
+            <th>Frais inscription</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for ins in object_list %}
+          <tr>
+            <td><span style="font-family: monospace; font-weight: 700; color: var(--primary);">{{ ins.numero_ins }}</span></td>
+            <td><strong>{{ ins.eleve.prenom }} {{ ins.eleve.nom }}</strong></td>
+            <td><span class="badge badge-info">{{ ins.classe.classe }}</span></td>
+            <td>{{ ins.annee_s.anne_scolaire }}</td>
+            <td>
+              {% if ins.frais_inscription %}
+                <span class="badge badge-success">Payé</span>
+              {% else %}
+                <span class="badge badge-danger">Non payé</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" style="text-align:center; color: var(--text-muted); padding: 2rem;">
+              Tous les élèves ont leurs frais d'inscription à jour.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

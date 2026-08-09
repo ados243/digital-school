@@ -1,0 +1,481 @@
+{% extends 'base.html' %}
+
+{% block title %}Tableau de bord Finances{% endblock %}
+
+{% block page_title %}Tableau de bord Finances{% endblock %}
+{% block page_subtitle %}Caisse réelle, paiements et minerval par classe.{% endblock %}
+
+{% block content %}
+
+<section class="kpi-grid">
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Caisse réelle (comptable)</div>
+      <div class="kpi-value">
+        {% if solde_caisse.compte %}
+          {{ solde_caisse.solde }}
+        {% else %}
+          0
+        {% endif %}
+      </div>
+    </div>
+    <div class="kpi-footer">
+      🏦 Compte {{ solde_caisse.compte.numero|default:"571100" }}
+      · Débit {{ solde_caisse.debit }} / Crédit {{ solde_caisse.credit }}
+    </div>
+  </div>
+
+  {% for row in caisse_par_devise %}
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Espèces en caisse — {{ row.devise__devise }}</div>
+      <div class="kpi-value">{{ row.total }}</div>
+    </div>
+    <div class="kpi-footer">💵 Espèces réellement reçues (devise d'encaissement)</div>
+  </div>
+  {% empty %}
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Espèces en caisse</div>
+      <div class="kpi-value">0</div>
+    </div>
+    <div class="kpi-footer">💵 Aucun encaissement espèces</div>
+  </div>
+  {% endfor %}
+
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Dépenses du mois</div>
+      <div class="kpi-value">{{ depenses_mois.nb }}</div>
+      <div style="margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem;">
+        {% for row in depenses_mois.par_devise %}
+          <div style="display:flex; justify-content:space-between; gap:.75rem; font-size:.9rem;">
+            <span style="color:var(--text-muted);">{{ row.devise__devise }}</span>
+            <span style="font-family:monospace; font-weight:700; color:#b45309;">{{ row.total }}</span>
+          </div>
+        {% empty %}
+          <div style="color:var(--text-muted); font-size:.85rem;">Aucune dépense</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="kpi-footer">
+      🗓️ {{ depenses_mois.date_debut|date:"d/m" }} → {{ depenses_mois.date_fin|date:"d/m/Y" }} · salaires payés
+    </div>
+  </div>
+</section>
+
+<p style="margin:.25rem 0 .5rem; font-size:.85rem; font-weight:600; color:var(--text-muted); letter-spacing:.02em;">
+  Entrées — encaissements validés
+</p>
+<section class="kpi-grid" style="margin-top: 0;">
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Entrées du jour</div>
+      <div class="kpi-value">{{ situation_jour.nb }}</div>
+      <div style="margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem;">
+        {% for row in situation_jour.par_devise %}
+          <div style="display:flex; justify-content:space-between; gap:.75rem; font-size:.9rem;">
+            <span style="color:var(--text-muted);">{{ row.devise__devise }}</span>
+            <span style="font-family:monospace; font-weight:700; color:var(--primary);">{{ row.total }}</span>
+          </div>
+        {% empty %}
+          <div style="color:var(--text-muted); font-size:.85rem;">Aucun encaissement</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="kpi-footer">📅 {{ situation_jour.date_debut|date:"d/m/Y" }} · paiements validés</div>
+  </div>
+
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Entrées de la semaine</div>
+      <div class="kpi-value">{{ situation_semaine.nb }}</div>
+      <div style="margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem;">
+        {% for row in situation_semaine.par_devise %}
+          <div style="display:flex; justify-content:space-between; gap:.75rem; font-size:.9rem;">
+            <span style="color:var(--text-muted);">{{ row.devise__devise }}</span>
+            <span style="font-family:monospace; font-weight:700; color:var(--primary);">{{ row.total }}</span>
+          </div>
+        {% empty %}
+          <div style="color:var(--text-muted); font-size:.85rem;">Aucun encaissement</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="kpi-footer">
+      🗓️ {{ situation_semaine.date_debut|date:"d/m" }} → {{ situation_semaine.date_fin|date:"d/m/Y" }} · paiements validés
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Entrées du mois</div>
+      <div class="kpi-value">{{ situation_mois.nb }}</div>
+      <div style="margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem;">
+        {% for row in situation_mois.par_devise %}
+          <div style="display:flex; justify-content:space-between; gap:.75rem; font-size:.9rem;">
+            <span style="color:var(--text-muted);">{{ row.devise__devise }}</span>
+            <span style="font-family:monospace; font-weight:700; color:var(--primary);">{{ row.total }}</span>
+          </div>
+        {% empty %}
+          <div style="color:var(--text-muted); font-size:.85rem;">Aucun encaissement</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="kpi-footer">
+      🗓️ {{ situation_mois.date_debut|date:"d/m" }} → {{ situation_mois.date_fin|date:"d/m/Y" }} · paiements validés
+    </div>
+  </div>
+</section>
+
+<p style="margin:1rem 0 .5rem; font-size:.85rem; font-weight:600; color:var(--text-muted); letter-spacing:.02em;">
+  Dépenses — salaires payés
+</p>
+<section class="kpi-grid" style="margin-top: 0;">
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Dépenses du jour</div>
+      <div class="kpi-value">{{ depenses_jour.nb }}</div>
+      <div style="margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem;">
+        {% for row in depenses_jour.par_devise %}
+          <div style="display:flex; justify-content:space-between; gap:.75rem; font-size:.9rem;">
+            <span style="color:var(--text-muted);">{{ row.devise__devise }}</span>
+            <span style="font-family:monospace; font-weight:700; color:#b45309;">{{ row.total }}</span>
+          </div>
+        {% empty %}
+          <div style="color:var(--text-muted); font-size:.85rem;">Aucune dépense</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="kpi-footer">📅 {{ depenses_jour.date_debut|date:"d/m/Y" }} · salaires payés</div>
+  </div>
+
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Dépenses de la semaine</div>
+      <div class="kpi-value">{{ depenses_semaine.nb }}</div>
+      <div style="margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem;">
+        {% for row in depenses_semaine.par_devise %}
+          <div style="display:flex; justify-content:space-between; gap:.75rem; font-size:.9rem;">
+            <span style="color:var(--text-muted);">{{ row.devise__devise }}</span>
+            <span style="font-family:monospace; font-weight:700; color:#b45309;">{{ row.total }}</span>
+          </div>
+        {% empty %}
+          <div style="color:var(--text-muted); font-size:.85rem;">Aucune dépense</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="kpi-footer">
+      🗓️ {{ depenses_semaine.date_debut|date:"d/m" }} → {{ depenses_semaine.date_fin|date:"d/m/Y" }} · salaires payés
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Dépenses du mois</div>
+      <div class="kpi-value">{{ depenses_mois.nb }}</div>
+      <div style="margin-top:.5rem; display:flex; flex-direction:column; gap:.25rem;">
+        {% for row in depenses_mois.par_devise %}
+          <div style="display:flex; justify-content:space-between; gap:.75rem; font-size:.9rem;">
+            <span style="color:var(--text-muted);">{{ row.devise__devise }}</span>
+            <span style="font-family:monospace; font-weight:700; color:#b45309;">{{ row.total }}</span>
+          </div>
+        {% empty %}
+          <div style="color:var(--text-muted); font-size:.85rem;">Aucune dépense</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="kpi-footer">
+      🗓️ {{ depenses_mois.date_debut|date:"d/m" }} → {{ depenses_mois.date_fin|date:"d/m/Y" }} · salaires payés
+    </div>
+  </div>
+</section>
+
+<!-- Minerval par classe -->
+<div class="panel">
+  <div class="panel-header">
+    <h3>Paiements minerval par classe</h3>
+    <span style="font-family: monospace; font-weight: 700; color: var(--primary);">
+      Total filtré : {{ minerval_total }}
+    </span>
+  </div>
+  <div class="panel-body">
+    <form method="get" class="dashboard-filters" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:.75rem; margin-bottom:1.25rem; align-items:end;">
+      <div>
+        <label class="form-field__label" for="filter-annee">Année</label>
+        <select name="annee" id="filter-annee" class="form-control">
+          <option value="">Toutes</option>
+          {% for a in annees %}
+          <option value="{{ a.id }}" {% if filter_annee == a.id %}selected{% endif %}>{{ a.anne_scolaire }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-field__label" for="filter-section">Section</label>
+        <select name="section" id="filter-section" class="form-control">
+          <option value="">Toutes</option>
+          {% for s in sections %}
+          <option value="{{ s.id }}" {% if filter_section == s.id %}selected{% endif %}>{{ s.section }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-field__label" for="filter-classe">Classe</label>
+        <select name="classe" id="filter-classe" class="form-control">
+          <option value="">Toutes</option>
+          {% for c in classes %}
+          <option value="{{ c.id }}" {% if filter_classe == c.id %}selected{% endif %}>{{ c.classe }} — {{ c.section }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-field__label" for="filter-type">Type de frais</label>
+        <select name="type_frais" id="filter-type" class="form-control">
+          <option value="">Minerval / Scolarité</option>
+          {% for t in types_minerval %}
+          <option value="{{ t.id }}" {% if filter_type_frais == t.id %}selected{% endif %}>{{ t.libelle }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-field__label" for="filter-devise">Devise</label>
+        <select name="devise" id="filter-devise" class="form-control">
+          <option value="">Toutes</option>
+          {% for d in devises %}
+          <option value="{{ d.id }}" {% if filter_devise == d.id %}selected{% endif %}>{{ d.devise }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-field__label" for="filter-mode">Mode</label>
+        <select name="mode_paiement" id="filter-mode" class="form-control">
+          <option value="">Tous</option>
+          {% for value, label in modes_paiement %}
+          <option value="{{ value }}" {% if filter_mode == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-field__label" for="filter-debut">Du</label>
+        <input type="date" name="date_debut" id="filter-debut" class="form-control" value="{{ filter_date_debut }}">
+      </div>
+      <div>
+        <label class="form-field__label" for="filter-fin">Au</label>
+        <input type="date" name="date_fin" id="filter-fin" class="form-control" value="{{ filter_date_fin }}">
+      </div>
+      <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
+        <a href="{% url 'finances:dashboard' %}" class="btn btn-secondary btn-sm">Réinitialiser</a>
+      </div>
+    </form>
+
+    <p style="margin:0 0 1rem; color: var(--text-muted); font-size:.85rem;">
+      Cliquez une classe pour afficher la liste des paiements des élèves.
+    </p>
+
+    <div class="table-responsive" style="padding:0;">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Classe</th>
+            <th>Section</th>
+            <th>Devise</th>
+            <th># Paiements</th>
+            <th>Montant</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in minerval_rows %}
+          <tr class="classe-row-link" style="cursor:pointer;" onclick="window.location='{% url 'finances:classe_paiements' row.eleve__classe_id %}{% if filter_query %}?{{ filter_query }}{% endif %}'">
+            <td><strong style="color: var(--primary);">{{ row.eleve__classe__classe }}</strong></td>
+            <td>{{ row.eleve__classe__section__section }}</td>
+            <td>{{ row.devise__devise }}</td>
+            <td>{{ row.nb }}</td>
+            <td style="font-family: monospace; font-weight:700; color: var(--primary);">{{ row.total }}</td>
+            <td>
+              <a href="{% url 'finances:classe_paiements' row.eleve__classe_id %}{% if filter_query %}?{{ filter_query }}{% endif %}"
+                 class="btn btn-secondary btn-sm"
+                 onclick="event.stopPropagation();">Voir</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" style="text-align:center; color: var(--text-muted); padding: 2rem;">
+              Aucun paiement minerval pour ces filtres
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-grid">
+  <!-- Left: Recent Paiements -->
+  <div class="panel">
+      <div class="panel-header">
+        <h3>Derniers paiements</h3>
+        <div style="display:flex; gap:.5rem; align-items:center; flex-wrap: wrap;">
+          <form method="post" action="{% url 'finances:seed_finances' %}" style="margin:0;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-sm">⚡ Générer données</button>
+          </form>
+          <a href="{% url 'finances:paiement_list' %}" class="btn btn-secondary btn-sm">Gérer</a>
+          {% if request.user.is_caissier %}
+          <a href="{% url 'finances:paiement_create' %}" class="btn btn-primary btn-sm">+ Ajouter</a>
+          {% endif %}
+        </div>
+      </div>
+
+    <div class="panel-body table-responsive" style="padding: 0;">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Reçu</th>
+            <th>Élève</th>
+            <th>Montant</th>
+            <th>Devise</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in recent_paiements %}
+          <tr>
+            <td><span style="font-family: monospace; font-weight: 700; color: var(--primary);">{{ p.numero_recu }}</span></td>
+            <td><strong>{{ p.eleve.eleve.prenom }} {{ p.eleve.eleve.nom }}</strong></td>
+            <td>
+              {% if p.montant_origine and p.taux_change %}
+                {{ p.montant_origine }}
+              {% else %}
+                {{ p.montant_paye }}
+              {% endif %}
+            </td>
+            <td>
+              {% if p.montant_origine and p.taux_change %}
+                <strong>CDF</strong>
+                <div style="font-size:.75rem; color:var(--text-muted);">→ {{ p.montant_paye }} {{ p.devise }}</div>
+              {% else %}
+                {{ p.devise }}
+              {% endif %}
+            </td>
+            <td>
+              {% if p.statut == 'VALIDE' %}
+                <span class="badge badge-success">Validé</span>
+              {% elif p.statut == 'ANNULE' %}
+                <span class="badge badge-danger">Annulé</span>
+              {% else %}
+                <span class="badge badge-warning">En attente</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" style="text-align:center; color: var(--text-muted); padding: 2rem;">Aucun paiement récent</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Right: Recent Frais + Encaisse by Devise -->
+  <div style="display:flex; flex-direction:column; gap:1rem;">
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Encaisse (VALIDE) par devise</h3>
+        <a href="{% url 'finances:paiement_list' %}?statut=VALIDE" class="btn btn-secondary btn-sm">Voir</a>
+      </div>
+      <div class="panel-body">
+        {% if total_encaisse_par_devise %}
+        <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:.5rem;">
+          {% for row in total_encaisse_par_devise %}
+            <li style="display:flex; justify-content:space-between; padding:.5rem 0; border-bottom:1px solid var(--border);">
+              <span style="font-weight:600;">{{ row.devise__devise }}</span>
+              <span style="font-family: monospace; font-weight:700; color: var(--primary);">{{ row.total }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+          <div style="text-align:center; color: var(--text-muted); padding: 1rem;">Aucune donnée</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Frais scolaires (à échéance)</h3>
+        <div style="display:flex; gap:.5rem; align-items:center; flex-wrap: wrap;">
+          <a href="{% url 'finances:frais_scolaire_list' %}" class="btn btn-secondary btn-sm">Gérer</a>
+          <a href="{% url 'finances:frais_scolaire_create' %}" class="btn btn-primary btn-sm">+ Ajouter</a>
+          <a href="{% url 'finances:type_frais_list' %}" class="btn btn-secondary btn-sm">Types</a>
+          <a href="{% url 'finances:type_frais_create' %}" class="btn btn-primary btn-sm">+ Nouveau type</a>
+        </div>
+      </div>
+      <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Section</th>
+              <th>Échéance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in recent_frais %}
+            <tr>
+              <td><span class="badge badge-info">{{ f.type_frais__libelle|default:f.type_frais.libelle }}</span></td>
+              <td>{{ f.section }}</td>
+              <td>{{ f.echeance|date:"d/m/Y" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="3" style="text-align:center; color: var(--text-muted); padding: 2rem;">Aucun frais récent</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="panel" style="margin-top: 1rem;">
+  <div class="panel-header">
+    <h3>Types de frais (statistiques)</h3>
+  </div>
+  <div class="panel-body table-responsive" style="padding: 0;">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th># Frais</th>
+          <th>Info</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in frais_par_type %}
+        <tr>
+          <td>{{ row.type_frais__libelle }}</td>
+          <td><span style="font-weight:700; color: var(--primary);">{{ row.nb }}</span></td>
+          <td>
+            {% if row.montant_total %}
+              Montant total : <span style="font-weight:700;">{{ row.montant_total }}</span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="3" style="text-align:center; color: var(--text-muted); padding: 2rem;">Aucune statistique</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

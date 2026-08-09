@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+
+{% block title %}Demandes de modification{% endblock %}
+{% block page_title %}Demandes de modification{% endblock %}
+{% block page_subtitle %}Corrections de paiements demandées par la caisse.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:paiement_list' %}" class="btn btn-secondary">Historique paiements</a>
+{% endblock %}
+
+{% block content %}
+<div class="filter-chips" style="margin-bottom:1rem;">
+  <a href="{% url 'finances:demandes_modification_list' %}?statut=EN_ATTENTE" class="btn {% if filter_statut == 'EN_ATTENTE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+    En attente{% if nb_en_attente %} ({{ nb_en_attente }}){% endif %}
+  </a>
+  <a href="{% url 'finances:demandes_modification_list' %}?statut=TRAITEE" class="btn {% if filter_statut == 'TRAITEE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Traitées</a>
+  <a href="{% url 'finances:demandes_modification_list' %}?statut=REJETEE" class="btn {% if filter_statut == 'REJETEE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Rejetées</a>
+  <a href="{% url 'finances:demandes_modification_list' %}?statut=TOUS" class="btn {% if filter_statut == 'TOUS' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Toutes</a>
+</div>
+
+<div class="panel">
+  <div class="panel-header">
+    <h3>Liste des demandes</h3>
+  </div>
+  <div class="panel-body" style="padding:0;">
+    {% for d in object_list %}
+    <div style="padding:1rem 1.25rem; border-bottom:1px solid var(--border);">
+      <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; align-items:flex-start;">
+        <div style="flex:1; min-width:220px;">
+          <div style="display:flex; gap:.75rem; align-items:center; flex-wrap:wrap; margin-bottom:.35rem;">
+            <span style="font-family:monospace; font-weight:700; color:var(--primary);">{{ d.paiement.numero_recu }}</span>
+            {% if d.statut == 'EN_ATTENTE' %}
+              <span class="badge badge-warning">En attente</span>
+            {% elif d.statut == 'TRAITEE' %}
+              <span class="badge badge-success">Traitée</span>
+            {% else %}
+              <span class="badge badge-danger">Rejetée</span>
+            {% endif %}
+            <span style="font-size:.85rem; color:var(--text-muted);">{{ d.date_demande|date:"d/m/Y H:i" }}</span>
+          </div>
+          <div style="margin-bottom:.35rem;">
+            <strong>{{ d.paiement.eleve.eleve.prenom }} {{ d.paiement.eleve.eleve.nom }}</strong>
+            <span style="color:var(--text-muted);"> · {{ d.paiement.frais.type_frais.libelle }}</span>
+          </div>
+          <div style="font-family:monospace; font-size:.9rem; margin-bottom:.75rem;">
+            {% if d.paiement.montant_origine and d.paiement.taux_change %}
+              {{ d.paiement.montant_origine }} CDF
+              <span style="color:var(--text-muted);">→ {{ d.paiement.montant_paye }} {{ d.paiement.devise }}</span>
+            {% else %}
+              {{ d.paiement.montant_paye }} {{ d.paiement.devise }}
+            {% endif %}
+          </div>
+
+          <div style="background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.35); border-radius:8px; padding:.75rem 1rem;">
+            <div style="font-size:.75rem; font-weight:700; color:#b45309; margin-bottom:.35rem; text-transform:uppercase; letter-spacing:.03em;">
+              Commentaire du caissier — {{ d.demande_par }}
+            </div>
+            <p style="margin:0; white-space:pre-wrap; line-height:1.45;">{{ d.motif }}</p>
+          </div>
+
+          {% if d.reponse_admin %}
+          <div style="margin-top:.75rem; font-size:.9rem;">
+            <strong>Réponse admin{% if d.traite_par %} ({{ d.traite_par }}){% endif %} :</strong>
+            <span style="color:var(--text-muted);">{{ d.reponse_admin }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="table-actions" style="flex-shrink:0;">
+          {% if d.paiement.statut == 'VALIDE' and d.paiement.numero_recu %}
+          <a href="{% url 'finances:paiement_print' d.paiement_id %}" class="btn btn-secondary btn-sm" title="Voir le reçu">🖨️</a>
+          {% endif %}
+          {% if d.statut == 'EN_ATTENTE' and peut_traiter %}
+          <a href="{% url 'finances:paiement_update' d.paiement_id %}" class="btn btn-primary btn-sm">Corriger</a>
+          <a href="{% url 'finances:demande_modification_rejeter' d.id %}" class="btn btn-danger btn-sm">Rejeter</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div style="text-align:center; color:var(--text-muted); padding:2.5rem;">
+      Aucune demande pour ce filtre.
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

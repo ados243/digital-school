@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block title %}Supprimer le type de frais{% endblock %}
+
+{% block page_title %}Suppression d'un type de frais{% endblock %}
+{% block page_subtitle %}Cette action est irréversible.{% endblock %}
+
+{% block content %}
+<div class="confirm-delete">
+    <div class="confirm-delete__head">
+        <div class="confirm-delete__icon" aria-hidden="true">⚠️</div>
+        <h3>Confirmer la suppression</h3>
+    </div>
+    <div class="confirm-delete__body">
+        <p>Voulez-vous vraiment supprimer&nbsp;?</p>
+        <span class="confirm-delete__target">{{ object }}</span>
+        <p class="confirm-delete__note">Cette action est irréversible.</p>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="confirm-delete__actions">
+            <a href="{% url 'finances:type_frais_list' %}" class="btn btn-secondary">Annuler</a>
+            <button type="submit" class="btn btn-danger">Oui, supprimer</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

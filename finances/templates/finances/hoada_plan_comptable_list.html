@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Plan comptable{% endblock %}
+{% block page_title %}Plan comptable (HOADA){% endblock %}
+{% block page_subtitle %}Comptes par école{% endblock %}
+
+{% block content %}
+<div class="panel">
+  <div class="panel-header">
+    <h3>Comptes</h3>
+    <a href="{% url 'finances:hoada_plan_comptable_create' %}" class="btn btn-primary btn-sm">+ Ajouter</a>
+  </div>
+
+  <div class="panel-body table-responsive" style="padding:0;">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Numéro</th>
+          <th>Libellé</th>
+          <th>Devise</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in object_list %}
+        <tr>
+          <td style="font-family: monospace; font-weight:700;">{{ c.numero }}</td>
+          <td>{{ c.libelle }}</td>
+          <td>{{ c.devise }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="3" style="text-align:center; color: var(--text-muted); padding:2rem;">
+            Aucun compte pour cette école.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

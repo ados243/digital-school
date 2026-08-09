@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+
+{% block title %}Paiements{% endblock %}
+
+{% block page_title %}Paiements & Reçus{% endblock %}
+{% block page_subtitle %}
+  {% if filtre_perso %}
+  Historique de vos encaissements uniquement.
+  {% else %}
+  Gérez les paiements des élèves et imprimez les reçus.
+  {% endif %}
+{% endblock %}
+
+{% block header_actions %}
+    {% if request.user.is_caissier %}
+    <a href="{% url 'finances:paiement_create' %}" class="btn btn-primary">➕ Encaisser un paiement</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="filter-chips">
+    <a href="{% url 'finances:paiement_list' %}" class="btn {% if not request.GET.statut %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Tous</a>
+    <a href="{% url 'finances:paiement_list' %}?statut=EN_ATTENTE" class="btn {% if request.GET.statut == 'EN_ATTENTE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">En attente</a>
+    <a href="{% url 'finances:paiement_list' %}?statut=VALIDE" class="btn {% if request.GET.statut == 'VALIDE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Validés</a>
+    <a href="{% url 'finances:demandes_modification_list' %}" class="btn btn-secondary btn-sm">
+      Demandes de correction{% if nb_demandes_ouvertes %} ({{ nb_demandes_ouvertes }}){% endif %}
+    </a>
+</div>
+
+<div class="panel">
+    <div class="panel-header">
+        <h3>{% if filtre_perso %}Mes paiements{% else %}Historique des paiements{% endif %}</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Reçu N°</th>
+                    <th>Élève</th>
+                    <th>Frais</th>
+                    <th>Montant</th>
+                    <th>Devise</th>
+                    <th>Mode</th>
+                    <th>Statut</th>
+                    <th>Date</th>
+                    <th style="text-align: right; padding-right: 1.5rem;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in object_list %}
+                <tr>
+                    <td>
+                        <span style="font-family: monospace; font-weight: 700; color: var(--primary);">{{ item.numero_recu|default:"En attente" }}</span>
+                        {% if item.id in demandes_ouvertes_ids %}
+                        <div><span class="badge badge-warning" style="margin-top:.25rem;">Correction demandée</span></div>
+                        {% endif %}
+                    </td>
+                    <td><strong>{{ item.eleve.eleve.prenom }} {{ item.eleve.eleve.nom }}</strong></td>
+                    <td>{{ item.frais.type_frais.libelle }}</td>
+                    <td style="font-family:monospace; font-weight:600;">
+                        {% if item.montant_origine and item.taux_change %}
+                            {{ item.montant_origine }}
+                        {% else %}
+                            {{ item.montant_paye }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if item.montant_origine and item.taux_change %}
+                            <strong>CDF</strong>
+                            <div style="font-size:.75rem; color:var(--text-muted);">
+                                → {{ item.montant_paye }} {{ item.devise }}
+                            </div>
+                        {% else %}
+                            {{ item.devise }}
+                        {% endif %}
+                    </td>
+                    <td>{{ item.get_mode_paiement_display }}</td>
+                    <td>
+                        {% if item.statut == 'VALIDE' %}
+                            <span class="badge badge-success">Validé</span>
+                        {% elif item.statut == 'ANNULE' %}
+                            <span class="badge badge-danger">Annulé</span>
+                        {% else %}
+                            <span class="badge badge-warning">En attente</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.date_encodage|date:"d/m/Y" }}</td>
+                    <td style="text-align: right; padding-right: 1.5rem;">
+                        <div class="table-actions">
+                            {% if item.statut == 'VALIDE' and item.numero_recu %}
+                                <a href="{% url 'finances:paiement_print' item.id %}" class="btn btn-secondary btn-sm" title="Imprimer le reçu">🖨️</a>
+                            {% endif %}
+                            {% if request.user.is_caissier %}
+                                {% if item.id in demandes_ouvertes_ids %}
+                                <span class="btn btn-secondary btn-sm" style="opacity:.7; cursor:default;" title="Demande déjà envoyée">⏳ Demandé</span>
+                                {% else %}
+                                <a class="btn btn-secondary btn-sm" href="{% url 'finances:demande_modification_create' item.id %}" title="Demander une correction">✏️ Demander</a>
+                                {% endif %}
+                            {% elif request.user.is_superuser or request.user.is_personnel_interne and not request.user.is_caissier %}
+                                {% if item.id in demandes_ouvertes_ids %}
+                                <a class="btn btn-primary btn-sm" href="{% url 'finances:paiement_update' item.id %}">Corriger</a>
+                                {% endif %}
+                                <a class="btn btn-danger btn-sm" href="{% url 'finances:paiement_delete' item.id %}">Suppr.</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                        Aucun paiement enregistré pour le moment.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,351 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if is_update %}Modifier l'inscription{% else %}Inscrire un élève{% endif %}{% endblock %}
+
+{% block page_title %}{% if is_update %}Modifier l'inscription{% else %}Inscrire un élève{% endif %}{% endblock %}
+{% block page_subtitle %}
+{% if is_update %}Mettez à jour l'affectation de l'élève pour l'année scolaire.{% else %}Sélectionnez l'élève, choisissez la classe et validez l'inscription.{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inscription:inscription_list' %}" class="btn btn-secondary">Annuler</a>
+{% if not is_update %}
+<a href="{% url 'inscription:eleve_create' %}" class="btn btn-secondary">Nouvel élève</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{{ eleves_data|json_script:"eleves-data" }}
+{{ classes_data|json_script:"classes-data" }}
+
+<div class="qb-form inscription-qb">
+    {% if not is_update %}
+    <div class="inscription-qb__status">
+        <div class="inscription-qb__status-item {% if eleves_count > 0 %}inscription-qb__status-item--ok{% else %}inscription-qb__status-item--warn{% endif %}">
+            <span class="inscription-qb__status-icon">👤</span>
+            <div>
+                <div class="inscription-qb__status-label">Élèves disponibles</div>
+                <div class="inscription-qb__status-value">{{ eleves_count }}</div>
+                <div class="inscription-qb__status-meta">
+                    {% if eleves_count == 0 %}
+                    <a href="{% url 'inscription:eleve_create' %}">Créer une fiche élève</a>
+                    {% else %}Non inscrits cette année{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="inscription-qb__status-item {% if classes_count > 0 %}inscription-qb__status-item--ok{% else %}inscription-qb__status-item--warn{% endif %}">
+            <span class="inscription-qb__status-icon">🏫</span>
+            <div>
+                <div class="inscription-qb__status-label">Classes</div>
+                <div class="inscription-qb__status-value">{{ classes_count }}</div>
+                <div class="inscription-qb__status-meta">
+                    {% if classes_count == 0 %}
+                    <a href="{% url 'inscription:classe_create' %}">Créer une classe</a>
+                    {% else %}Ouvertes à l'inscription{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="inscription-qb__status-item inscription-qb__status-item--ok">
+            <span class="inscription-qb__status-icon">📅</span>
+            <div>
+                <div class="inscription-qb__status-label">Année scolaire</div>
+                <div class="inscription-qb__status-value">
+                    {% if annee_courante %}{{ annee_courante.anne_scolaire }}{% else %}—{% endif %}
+                </div>
+                <div class="inscription-qb__status-meta">
+                    {% if annee_courante %}Année en cours{% else %}
+                    <a href="/admin/inscription/annee_scolaire/add/">Configurer</a>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="inscription-qb__steps" aria-hidden="true">
+        <span class="inscription-qb__step is-active" id="step-indicator-1">
+            <span class="inscription-qb__step-num">1</span> Élève
+        </span>
+        <span class="inscription-qb__step-sep">›</span>
+        <span class="inscription-qb__step" id="step-indicator-2">
+            <span class="inscription-qb__step-num">2</span> Affectation
+        </span>
+        <span class="inscription-qb__step-sep">›</span>
+        <span class="inscription-qb__step" id="step-indicator-3">
+            <span class="inscription-qb__step-num">3</span> Validation
+        </span>
+    </div>
+    {% endif %}
+
+    {% url 'inscription:inscription_list' as list_url %}
+
+    <form method="post" id="inscription-form" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+
+        <div class="inscription-qb__layout">
+            <div class="inscription-qb__document">
+                <div class="inscription-qb__section-head">Informations élève</div>
+
+                {% if is_update %}
+                <div class="inscription-qb__row">
+                    <span class="inscription-qb__label">Élève</span>
+                    <div class="inscription-qb__field">
+                        <div class="inscription-qb__student-card">
+                            <span class="inscription-qb__student-avatar">{{ ins.eleve.prenom|slice:":1"|upper }}{{ ins.eleve.nom|slice:":1"|upper }}</span>
+                            <div>
+                                <div class="inscription-qb__student-name">{{ ins.eleve.prenom }} {{ ins.eleve.nom }}</div>
+                                <div class="inscription-qb__student-meta">Matricule {{ ins.eleve.matricule }}</div>
+                            </div>
+                        </div>
+                        <div class="form-sr-only">{{ form.eleve }}</div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="inscription-qb__row{% if form.eleve.errors %} inscription-qb__row--invalid{% endif %}">
+                    <label class="inscription-qb__label" for="{{ form.eleve.id_for_label }}">
+                        {{ form.eleve.label }}<span class="form-required">*</span>
+                    </label>
+                    <div class="inscription-qb__field">
+                        <input type="text" id="eleve-search" class="form-control" placeholder="Filtrer par nom ou matricule…" autocomplete="off" style="margin-bottom: .5rem;">
+                        {{ form.eleve }}
+                        {% if form.eleve.errors %}<p class="form-error" role="alert">{{ form.eleve.errors|striptags }}</p>{% endif %}
+                        <p class="form-help">
+                            {% if eleves_count == 0 %}
+                            Aucun élève disponible pour l'année en cours.
+                            <a href="{% url 'inscription:eleve_create' %}">Créer une fiche élève</a>
+                            {% else %}
+                            {{ eleves_count }} élève{{ eleves_count|pluralize }} disponible{{ eleves_count|pluralize }} (non encore inscrit{{ eleves_count|pluralize }} cette année).
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div id="eleve-summary" class="inscription-qb__row" style="display: none;">
+                    <span class="inscription-qb__label">Sélection</span>
+                    <div class="inscription-qb__field">
+                        <div class="inscription-qb__student-card">
+                            <span class="inscription-qb__student-avatar" id="summary-avatar">—</span>
+                            <div>
+                                <div class="inscription-qb__student-name" id="summary-nom"></div>
+                                <div class="inscription-qb__student-meta">
+                                    Matricule <strong id="summary-matricule"></strong>
+                                    · <span id="summary-sexe"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="inscription-qb__section-head">Affectation scolaire</div>
+
+                <div class="inscription-qb__row{% if form.classe.errors %} inscription-qb__row--invalid{% endif %}">
+                    <label class="inscription-qb__label" for="{{ form.classe.id_for_label }}">
+                        {{ form.classe.label }}<span class="form-required">*</span>
+                    </label>
+                    <div class="inscription-qb__field">
+                        {{ form.classe }}
+                        <div id="classe-capacite-info" class="inscription-qb__alert-box inscription-qb__alert-box--info"></div>
+                        {% if form.classe.errors %}<p class="form-error" role="alert">{{ form.classe.errors|striptags }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="inscription-qb__row">
+                    <span class="inscription-qb__label">Période &amp; n°</span>
+                    <div class="inscription-qb__field inscription-qb__field-split">
+                        {% include 'includes/form_field.html' with field=form.annee_s %}
+                        <div class="form-field">
+                            <div class="form-field__row">
+                                <label class="form-field__label">Numéro d'inscription</label>
+                                <div class="form-field__content">
+                                    <div class="form-field__control">
+                                        <input type="text" class="form-control" readonly
+                                               value="{% if ins %}{{ ins.numero_ins }}{% else %}Attribué à l'enregistrement{% endif %}">
+                                    </div>
+                                    <p class="form-help">Généré automatiquement à partir de l'année scolaire.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="inscription-qb__row">
+                    <span class="inscription-qb__label">Options</span>
+                    <div class="inscription-qb__field inscription-qb__field-split">
+                        {% include 'includes/form_field.html' with field=form.type_iscription %}
+                        {% include 'includes/form_field.html' with field=form.frais_inscription %}
+                    </div>
+                </div>
+
+                <div class="inscription-qb__footer">
+                    <a href="{{ list_url }}" class="btn btn-secondary">Annuler</a>
+                    {% if is_update %}
+                    <button type="submit" class="btn btn-primary btn-lg">Enregistrer</button>
+                    {% elif not can_submit %}
+                    <button type="submit" class="btn btn-primary btn-lg" disabled title="Éléments manquants pour inscrire un élève">Enregistrer l'inscription</button>
+                    {% else %}
+                    <button type="submit" class="btn btn-primary btn-lg">Enregistrer l'inscription</button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <aside class="inscription-qb__sidebar">
+                <div class="panel">
+                    <div class="inscription-qb__sidebar-head">
+                        <h3>Aperçu</h3>
+                        <p>Vérifiez les informations avant d'enregistrer.</p>
+                    </div>
+                    <div class="panel-body">
+                        <ul class="inscription-qb__recap">
+                            <li><span>Élève</span><strong id="recap-eleve">—</strong></li>
+                            <li><span>Classe</span><strong id="recap-classe">—</strong></li>
+                            <li><span>Année</span><strong id="recap-annee">—</strong></li>
+                            <li><span>Type</span><strong id="recap-type">—</strong></li>
+                            <li><span>N° inscription</span><strong id="recap-numero" class="font-mono">—</strong></li>
+                        </ul>
+                        <div id="recap-capacite" class="inscription-qb__alert-box inscription-qb__alert-box--info"></div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const eleves = JSON.parse(document.getElementById('eleves-data').textContent);
+    const classesData = JSON.parse(document.getElementById('classes-data').textContent);
+    const isUpdate = {{ is_update|yesno:"true,false" }};
+
+    const eleveSelect = document.getElementById('id_eleve');
+    const classeSelect = document.getElementById('id_classe');
+    const anneeSelect = document.getElementById('id_annee_s');
+    const typeSelect = document.getElementById('id_type_iscription');
+    const numeroAttribue = {% if ins %}'{{ ins.numero_ins|escapejs }}'{% else %}'Automatique'{% endif %};
+
+    const eleveMap = Object.fromEntries(eleves.map(e => [String(e.id), e]));
+
+    function setStepActive(step) {
+        [1, 2, 3].forEach(n => {
+            const el = document.getElementById('step-indicator-' + n);
+            if (el) el.classList.toggle('is-active', n <= step);
+        });
+    }
+
+    function initials(name) {
+        const parts = (name || '').trim().split(/\s+/);
+        if (!parts.length) return '—';
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+
+    function updateRecap() {
+        const eleve = eleveMap[eleveSelect?.value];
+        document.getElementById('recap-eleve').textContent = eleve ? eleve.nom : (isUpdate ? '{{ ins.eleve.prenom }} {{ ins.eleve.nom }}' : '—');
+        document.getElementById('recap-classe').textContent =
+            classeSelect.options[classeSelect.selectedIndex]?.text || '—';
+        document.getElementById('recap-annee').textContent =
+            anneeSelect.options[anneeSelect.selectedIndex]?.text || '—';
+        document.getElementById('recap-type').textContent =
+            typeSelect.options[typeSelect.selectedIndex]?.text || '—';
+        document.getElementById('recap-numero').textContent = numeroAttribue;
+
+        if (!isUpdate) {
+            if (eleveSelect?.value && classeSelect?.value) setStepActive(3);
+            else if (eleveSelect?.value) setStepActive(2);
+            else setStepActive(1);
+        }
+    }
+
+    function showAlertBox(el, html, variant) {
+        if (!el) return;
+        if (!html) {
+            el.classList.remove('is-visible', 'inscription-qb__alert-box--warn', 'inscription-qb__alert-box--info');
+            el.style.display = 'none';
+            el.innerHTML = '';
+            return;
+        }
+        el.innerHTML = html;
+        el.classList.add('is-visible');
+        el.style.display = 'block';
+        el.classList.toggle('inscription-qb__alert-box--warn', variant === 'warn');
+        el.classList.toggle('inscription-qb__alert-box--info', variant !== 'warn');
+    }
+
+    function updateClasseCapacite() {
+        const info = document.getElementById('classe-capacite-info');
+        const recapCap = document.getElementById('recap-capacite');
+        const data = classesData[classeSelect.value];
+        if (!data) {
+            showAlertBox(info, '', 'info');
+            showAlertBox(recapCap, '', 'info');
+            return;
+        }
+        if (data.est_complete) {
+            showAlertBox(info, `<strong>Classe complète</strong> — ${data.inscrits} / ${data.capacite_max} élèves`, 'warn');
+            showAlertBox(recapCap, 'Cette classe a atteint sa capacité maximale.', 'warn');
+        } else {
+            showAlertBox(
+                info,
+                `Places disponibles : <strong>${data.places_restantes}</strong> / ${data.capacite_max} · Salle ${data.salle}`,
+                'info'
+            );
+            showAlertBox(
+                recapCap,
+                `${data.inscrits} élève(s) inscrit(s) · ${data.places_restantes} place(s) restante(s)`,
+                'info'
+            );
+        }
+    }
+
+    if (!isUpdate) {
+        const eleveSearch = document.getElementById('eleve-search');
+        const summaryRow = document.getElementById('eleve-summary');
+
+        function updateEleveSummary() {
+            const e = eleveMap[eleveSelect.value];
+            if (!e) {
+                summaryRow.style.display = 'none';
+                return;
+            }
+            summaryRow.style.display = 'grid';
+            document.getElementById('summary-nom').textContent = e.nom;
+            document.getElementById('summary-matricule').textContent = e.matricule;
+            document.getElementById('summary-sexe').textContent = e.sexe;
+            document.getElementById('summary-avatar').textContent = initials(e.nom);
+        }
+
+        function filterEleveOptions() {
+            const q = (eleveSearch?.value || '').toLowerCase().trim();
+            Array.from(eleveSelect.options).forEach(opt => {
+                if (!opt.value) {
+                    opt.hidden = false;
+                    return;
+                }
+                const text = (opt.textContent || '').toLowerCase();
+                opt.hidden = Boolean(q) && !text.includes(q);
+            });
+        }
+
+        eleveSelect.addEventListener('change', () => {
+            updateEleveSummary();
+            updateRecap();
+        });
+        if (eleveSearch) {
+            eleveSearch.addEventListener('input', filterEleveOptions);
+        }
+
+        updateEleveSummary();
+        setStepActive(1);
+    }
+
+    classeSelect.addEventListener('change', () => { updateClasseCapacite(); updateRecap(); });
+    anneeSelect.addEventListener('change', updateRecap);
+    typeSelect.addEventListener('change', updateRecap);
+
+    updateClasseCapacite();
+    updateRecap();
+})();
+</script>
+{% endblock %}

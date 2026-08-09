@@ -1,0 +1,78 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Bulletins — {{ classe.classe }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        <a href="{% url 'utilisateur:enseignant_classe' classe.id %}" style="color:var(--secondary); text-decoration:none; font-weight:600;">← Classe {{ classe.classe }}</a>
+    </p>
+    <h1>Bulletins scolaires</h1>
+    <p>
+        Un bulletin par élève · Mode {{ mode }} (RDC) · {{ classe.section.section }}
+        {% if annee_courante %} · {{ annee_courante.anne_scolaire }}{% endif %}
+    </p>
+</div>
+
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-body" style="color:var(--text-muted); font-size:0.92rem; line-height:1.55;">
+        Chaque élève possède son bulletin, créé à l'inscription et <strong>mis à jour automatiquement</strong>
+        à chaque saisie de notes (travaux journaliers et examens).
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header">
+        <h3>Bulletins de la classe</h3>
+        <span class="badge badge-info">{{ rows|length }} élève{{ rows|length|pluralize }}</span>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Matricule</th>
+                    <th>Élève</th>
+                    <th>T.G.</th>
+                    <th>%</th>
+                    <th>Dernière MAJ</th>
+                    <th style="text-align:right;">Bulletin</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td><span style="font-family:monospace; font-weight:700; color:var(--primary);">{{ row.eleve.matricule }}</span></td>
+                    <td><strong>{{ row.eleve.prenom }} {{ row.eleve.nom }} {{ row.eleve.Post_nom }}</strong></td>
+                    <td>
+                        {% if row.bulletin %}
+                        {{ row.total_obtenus }} / {{ row.total_maxima }}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if row.pourcentage is not None %}
+                        <strong>{{ row.pourcentage }} %</strong>
+                        {% else %}
+                        <span style="color:var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.85rem;">
+                        {% if row.updated_at %}{{ row.updated_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}
+                    </td>
+                    <td style="text-align:right;">
+                        <a href="{% url 'utilisateur:bulletin_eleve' row.inscription.id %}" class="btn btn-primary btn-sm">Ouvrir</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                        {% if not annee_courante %}Aucune année en cours.{% else %}Aucun élève inscrit.{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

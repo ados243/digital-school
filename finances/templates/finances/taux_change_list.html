@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Taux de change{% endblock %}
+{% block page_title %}Taux de change CDF ↔ USD{% endblock %}
+{% block page_subtitle %}Saisissez manuellement le cours utilisé pour convertir les francs en dollars lors des paiements.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:dashboard' %}" class="btn btn-secondary">Retour</a>
+{% endblock %}
+
+{% block content %}
+
+<section class="kpi-grid" style="margin-bottom:1rem;">
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Taux courant</div>
+      <div class="kpi-value">
+        {% if taux_courant %}
+          {{ taux_courant.taux }}
+        {% else %}
+          —
+        {% endif %}
+      </div>
+    </div>
+    <div class="kpi-footer">
+      {% if taux_courant %}
+        1 USD = {{ taux_courant.taux }} CDF · effet {{ taux_courant.date_effet|date:"d/m/Y" }}
+      {% else %}
+        Aucun taux enregistré — saisissez-en un ci-dessous
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<div class="dashboard-grid">
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Nouveau taux</h3>
+    </div>
+    <div class="panel-body">
+      <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        {% include 'includes/form_field.html' with field=form.taux %}
+        {% include 'includes/form_field.html' with field=form.date_effet %}
+        {% include 'includes/form_field.html' with field=form.commentaire full_width=True %}
+        <p class="form-help" style="margin-top:.5rem;">
+          Convention : indiquez combien de <strong>CDF</strong> correspondent à <strong>1 USD</strong>
+          (ex. 2850). Ce taux préremplit l'encaissement et peut être ajusté au moment du paiement.
+        </p>
+        <div style="margin-top:1rem;">
+          <button type="submit" class="btn btn-primary">Enregistrer le taux</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Historique</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Date d'effet</th>
+            <th>Taux (CDF / USD)</th>
+            <th>Saisi le</th>
+            <th>Par</th>
+            <th>Commentaire</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in object_list %}
+          <tr {% if taux_courant and t.id == taux_courant.id %}style="background:rgba(37,99,235,.06);"{% endif %}>
+            <td><strong>{{ t.date_effet|date:"d/m/Y" }}</strong></td>
+            <td style="font-family:monospace; font-weight:700; color:var(--primary);">{{ t.taux }}</td>
+            <td>{{ t.date_saisie|date:"d/m/Y H:i" }}</td>
+            <td>{{ t.saisi_par|default:"—" }}</td>
+            <td>{{ t.commentaire|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">
+              Aucun taux enregistré
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

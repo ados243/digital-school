@@ -1,0 +1,72 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Gestion des Contrats{% endblock %}
+
+{% block page_title %}Gestion des Contrats{% endblock %}
+{% block page_subtitle %}Suivi des contrats de travail, salaires et statuts d'engagement.{% endblock %}
+
+{% block header_actions %}
+    <a href="{% url 'grh:contrat_create' %}" class="btn btn-primary">➕ Créer un contrat</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h3>Contrats de travail</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Employé</th>
+                    <th>Type de Contrat</th>
+                    <th>Date de début</th>
+                    <th>Date de fin</th>
+                    <th>Salaire de base</th>
+                    <th>Statut</th>
+                    <th style="text-align: right; padding-right: 1.5rem;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in contrats %}
+                <tr>
+                    <td>
+                        <strong>{{ c.personnel.nom }} {{ c.personnel.Post_nom }}</strong>
+                        <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ c.personnel.prenom }} - {{ c.personnel.fonction }}</span>
+                    </td>
+                    <td><span class="badge badge-info">{{ c.get_type_contrat_display }}</span></td>
+                    <td>{{ c.date_debut|date:"d/m/Y" }}</td>
+                    <td>
+                        {% if c.date_fin %}
+                            {{ c.date_fin|date:"d/m/Y" }}
+                        {% else %}
+                            <span style="color: var(--text-muted); font-style: italic;">Indéterminée (CDI)</span>
+                        {% endif %}
+                    </td>
+                    <td><strong>{{ c.salaire_base }} {{ c.devise.devise }}</strong></td>
+                    <td>
+                        {% if c.statut == 'ACTIF' %}
+                            <span class="badge badge-success">Actif</span>
+                        {% elif c.statut == 'SUSPENDU' %}
+                            <span class="badge badge-warning">Suspendu</span>
+                        {% else %}
+                            <span class="badge badge-danger">Terminé</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right; padding-right: 1.5rem;">
+                        <a href="{% url 'grh:contrat_update' c.pk %}" class="btn btn-secondary btn-sm">✏️ Modifier</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        Aucun contrat enregistré. <br>
+                        <a href="{% url 'grh:contrat_create' %}" class="btn btn-primary btn-sm" style="margin-top: 1rem;">Créer un contrat</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,211 @@
+{% extends 'portal_base.html' %}
+{% load elearning_tags %}
+
+{% block title %}{{ cours.titre }}{% endblock %}
+{% block portal_main_class %}portal-main--wide{% endblock %}
+
+{% block content %}
+<div class="ll-shell ll-course-page">
+    <section class="ll-hero-band">
+        <div class="ll-hero-band__inner">
+            <a href="{% url 'utilisateur:cours_eleve_list' %}" class="ll-back">← Bibliothèque de cours</a>
+            <p class="ll-eyebrow">{{ cours.matiere.libelle }} · {{ cours.classe.classe }}</p>
+            <h1>{{ cours.titre }}</h1>
+            <p class="ll-hero-band__tagline">
+                {% if cours.sous_titre %}{{ cours.sous_titre }}
+                {% elif cours.description %}{{ cours.description|truncatechars:160 }}
+                {% else %}Parcours e-learning de {{ cours.matiere.libelle }} conçu pour votre classe.{% endif %}
+            </p>
+                <div class="ll-hero-band__meta">
+                    <span class="ll-pill ll-pill--light">{{ cours.get_niveau_display }}</span>
+                    <span>{{ cours.duree_affichee }}</span>
+                    <span>{{ nb_chapitres }} chapitre{{ nb_chapitres|pluralize }}</span>
+                    <span>{{ lecons|length }} sous-chapitre{{ lecons|length|pluralize }}</span>
+                    {% if cours.date_publication %}<span>Publié le {{ cours.date_publication|date:"d M Y" }}</span>{% endif %}
+                </div>
+            <div class="ll-hero-band__author">
+                <span class="ll-avatar ll-avatar--lg">{{ cours.enseignant.prenom|slice:":1"|upper }}{{ cours.enseignant.nom|slice:":1"|upper }}</span>
+                <div>
+                    <strong>{{ cours.enseignant.prenom }} {{ cours.enseignant.nom }} {{ cours.enseignant.Post_nom }}</strong>
+                    <div>Formateur · {{ cours.matiere.libelle }}</div>
+                </div>
+            </div>
+            {% if lecons %}
+            <div class="ll-progress ll-progress--on-dark">
+                <div class="ll-progress__label"><span>Votre progression</span><strong>{{ progression_pct }} %</strong></div>
+                <div class="ll-progress__bar"><div style="width:{{ progression_pct }}%"></div></div>
+                <div>{{ terminees }} / {{ lecons|length }} leçons terminées</div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <div class="ll-course-body">
+        <div class="ll-course-body__main">
+            <nav class="ll-tabs" data-ll-tabs>
+                <button type="button" class="ll-tabs__btn is-active" data-tab="apercu">Aperçu</button>
+                <button type="button" class="ll-tabs__btn" data-tab="contenu">Contenu</button>
+                <button type="button" class="ll-tabs__btn" data-tab="formateur">Formateur</button>
+            </nav>
+
+            <div class="ll-tab-panel is-active" data-panel="apercu">
+                <section class="ll-block">
+                    <h2>Ce que vous allez apprendre</h2>
+                    {% if cours.liste_objectifs %}
+                    <ul class="ll-objectives">
+                        {% for obj in cours.liste_objectifs %}<li>{{ obj }}</li>{% endfor %}
+                    </ul>
+                    {% else %}
+                    <ul class="ll-objectives">
+                        <li>Comprendre les notions clés de {{ cours.matiere.libelle }}</li>
+                        <li>Suivre {{ nb_chapitres }} chapitre{{ nb_chapitres|pluralize }} et {{ lecons|length }} sous-chapitre{{ lecons|length|pluralize }}</li>
+                        <li>Progresser à votre rythme avec le suivi de progression</li>
+                        <li>Appliquer les acquis via les exercices et ressources du cours</li>
+                    </ul>
+                    {% endif %}
+                </section>
+
+                <section class="ll-block">
+                    <h2>À propos de ce cours</h2>
+                    {% if cours.description %}
+                    <div class="ll-prose">{{ cours.description|linebreaks }}</div>
+                    {% else %}
+                    <div class="ll-prose">
+                        <p>
+                            Ce cours en ligne de <strong>{{ cours.matiere.libelle }}</strong> est destiné
+                            {% if cours.public_cible %}à {{ cours.public_cible }}{% else %}aux élèves de {{ cours.classe.classe }}{% endif %}.
+                            Il est animé par <strong>{{ cours.enseignant.prenom }} {{ cours.enseignant.nom }}</strong>
+                            et se compose de <strong>{{ lecons|length }} leçon{{ lecons|length|pluralize }}</strong>
+                            pour une durée estimée de <strong>{{ cours.duree_affichee }}</strong>.
+                        </p>
+                        <p>Suivez le programme à droite, marquez chaque leçon comme terminée et avancez progressivement jusqu’à la fin du parcours.</p>
+                    </div>
+                    {% endif %}
+                </section>
+
+                {% if cours.prerequis %}
+                <section class="ll-block">
+                    <h2>Prérequis</h2>
+                    <div class="ll-prose">{{ cours.prerequis|linebreaks }}</div>
+                </section>
+                {% endif %}
+
+                <section class="ll-block">
+                    <h2>Compétences</h2>
+                    <div class="ll-skills ll-skills--lg">
+                        {% if cours.liste_competences %}
+                            {% for skill in cours.liste_competences %}<span>{{ skill }}</span>{% endfor %}
+                        {% else %}
+                            <span>{{ cours.matiere.libelle }}</span>
+                            <span>{{ cours.get_niveau_display }}</span>
+                            <span>{{ cours.classe.classe }}</span>
+                        {% endif %}
+                    </div>
+                </section>
+            </div>
+
+            <div class="ll-tab-panel" data-panel="contenu">
+                <section class="ll-block">
+                    <h2>Contenu du cours</h2>
+                    <p class="ll-muted" style="margin-bottom:1rem;">
+                        {{ nb_chapitres }} chapitre{{ nb_chapitres|pluralize }} ·
+                        {{ lecons|length }} sous-chapitre{{ lecons|length|pluralize }} ·
+                        {{ cours.duree_affichee }}
+                    </p>
+                    {% for ch in chapters_rows %}
+                    <div class="ll-ch-group">
+                        <a href="{% url 'utilisateur:chapitre_eleve_detail' ch.chapitre.id %}" class="ll-ch-group__title">
+                            <span>Chapitre {{ ch.chapitre.ordre }} — {{ ch.chapitre.titre }}</span>
+                            <small>{{ ch.terminees }}/{{ ch.total }} · {% if ch.chapitre.video_url %}▶ {% endif %}{% if ch.chapitre.image %}🖼 {% endif %}</small>
+                        </a>
+                        <ol class="ll-toc">
+                            {% for row in ch.sous_rows %}
+                            <li>
+                                <a href="{% url 'utilisateur:lecon_eleve_detail' row.lecon.id %}" class="ll-toc__item {% if row.terminee %}is-done{% endif %}">
+                                    <span class="ll-toc__num">{% if row.terminee %}✓{% else %}{{ ch.chapitre.ordre }}.{{ row.lecon.ordre }}{% endif %}</span>
+                                    <span class="ll-toc__body">
+                                        <strong>{{ row.lecon.titre }}</strong>
+                                        <small>
+                                            {{ row.lecon.get_type_contenu_display }}
+                                            {% if row.lecon.video_url %} · Vidéo{% endif %}
+                                            {% if row.lecon.image %} · Image{% endif %}
+                                        </small>
+                                    </span>
+                                    <span class="ll-toc__dur">{{ row.lecon.duree_affichee }}</span>
+                                </a>
+                            </li>
+                            {% empty %}
+                            <li class="ll-muted" style="padding:.75rem;">Pas encore de sous-chapitre dans ce chapitre.</li>
+                            {% endfor %}
+                        </ol>
+                    </div>
+                    {% empty %}
+                    <p class="ll-muted">Aucun contenu publié pour le moment.</p>
+                    {% endfor %}
+                </section>
+            </div>
+
+            <div class="ll-tab-panel" data-panel="formateur">
+                <section class="ll-block ll-instructor">
+                    <span class="ll-avatar ll-avatar--xl">{{ cours.enseignant.prenom|slice:":1"|upper }}{{ cours.enseignant.nom|slice:":1"|upper }}</span>
+                    <div>
+                        <h2>{{ cours.enseignant.prenom }} {{ cours.enseignant.nom }} {{ cours.enseignant.Post_nom }}</h2>
+                        <p class="ll-muted">Enseignant · {{ cours.matiere.libelle }} · {{ cours.classe.classe }}</p>
+                        <p>
+                            Ce formateur a conçu et publié ce parcours e-learning pour votre classe.
+                            Suivez ses leçons, ressources et vidéos pour progresser étape par étape.
+                        </p>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <aside class="ll-sticky-card">
+            <div class="ll-sticky-card__media">
+                {% if cours.image_couverture %}
+                <img src="{{ cours.image_couverture.url }}" alt="">
+                {% else %}
+                <div class="ll-sticky-card__fallback">
+                    <span>{{ cours.matiere.libelle }}</span>
+                    <strong>{{ cours.titre|truncatechars:48 }}</strong>
+                </div>
+                {% endif %}
+            </div>
+            <div class="ll-sticky-card__body">
+                {% if prochaine_lecon %}
+                <a href="{% url 'utilisateur:lecon_eleve_detail' prochaine_lecon.id %}" class="btn btn-primary btn-block">
+                    {% if terminees %}Reprendre le cours{% else %}Commencer le cours{% endif %}
+                </a>
+                {% endif %}
+                <ul class="ll-includes">
+                    <li><strong>{{ cours.duree_affichee }}</strong> de contenu</li>
+                    <li><strong>{{ nb_chapitres }}</strong> chapitre{{ nb_chapitres|pluralize }}</li>
+                    <li><strong>{{ lecons|length }}</strong> sous-chapitre{{ lecons|length|pluralize }}</li>
+                    <li>Niveau <strong>{{ cours.get_niveau_display }}</strong></li>
+                    <li>Accès pour la classe <strong>{{ cours.classe.classe }}</strong></li>
+                    <li>Suivi de progression inclus</li>
+                    {% if cours.public_cible %}<li>{{ cours.public_cible }}</li>{% endif %}
+                </ul>
+            </div>
+        </aside>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const root = document.querySelector('[data-ll-tabs]');
+  if (!root) return;
+  const buttons = root.querySelectorAll('[data-tab]');
+  const panels = document.querySelectorAll('[data-panel]');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.tab;
+      buttons.forEach(b => b.classList.toggle('is-active', b === btn));
+      panels.forEach(p => p.classList.toggle('is-active', p.dataset.panel === id));
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,202 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Bulletin de paie - {{ paie.personnel.prenom }} {{ paie.personnel.nom }}{% endblock %}
+
+{% block page_title %}Bulletin de Paie{% endblock %}
+{% block page_subtitle %}Consultez, modifiez ou imprimez ce bulletin de paie.{% endblock %}
+
+{% block content %}
+<div class="payslip-actions" style="max-width: 800px; margin: 0 auto 1.5rem auto; display: flex; justify-content: space-between; align-items: center;">
+    <a href="{% url 'grh:paie_list' %}" class="btn btn-secondary">⬅️ Retour à la liste</a>
+    <div style="display: flex; gap: 0.75rem;">
+        <button onclick="window.print()" class="btn btn-primary">🖨️ Imprimer / PDF</button>
+        {% if paie.statut_paiement == 'EN_ATTENTE' %}
+            <button type="button" class="btn btn-success" id="btn-open-pay-confirm">✔️ Confirmer le paiement</button>
+        {% endif %}
+    </div>
+</div>
+
+{% if paie.statut_paiement == 'EN_ATTENTE' %}
+<style>
+  .confirm-modal {
+    position: fixed; inset: 0; z-index: 1300; display: none;
+    align-items: center; justify-content: center; padding: 1rem;
+  }
+  .confirm-modal.is-open { display: flex; }
+  .confirm-modal__backdrop {
+    position: absolute; inset: 0; background: rgba(15, 23, 42, .45);
+  }
+  .confirm-modal__dialog {
+    position: relative; z-index: 1; width: min(440px, 100%);
+    background: #fff; border-radius: 14px; border: 1px solid var(--border);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, .22); overflow: hidden;
+  }
+  .confirm-modal__header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--border);
+  }
+  .confirm-modal__header h3 { margin: 0; font-size: 1.1rem; }
+  .confirm-modal__close {
+    background: none; border: none; font-size: 1.35rem; cursor: pointer; color: var(--text-muted);
+  }
+  .confirm-modal__body { padding: 1.25rem; }
+  .confirm-modal__meta {
+    margin-top: .75rem; padding: .85rem 1rem;
+    background: rgba(37, 99, 235, .06); border-radius: 10px; font-size: .9rem;
+  }
+  .confirm-modal__footer {
+    display: flex; justify-content: flex-end; gap: .5rem;
+    padding: 1rem 1.25rem; border-top: 1px solid var(--border); background: #fafafa;
+  }
+</style>
+
+<div id="confirm-pay-modal" class="confirm-modal" aria-hidden="true">
+  <div class="confirm-modal__backdrop" data-close-pay></div>
+  <div class="confirm-modal__dialog" role="dialog" aria-modal="true">
+    <div class="confirm-modal__header">
+      <h3>Confirmer le paiement</h3>
+      <button type="button" class="confirm-modal__close" data-close-pay aria-label="Fermer">✕</button>
+    </div>
+    <div class="confirm-modal__body">
+      <p>Voulez-vous vraiment marquer ce bulletin comme <strong>payé</strong> ?</p>
+      <div class="confirm-modal__meta">
+        <div><strong>{{ paie.personnel.prenom }} {{ paie.personnel.nom }}</strong></div>
+        <div>Période : {{ paie.mois }}/{{ paie.annee }}</div>
+        <div>Net : <strong style="color:var(--primary); font-family:monospace;">{{ paie.net_a_payer }} {{ paie.devise }}</strong></div>
+      </div>
+    </div>
+    <div class="confirm-modal__footer">
+      <button type="button" class="btn btn-secondary" data-close-pay>Annuler</button>
+      <form method="post" action="{% url 'grh:paie_pay' paie.pk %}" style="margin:0;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-success">✔️ Confirmer le paiement</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('confirm-pay-modal');
+  var openBtn = document.getElementById('btn-open-pay-confirm');
+  if (!modal || !openBtn) return;
+  function open() { modal.classList.add('is-open'); modal.setAttribute('aria-hidden', 'false'); }
+  function close() { modal.classList.remove('is-open'); modal.setAttribute('aria-hidden', 'true'); }
+  openBtn.addEventListener('click', open);
+  modal.querySelectorAll('[data-close-pay]').forEach(function (el) {
+    el.addEventListener('click', close);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') close();
+  });
+})();
+</script>
+{% endif %}
+
+<div class="payslip-container">
+    <div class="payslip-header">
+        <div class="payslip-company">
+            <h2>{{ paie.personnel.ecole.ecole }}</h2>
+            <p>{{ paie.personnel.ecole.adresse }}</p>
+            <p>Tél : {{ paie.personnel.ecole.telephone1 }} | Email : {{ paie.personnel.ecole.email }}</p>
+        </div>
+        <div class="payslip-title">
+            <h1>BULLETIN DE PAIE</h1>
+            <p>Période : Mois de {{ paie.get_mois_display|default:paie.mois }} {{ paie.annee }}</p>
+        </div>
+    </div>
+    
+    <div class="payslip-details">
+        <div class="details-block">
+            <h4>Employeur</h4>
+            <p>Raison Sociale : <span>{{ paie.personnel.ecole.ecole }}</span></p>
+            <p>Type d'établissement : <span>{{ paie.personnel.ecole.get_type_ecole_display }}</span></p>
+            <p>Code école : <span>{{ paie.personnel.ecole.code_ecole }}</span></p>
+        </div>
+        <div class="details-block">
+            <h4>Salarié</h4>
+            <p>Matricule : <span><strong>{{ paie.personnel.matricule }}</strong></span></p>
+            <p>Nom & Prénom : <span><strong>{{ paie.personnel.nom }} {{ paie.personnel.prenom }}</strong></span></p>
+            <p>Fonction : <span>{{ paie.personnel.fonction }}</span></p>
+            <p>Téléphone : <span>{{ paie.personnel.telephone }}</span></p>
+        </div>
+    </div>
+    
+    <table class="payslip-table">
+        <thead>
+            <tr>
+                <th style="width: 50%;">Désignation</th>
+                <th style="text-align: right; width: 25%;">Gains (+)</th>
+                <th style="text-align: right; width: 25%;">Retenues (-)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Salaire de base professionnel</td>
+                <td style="text-align: right;">{{ paie.salaire_base }} {{ paie.devise.devise }}</td>
+                <td style="text-align: right;">-</td>
+            </tr>
+            <tr>
+                <td>Primes et indemnités diverses</td>
+                <td style="text-align: right;">{{ paie.primes }} {{ paie.devise.devise }}</td>
+                <td style="text-align: right;">-</td>
+            </tr>
+            <tr>
+                <td>Retenues (Absences, Avances, Cotisations)</td>
+                <td style="text-align: right;">-</td>
+                <td style="text-align: right; color: var(--danger);">{{ paie.deductions }} {{ paie.devise.devise }}</td>
+            </tr>
+            
+            <tr class="total-row">
+                <td>Net à Payer</td>
+                <td colspan="2" style="text-align: right; color: var(--primary);">
+                    {{ paie.net_a_payer }} {{ paie.devise.devise }}
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 4rem; font-size: 0.85rem; text-align: center;">
+        <div>
+            <p style="margin-bottom: 3rem;">Signature du salarié</p>
+            <p style="color: var(--text-muted);">Mention "Lu et approuvé"</p>
+        </div>
+        <div>
+            <p style="margin-bottom: 3rem;">Signature de la direction / Trésorerie</p>
+            <p>Le {{ paie.date_paiement|date:"d F Y"|default:"__ / __ / 20__" }}</p>
+        </div>
+    </div>
+</div>
+
+{% if paie.statut_paiement == 'EN_ATTENTE' %}
+<div class="qb-form qb-form--narrow" style="margin: 0 auto 3rem;">
+    <form method="post" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Ajuster les montants</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.primes %}
+                        {% include 'includes/form_field.html' with field=form.deductions %}
+                    </div>
+                    <div class="form-sr-only">
+                        {{ form.personnel }}
+                        {{ form.mois }}
+                        {{ form.annee }}
+                        {{ form.salaire_base }}
+                        {{ form.devise }}
+                        {{ form.statut_paiement }}
+                        {{ form.date_paiement }}
+                    </div>
+                </div>
+                <div class="qb-form__footer">
+                    {% include 'includes/form_actions.html' with submit_label="Enregistrer les ajustements" %}
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endif %}
+{% endblock %}

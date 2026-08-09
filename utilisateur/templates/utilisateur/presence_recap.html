@@ -1,0 +1,92 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Récap présences — {{ classe.classe }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom: .5rem;">
+        <a href="{% url 'utilisateur:enseignant_classe' classe.id %}" style="color: var(--secondary); text-decoration: none; font-weight: 600;">← Classe {{ classe.classe }}</a>
+    </p>
+    <h1>Récapitulatif des présences</h1>
+    <p>
+        Classe {{ classe.classe }} · {{ classe.section.section }}
+        {% if annee_courante %} · {{ annee_courante.anne_scolaire }}{% endif %}
+    </p>
+</div>
+
+{% if not annee_courante %}
+<div class="panel"><div class="portal-empty">Aucune année scolaire en cours.</div></div>
+{% else %}
+
+<section class="kpi-grid" style="margin-bottom: 1.5rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Élèves</div>
+            <div class="kpi-value">{{ nb_eleves }}</div>
+        </div>
+        <div class="kpi-footer">{{ jours_appeles }} jour(s) d'appel</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Taux classe</div>
+            <div class="kpi-value">{% if taux_classe is not None %}{{ taux_classe }} %{% else %}—{% endif %}</div>
+        </div>
+        <div class="kpi-footer">Présents + retards</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Absences</div>
+            <div class="kpi-value">{{ totaux.absents }}</div>
+        </div>
+        <div class="kpi-footer">{{ totaux.retards }} retard(s) · {{ totaux.excuses }} excusé(s)</div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom: 1rem;">
+    <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+        <h3>Liste des élèves</h3>
+        <a href="{% url 'utilisateur:presence_classe' classe.id %}" class="btn btn-primary btn-sm">📋 Faire l'appel</a>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Matricule</th>
+                    <th>Élève</th>
+                    <th style="text-align:center;">P</th>
+                    <th style="text-align:center;">A</th>
+                    <th style="text-align:center;">R</th>
+                    <th style="text-align:center;">E</th>
+                    <th>Taux</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in eleves_rows %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td><span class="font-mono">{{ row.eleve.matricule }}</span></td>
+                    <td><strong>{{ row.eleve.prenom }} {{ row.eleve.nom }}</strong></td>
+                    <td style="text-align:center; color:var(--success); font-weight:700;">{{ row.presents }}</td>
+                    <td style="text-align:center; color:var(--danger); font-weight:700;">{{ row.absents }}</td>
+                    <td style="text-align:center; color:var(--warning); font-weight:700;">{{ row.retards }}</td>
+                    <td style="text-align:center;">{{ row.excuses }}</td>
+                    <td>
+                        {% if row.taux is not None %}
+                        <strong>{{ row.taux }}%</strong>
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" style="text-align:center; padding:2rem; color:var(--text-muted);">Aucun élève.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<p style="font-size:0.8rem; color:var(--text-muted);">P = Présent · A = Absent · R = Retard · E = Excusé</p>
+
+{% endif %}
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ communication.sujet }}{% endblock %}
+{% block page_title %}{{ communication.sujet }}{% endblock %}
+{% block page_subtitle %}{{ communication.libelle_cible }} · {{ communication.created_at|date:"d/m/Y H:i" }}{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'utilisateur:direction_communication_list' %}" class="btn btn-secondary">← Liste</a>
+{% endblock %}
+
+{% block content %}
+<section class="kpi-grid" style="margin-bottom:1.5rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Destinataires</div>
+            <div class="kpi-value">{{ nb_destinataires }}</div>
+        </div>
+        <div class="kpi-footer">{{ communication.get_cible_type_display }}</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Lus</div>
+            <div class="kpi-value">{{ nb_lus }}</div>
+        </div>
+        <div class="kpi-footer">
+            {% if nb_destinataires %}{{ nb_lus }} / {{ nb_destinataires }}{% else %}—{% endif %}
+        </div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom:1.5rem;">
+    <div class="panel-header"><h3>Message</h3></div>
+    <div class="panel-body">
+        <p style="white-space:pre-wrap; margin:0;">{{ communication.contenu }}</p>
+        <p style="margin-top:1rem; font-size:.85rem; color:var(--text-muted);">
+            Envoyé par {% if communication.auteur %}{{ communication.auteur.nom_complet }}{% else %}—{% endif %}
+            le {{ communication.created_at|date:"d/m/Y à H:i" }}
+        </p>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header"><h3>Destinataires & lectures</h3></div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Parent</th>
+                    <th>Matricule tuteur</th>
+                    <th>Statut</th>
+                    <th>Lu le</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in dest_rows %}
+                <tr>
+                    <td><strong>{{ row.parent.nom_complet }}</strong></td>
+                    <td>
+                        {% if row.parent.tuteur %}
+                        <span class="font-mono">{{ row.parent.tuteur.matricule }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if row.lecture.lu_at %}
+                        <span class="badge badge-success">Lu</span>
+                        {% else %}
+                        <span class="badge badge-warning">Non lu</span>
+                        {% endif %}
+                    </td>
+                    <td>{% if row.lecture.lu_at %}{{ row.lecture.lu_at|date:"d/m/Y H:i" }}{% else %}—{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" style="text-align:center; padding:2rem; color:var(--text-muted);">
+                        Aucun compte parent correspondant à ce ciblage.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

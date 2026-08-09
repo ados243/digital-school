@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+
+{% block title %}Paiements — Classe {{ classe.classe }}{% endblock %}
+
+{% block page_title %}Paiements — Classe {{ classe.classe }}{% endblock %}
+{% block page_subtitle %}
+  Section {{ classe.section }} · {{ nb_eleves }} élève{{ nb_eleves|pluralize }} inscrit{{ nb_eleves|pluralize }} · {{ nb_paiements }} paiement{{ nb_paiements|pluralize }}
+{% endblock %}
+
+{% block header_actions %}
+<div class="no-print" style="display:flex; gap:.5rem; flex-wrap:wrap;">
+  <a href="{% url 'finances:dashboard' %}{% if filter_query %}?{{ filter_query }}{% endif %}" class="btn btn-secondary">← Retour</a>
+  <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}print=1" class="btn btn-secondary" onclick="window.print(); return false;">🖨️ Imprimer</a>
+  <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}export=excel" class="btn btn-primary">📊 Exporter Excel</a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .eleve-row {
+    cursor: pointer;
+    transition: background-color .15s ease;
+  }
+  .eleve-row:hover {
+    background-color: rgba(37, 99, 235, .06);
+  }
+  .eleve-row td:nth-child(2) strong {
+    color: var(--primary);
+  }
+
+  .paiement-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .paiement-modal.is-open { display: flex; }
+  .paiement-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .45);
+  }
+  .paiement-modal__dialog {
+    position: relative;
+    z-index: 1;
+    width: min(920px, 100%);
+    max-height: min(85vh, 720px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, .22);
+  }
+  .paiement-modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .paiement-modal__header h3 {
+    margin: 0 0 .25rem;
+    font-size: 1.1rem;
+  }
+  .paiement-modal__meta {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .85rem;
+  }
+  .paiement-modal__close {
+    background: none;
+    border: none;
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: .15rem .35rem;
+  }
+  .paiement-modal__body {
+    padding: 0;
+    overflow: auto;
+  }
+  .paiement-modal__empty {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 2.5rem 1rem;
+  }
+  body.modal-open { overflow: hidden; }
+
+  @media print {
+    .no-print, .sidebar, .top-header, .header-actions, .messages-container, .paiement-modal {
+      display: none !important;
+    }
+    .main-content { margin-left: 0 !important; padding: 0 !important; }
+    .panel { break-inside: avoid; box-shadow: none !important; }
+    .kpi-value { font-size: 1.25rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<section class="kpi-grid">
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Élèves inscrits</div>
+      <div class="kpi-value">{{ nb_eleves }}</div>
+    </div>
+    <div class="kpi-footer">📚 Classe {{ classe.classe }}</div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Paiements</div>
+      <div class="kpi-value">{{ nb_paiements }}</div>
+    </div>
+    <div class="kpi-footer">🧾 Enregistrements</div>
+  </div>
+  {% for row in totaux_par_devise %}
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Total validé — {{ row.devise__devise }}</div>
+      <div class="kpi-value">{{ row.total }}</div>
+    </div>
+    <div class="kpi-footer">💰 Encaisse confirmée</div>
+  </div>
+  {% empty %}
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Total validé</div>
+      <div class="kpi-value">0</div>
+    </div>
+    <div class="kpi-footer">💰 Aucun paiement validé</div>
+  </div>
+  {% endfor %}
+</section>
+
+<div class="panel print-block">
+  <div class="panel-header">
+    <h3>Élèves de la classe</h3>
+    <span style="color: var(--text-muted); font-size: .85rem;">Cliquez un élève pour voir ses paiements</span>
+  </div>
+  <div class="panel-body table-responsive" style="padding:0;">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Matricule</th>
+          <th>Élève</th>
+          <th>Année</th>
+          <th># Paiements</th>
+          <th>Total validé</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in eleves_rows %}
+        <tr class="eleve-row"
+            role="button"
+            tabindex="0"
+            data-inscription-id="{{ row.inscription.id }}"
+            title="Voir les paiements">
+          <td><span style="font-family: monospace; font-weight:700; color: var(--primary);">{{ row.eleve.matricule }}</span></td>
+          <td><strong>{{ row.eleve.nom }} {{ row.eleve.Post_nom }} {{ row.eleve.prenom }}</strong></td>
+          <td>{{ row.inscription.annee_s }}</td>
+          <td>{{ row.nb }}</td>
+          <td style="font-family: monospace; font-weight:700; color: var(--primary);">{{ row.total }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" style="text-align:center; color: var(--text-muted); padding: 2rem;">
+            Aucun élève inscrit dans cette classe
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="paiement-modal" class="paiement-modal no-print" aria-hidden="true">
+  <div class="paiement-modal__backdrop" data-close-modal></div>
+  <div class="paiement-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="paiement-modal-title">
+    <div class="paiement-modal__header">
+      <div>
+        <h3 id="paiement-modal-title">Paiements de l'élève</h3>
+        <p class="paiement-modal__meta" id="paiement-modal-meta"></p>
+      </div>
+      <button type="button" class="paiement-modal__close" data-close-modal aria-label="Fermer">✕</button>
+    </div>
+    <div class="paiement-modal__body">
+      <div class="table-responsive">
+        <table class="custom-table" id="paiement-modal-table">
+          <thead>
+            <tr>
+              <th>Reçu</th>
+              <th>Frais</th>
+              <th>Montant</th>
+              <th>Devise</th>
+              <th>Mode</th>
+              <th>Statut</th>
+              <th>Date</th>
+              <th style="text-align:right; padding-right:1.5rem;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="paiement-modal-tbody"></tbody>
+        </table>
+      </div>
+      <div id="paiement-modal-empty" class="paiement-modal__empty" style="display:none;">
+        Aucun paiement enregistré pour cet élève
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ paiements_by_eleve|json_script:"paiements-by-eleve-data" }}
+
+{% if print_mode %}
+<script>window.addEventListener('load', function () { window.print(); });</script>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const dataEl = document.getElementById('paiements-by-eleve-data');
+  const byEleve = dataEl ? JSON.parse(dataEl.textContent) : {};
+  const modal = document.getElementById('paiement-modal');
+  const titleEl = document.getElementById('paiement-modal-title');
+  const metaEl = document.getElementById('paiement-modal-meta');
+  const tbody = document.getElementById('paiement-modal-tbody');
+  const emptyEl = document.getElementById('paiement-modal-empty');
+  const tableEl = document.getElementById('paiement-modal-table');
+
+  function statutBadge(statut, label) {
+    let cls = 'badge-warning';
+    if (statut === 'VALIDE') cls = 'badge-success';
+    else if (statut === 'ANNULE') cls = 'badge-danger';
+    return '<span class="badge ' + cls + '">' + label + '</span>';
+  }
+
+  function openModal(inscriptionId) {
+    const data = byEleve[String(inscriptionId)];
+    if (!data) return;
+
+    titleEl.textContent = data.nom || "Paiements de l'élève";
+    metaEl.textContent = [
+      data.matricule ? ('Matricule ' + data.matricule) : null,
+      data.annee ? ('Année ' + data.annee) : null,
+      'Total validé : ' + (data.total || '0'),
+    ].filter(Boolean).join(' · ');
+
+    tbody.innerHTML = '';
+    const paiements = data.paiements || [];
+    if (!paiements.length) {
+      tableEl.style.display = 'none';
+      emptyEl.style.display = 'block';
+    } else {
+      tableEl.style.display = '';
+      emptyEl.style.display = 'none';
+      paiements.forEach(function (p) {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td><span style="font-family:monospace;font-weight:700;color:var(--primary);">' +
+            (p.numero_recu || '—') +
+          '</span></td>' +
+          '<td>' + (p.frais || '—') + '</td>' +
+          '<td>' + (p.montant || '0') + '</td>' +
+          '<td>' + (p.devise || '—') + '</td>' +
+          '<td>' + (p.mode || '—') + '</td>' +
+          '<td>' + statutBadge(p.statut, p.statut_label || p.statut) + '</td>' +
+          '<td>' + (p.date || '—') + '</td>' +
+          '<td style="text-align:right;padding-right:1.5rem;">' +
+            (p.print_url
+              ? '<a href="' + p.print_url + '" class="btn btn-secondary btn-sm" title="Imprimer le reçu">🖨️</a>'
+              : '') +
+          '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+  }
+
+  function closeModal() {
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+  }
+
+  document.querySelectorAll('.eleve-row').forEach(function (row) {
+    row.addEventListener('click', function () {
+      openModal(row.dataset.inscriptionId);
+    });
+    row.addEventListener('keydown', function (evt) {
+      if (evt.key === 'Enter' || evt.key === ' ') {
+        evt.preventDefault();
+        openModal(row.dataset.inscriptionId);
+      }
+    });
+  });
+
+  modal.querySelectorAll('[data-close-modal]').forEach(function (el) {
+    el.addEventListener('click', closeModal);
+  });
+
+  document.addEventListener('keydown', function (evt) {
+    if (evt.key === 'Escape' && modal.classList.contains('is-open')) {
+      closeModal();
+    }
+  });
+})();
+</script>
+{% endblock %}

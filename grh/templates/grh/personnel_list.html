@@ -1,0 +1,66 @@
+{% extends 'grh/base.html' %}
+
+{% block title %}Gestion du Personnel{% endblock %}
+
+{% block page_title %}Gestion du Personnel{% endblock %}
+{% block page_subtitle %}
+    {% if ecole %}Personnel de {{ ecole.ecole }}.{% else %}Aucun établissement associé à votre compte.{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+    <a href="{% url 'grh:personnel_create' %}" class="btn btn-primary">➕ Ajouter un membre</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header">
+        <h3>Membres du Personnel{% if ecole %} — {{ ecole.ecole }}{% endif %}</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Matricule</th>
+                    <th>Nom & Prénom</th>
+                    <th>Sexe</th>
+                    <th>Fonction</th>
+                    <th>Téléphone</th>
+                    <th style="text-align: right; padding-right: 1.5rem;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in personnels %}
+                <tr>
+                    <td><span style="font-family: monospace; font-weight: 700; color: var(--primary);">{{ p.matricule }}</span></td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="width: 32px; height: 32px; border-radius: 50%; background-color: var(--primary-light); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;">
+                                {{ p.prenom|slice:":1" }}{{ p.nom|slice:":1" }}
+                            </div>
+                            <div>
+                                <strong>{{ p.nom }} {{ p.Post_nom }}</strong>
+                                <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ p.prenom }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ p.sexe }}</td>
+                    <td><strong>{{ p.fonction }}</strong></td>
+                    <td>{{ p.telephone }}</td>
+                    <td style="text-align: right; padding-right: 1.5rem;">
+                        <a href="{% url 'grh:personnel_update' p.pk %}" class="btn btn-secondary btn-sm" style="margin-right: 0.5rem;">✏️ Modifier</a>
+                        <a href="{% url 'grh:personnel_delete' p.pk %}" class="btn btn-danger btn-sm">🗑️ Supprimer</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                        Aucun membre du personnel trouvé. <br>
+                        <a href="{% url 'grh:personnel_create' %}" class="btn btn-primary btn-sm" style="margin-top: 1rem;">Ajouter le premier membre</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

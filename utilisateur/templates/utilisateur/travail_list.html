@@ -1,0 +1,152 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Travaux cotés{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Travaux cotés</h1>
+    <p>Devoirs, interrogations, examens et compositions pour vos classes et matières.</p>
+</div>
+
+<div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:enseignant_dashboard' %}" class="btn btn-secondary">← Mon espace</a>
+    <a href="{% url 'utilisateur:travail_create' %}" class="btn btn-primary">➕ Nouveau travail coté</a>
+    {% if filtre_classe %}
+    <a href="{% url 'utilisateur:evolution_classe' filtre_classe %}" class="btn btn-secondary">📈 Évolution de la classe</a>
+    {% endif %}
+</div>
+
+<section class="kpi-grid" style="margin-bottom:1.25rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Travaux enregistrés</div>
+            <div class="kpi-value">{{ total_travaux }}</div>
+        </div>
+        <div class="kpi-footer">📝 Devoirs, interros, examens…</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Saisies incomplètes</div>
+            <div class="kpi-value">{{ total_notes_manquantes }}</div>
+        </div>
+        <div class="kpi-footer">⏳ Notes à compléter</div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-body">
+        <form method="get" class="form-fields-row" style="align-items:flex-end;">
+            <div class="form-field" style="min-width:180px; margin-bottom:0;">
+                <label class="form-field__label" style="text-align:left; padding-top:0; margin-bottom:.35rem;">Classe</label>
+                <select name="classe" class="form-control" onchange="this.form.submit()">
+                    <option value="">Toutes les classes</option>
+                    {% for c in classes %}
+                    <option value="{{ c.id }}" {% if filtre_classe == c.id|stringformat:"s" %}selected{% endif %}>{{ c.classe }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field" style="min-width:200px; margin-bottom:0;">
+                <label class="form-field__label" style="text-align:left; padding-top:0; margin-bottom:.35rem;">Matière</label>
+                <select name="matiere" class="form-control" onchange="this.form.submit()">
+                    <option value="">Toutes les matières</option>
+                    {% for m in matieres %}
+                    <option value="{{ m.id }}" {% if filtre_matiere == m.id|stringformat:"s" %}selected{% endif %}>{{ m.libelle }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field" style="min-width:180px; margin-bottom:0;">
+                <label class="form-field__label" style="text-align:left; padding-top:0; margin-bottom:.35rem;">Type</label>
+                <select name="type" class="form-control" onchange="this.form.submit()">
+                    <option value="">Tous les types</option>
+                    {% for value, label in type_choices %}
+                    <option value="{{ value }}" {% if filtre_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if filtre_classe or filtre_matiere or filtre_type %}
+            <a href="{% url 'utilisateur:travail_list' %}" class="btn btn-secondary btn-sm">Réinitialiser</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header">
+        <h3>Liste des travaux cotés</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Bulletin</th>
+                    <th>Intitulé</th>
+                    <th>Matière</th>
+                    <th>Classe</th>
+                    <th>Période / Division</th>
+                    <th>Date</th>
+                    <th>Barème</th>
+                    <th>Coef.</th>
+                    <th>Moyenne</th>
+                    <th>Notes saisies</th>
+                    <th style="text-align:right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in travaux %}
+                <tr>
+                    <td>
+                        <span class="badge {% if t.type_travail == 'EXAMEN' or t.type_travail == 'COMPOSITION' %}badge-danger{% elif t.type_travail == 'INTERROGATION' %}badge-warning{% else %}badge-info{% endif %}">
+                            {{ t.get_type_travail_display }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if t.role_bulletin == 'EXAMEN' %}
+                        <span class="badge badge-danger">EXAM.</span>
+                        {% else %}
+                        <span class="badge badge-info">TJ</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ t.titre|default:"—" }}</td>
+                    <td>{{ t.matiere.libelle }}</td>
+                    <td>{{ t.classe.classe }}</td>
+                    <td>
+                        {% if t.role_bulletin == 'EXAMEN' %}
+                            {% if t.division %}{{ t.division.libelle }}{% else %}—{% endif %}
+                        {% else %}
+                            {% if t.periode %}{{ t.periode.libelle }}{% else %}—{% endif %}
+                        {% endif %}
+                    </td>
+                    <td>{{ t.date_travail|date:"d/m/Y" }}</td>
+                    <td>/ {{ t.bareme }}</td>
+                    <td>{{ t.coefficient }}</td>
+                    <td>
+                        {% if t.moyenne %}
+                        <strong>{{ t.moyenne|floatformat:2 }}</strong> / {{ t.bareme }}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        <span style="font-weight:700; color:{% if t.est_complet %}var(--primary-hover){% else %}var(--danger){% endif %};">
+                            {{ t.nb_saisies }}/{{ t.nb_attendus }}
+                        </span>
+                    </td>
+                    <td style="text-align:right; white-space:nowrap;">
+                        <a class="btn btn-primary btn-sm" href="{% url 'utilisateur:travail_notes' t.id %}">📝 Notes</a>
+                        <a class="btn btn-secondary btn-sm" href="{% url 'utilisateur:travail_update' t.id %}">Modifier</a>
+                        <a class="btn btn-danger btn-sm" href="{% url 'utilisateur:travail_delete' t.id %}">Supprimer</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="12" style="text-align:center; color:var(--text-muted); padding:3rem 1.5rem;">
+                        Aucun travail coté pour le moment.
+                        <br>
+                        <a href="{% url 'utilisateur:travail_create' %}" class="btn btn-primary" style="margin-top:1rem;">Créer un travail coté</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

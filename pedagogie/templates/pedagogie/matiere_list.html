@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}Liste des matières{% endblock %}
+{% block page_title %}Liste des matières{% endblock %}
+{% block page_subtitle %}Référentiel pédagogique de l'établissement (programme par section).{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'pedagogie:dashboard' %}" class="btn btn-secondary">← Pédagogie</a>
+<a href="{% url 'pedagogie:matiere_create' %}" class="btn btn-primary">➕ Nouvelle matière</a>
+{% endblock %}
+
+{% block content %}
+<section class="kpi-grid" style="margin-bottom:1.5rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Matières</div>
+            <div class="kpi-value">{{ total_matieres }}</div>
+        </div>
+        <div class="kpi-footer">Dans le filtre actuel</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Coefficient total</div>
+            <div class="kpi-value">{{ total_coefficient }}</div>
+        </div>
+        <div class="kpi-footer">Somme des coefficients</div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-body">
+        <form method="get" style="display:flex; gap:1rem; align-items:end; flex-wrap:wrap;">
+            <div class="form-group" style="margin:0; min-width:220px;">
+                <label for="section">Section</label>
+                <select name="section" id="section" class="form-control" onchange="this.form.submit()">
+                    <option value="">Toutes les sections</option>
+                    {% for s in sections %}
+                    <option value="{{ s.id }}" {% if filtre_section == s.id|stringformat:"s" %}selected{% endif %}>{{ s.section }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% if filtre_section %}
+            <a href="{% url 'pedagogie:matiere_list' %}" class="btn btn-secondary btn-sm">Réinitialiser</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-header">
+        <h3>Matières enseignées</h3>
+        <span class="badge badge-info">{{ total_matieres }}</span>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Matière</th>
+                    <th>Section</th>
+                    <th>Cycle</th>
+                    <th style="text-align:center;">Coef.</th>
+                    <th>Enseignant</th>
+                    <th style="text-align:right; padding-right:1.5rem;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in matieres %}
+                <tr>
+                    <td><span class="font-mono"><strong>{{ m.code }}</strong></span></td>
+                    <td><strong>{{ m.libelle }}</strong></td>
+                    <td>{{ m.section.section }}</td>
+                    <td>{{ m.section.cycle }}</td>
+                    <td style="text-align:center; font-weight:700;">{{ m.coefficient }}</td>
+                    <td>
+                        {% if m.enserignant %}
+                        {{ m.enserignant.prenom }} {{ m.enserignant.nom }}
+                        {% else %}
+                        <span style="color:var(--text-muted);">Titulaire (défaut)</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right; padding-right:1.5rem; display:flex; gap:0.4rem; justify-content:flex-end;">
+                        <a href="{% url 'pedagogie:matiere_update' m.id %}" class="btn btn-secondary btn-sm" title="Modifier">✏️</a>
+                        <a href="{% url 'pedagogie:matiere_delete' m.id %}" class="btn btn-danger btn-sm" style="background-color:var(--danger); border-color:var(--danger);" title="Supprimer">🗑️</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align:center; padding:2.5rem; color:var(--text-muted);">
+                        Aucune matière enregistrée.
+                        <br>
+                        <a href="{% url 'pedagogie:matiere_create' %}" class="btn btn-primary btn-sm" style="margin-top:1rem;">Créer une matière</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

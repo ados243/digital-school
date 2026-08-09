@@ -1,0 +1,46 @@
+{% extends 'auth_base.html' %}
+
+{% block title %}Connexion{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <div class="auth-card__header">
+        <h2>Connexion</h2>
+        <p>Accédez à votre espace : direction, enseignants, parents ou élèves.</p>
+    </div>
+
+    {% if form.non_field_errors %}
+    <div class="form-errors-banner" role="alert">
+        <span class="form-errors-banner__icon" aria-hidden="true">!</span>
+        <div class="form-errors-banner__content">
+            {% for error in form.non_field_errors %}
+            <p>{{ error }}</p>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+
+        <div class="auth-field">
+            <label for="{{ form.username.id_for_label }}">Identifiant</label>
+            {{ form.username }}
+            {% if form.username.errors %}<p class="form-error" role="alert">{{ form.username.errors|striptags }}</p>{% endif %}
+        </div>
+
+        <div class="auth-field">
+            <label for="{{ form.password.id_for_label }}">Mot de passe</label>
+            {{ form.password }}
+            {% if form.password.errors %}<p class="form-error" role="alert">{{ form.password.errors|striptags }}</p>{% endif %}
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg btn-form-submit" style="width:100%;">Se connecter</button>
+    </form>
+
+    <div class="auth-card__footer">
+        Pas encore de compte ? <a href="{% url 'utilisateur:inscription' %}">Créer un compte</a>
+    </div>
+</div>
+{% endblock %}
