@@ -1,0 +1,192 @@
+{% load static %}
+<nav class="ds-taskbar" id="app-taskbar" aria-label="Barre de navigation">
+    <a class="ds-taskbar__brand" href="{% if request.user.is_caissier and not request.user.is_superuser %}{% url 'finances:paiement_list' %}{% elif request.user.is_directeur_etudes and not request.user.is_superuser %}{% url 'pedagogie:dashboard' %}{% elif request.user.is_secretaire and not request.user.is_superuser %}{% url 'inscription:dashboard' %}{% elif request.user.is_prefet and not request.user.is_superuser %}{% url 'grh:dashboard' %}{% elif request.user.is_professeur and not request.user.is_superuser %}{% url 'utilisateur:enseignant_dashboard' %}{% else %}{% url 'finances:dashboard' %}{% endif %}" title="{% if nom_ecole %}{{ nom_ecole }} — {% endif %}Digital School">
+        <img src="{% static 'images/logo-ds.png' %}" alt="">
+        <span class="ds-taskbar__brand-text">
+            <span class="ds-taskbar__brand-name">Digital School</span>
+            {% if nom_ecole %}
+            <span class="ds-taskbar__brand-school">{{ nom_ecole }}</span>
+            {% endif %}
+        </span>
+    </a>
+
+    <div class="ds-taskbar__apps">
+        {% if request.user.is_caissier and not request.user.is_superuser %}
+        <div class="ds-taskbar-app ds-taskbar-app--menu {% if 'paiement' in request.resolver_match.url_name or 'paiements' in request.path or 'demande' in request.resolver_match.url_name or request.resolver_match.url_name == 'cloture_caisse' %}is-active{% endif %}">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">💳</span>
+                <span class="ds-taskbar-app__label">Paiements</span>
+            </button>
+            <ul class="ds-taskbar-flyout">
+                <li><a href="{% url 'finances:paiement_list' %}" class="{% if request.resolver_match.url_name == 'paiement_list' %}is-active{% endif %}">📋 Liste des paiements</a></li>
+                <li><a href="{% url 'finances:paiement_create' %}" class="{% if request.resolver_match.url_name == 'paiement_create' %}is-active{% endif %}">➕ Encaisser un paiement</a></li>
+                <li><a href="{% url 'finances:demandes_modification_list' %}" class="{% if 'demande' in request.resolver_match.url_name %}is-active{% endif %}">✏️ Demandes de correction</a></li>
+                <li><a href="{% url 'finances:cloture_caisse' %}" class="{% if request.resolver_match.url_name == 'cloture_caisse' %}is-active{% endif %}">🔒 Clôture de journée</a></li>
+            </ul>
+        </div>
+
+        {% elif request.user.is_tresorerie_restreinte and not request.user.is_superuser %}
+        <div class="ds-taskbar-app ds-taskbar-app--menu {% if 'finances' in request.path %}is-active{% endif %}">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">💰</span>
+                <span class="ds-taskbar-app__label">Finances</span>
+            </button>
+            <ul class="ds-taskbar-flyout">
+                <li><a href="{% url 'finances:dashboard' %}" class="{% if request.resolver_match.namespace == 'finances' and request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}">📊 Synthèse</a></li>
+                <li><a href="{% url 'finances:frais_scolaire_list' %}" class="{% if 'frais-scolaires' in request.path or 'frais_scolaire' in request.resolver_match.url_name %}is-active{% endif %}">📋 Frais scolaires</a></li>
+                <li><a href="{% url 'finances:budget_annuel' %}" class="{% if request.resolver_match.url_name == 'budget_annuel' %}is-active{% endif %}">📐 Budget</a></li>
+                <li><a href="{% url 'finances:paiement_list' %}" class="{% if 'paiement' in request.resolver_match.url_name and 'demande' not in request.resolver_match.url_name %}is-active{% endif %}">💳 Paiements élèves</a></li>
+                <li><a href="{% url 'finances:demandes_modification_list' %}" class="{% if 'demande' in request.resolver_match.url_name %}is-active{% endif %}">✏️ Demandes de correction</a></li>
+                <li><a href="{% url 'finances:taux_change_list' %}" class="{% if 'taux' in request.path %}is-active{% endif %}">💱 Taux de change</a></li>
+                {% if request.user.is_superuser %}
+                <li><a href="{% url 'finances:whatsapp_config' %}" class="{% if 'whatsapp' in request.path %}is-active{% endif %}">📱 WhatsApp central</a></li>
+                {% endif %}
+                <li><a href="{% url 'finances:salaires_list' %}" class="{% if 'salaires' in request.path %}is-active{% endif %}">👷 Payer le personnel</a></li>
+                <li><a href="{% url 'finances:hoada_plan_comptable' %}" class="{% if 'hoada/comptes' in request.path %}is-active{% endif %}">📒 Plan comptable</a></li>
+                <li><a href="{% url 'finances:hoada_journaux_list' %}" class="{% if 'journaux' in request.path %}is-active{% endif %}">📓 Journaux</a></li>
+                <li><a href="{% url 'finances:hoada_ecritures_list' %}" class="{% if 'ecritures' in request.path %}is-active{% endif %}">🧾 Écritures</a></li>
+                <li><a href="{% url 'finances:hoada_grand_livre' %}" class="{% if 'grand-livre' in request.path %}is-active{% endif %}">📄 Grand livre</a></li>
+                <li><a href="{% url 'finances:hoada_balance' %}" class="{% if 'balance' in request.path %}is-active{% endif %}">📊 Balance</a></li>
+            </ul>
+        </div>
+
+        {% elif request.user.is_directeur_etudes and not request.user.is_superuser %}
+        <div class="ds-taskbar-app ds-taskbar-app--menu {% if 'pedagogie' in request.path or 'classe' in request.path %}is-active{% endif %}">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">🏫</span>
+                <span class="ds-taskbar-app__label">Pédagogie</span>
+            </button>
+            <ul class="ds-taskbar-flyout">
+                <li><a href="{% url 'pedagogie:dashboard' %}" class="{% if request.resolver_match.namespace == 'pedagogie' and request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}">📊 Synthèse</a></li>
+                <li><a href="{% url 'pedagogie:matiere_list' %}" class="{% if 'matiere' in request.path %}is-active{% endif %}">📖 Liste des matières</a></li>
+                <li><a href="{% url 'pedagogie:matiere_create' %}" class="{% if request.path == '/pedagogie/matiere/nouvelle/' %}is-active{% endif %}">➕ Nouvelle matière</a></li>
+                <li><a href="{% url 'pedagogie:periodes_bulletin' %}" class="{% if 'periodes' in request.path %}is-active{% endif %}">📅 Périodes bulletin</a></li>
+                <li><a href="{% url 'inscription:classe_list' %}" class="{% if request.resolver_match.namespace == 'inscription' and 'classe' in request.path %}is-active{% endif %}">🏫 Classes &amp; salles</a></li>
+            </ul>
+        </div>
+
+        {% elif request.user.is_secretaire and not request.user.is_superuser %}
+        <div class="ds-taskbar-app ds-taskbar-app--menu {% if 'inscription' in request.path %}is-active{% endif %}">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">📝</span>
+                <span class="ds-taskbar-app__label">Inscriptions</span>
+            </button>
+            <ul class="ds-taskbar-flyout">
+                <li><a href="{% url 'inscription:dashboard' %}" class="{% if request.resolver_match.namespace == 'inscription' and request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}">📊 Synthèse</a></li>
+                <li><a href="{% url 'inscription:eleve_list' %}" class="{% if 'eleve' in request.path %}is-active{% endif %}">👥 Fiches Élèves</a></li>
+                <li><a href="{% url 'inscription:inscription_list' %}" class="{% if 'inscrire' in request.path or request.resolver_match.url_name == 'inscription_list' or request.resolver_match.url_name == 'inscription_create' or request.resolver_match.url_name == 'inscription_update' %}is-active{% endif %}">✍️ Inscriptions</a></li>
+            </ul>
+        </div>
+
+        {% else %}
+        <a class="ds-taskbar-app {% if request.resolver_match.namespace == 'grh' and request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}" href="{% url 'grh:dashboard' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">🏠</span>
+                <span class="ds-taskbar-app__label">Accueil</span>
+            </span>
+        </a>
+
+        <div class="ds-taskbar-app ds-taskbar-app--menu {% if 'direction' in request.path or 'inscription' in request.path and 'classe' not in request.path %}is-active{% endif %}">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true" title="Inscriptions">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">📝</span>
+                <span class="ds-taskbar-app__label">Inscriptions</span>
+            </button>
+            <ul class="ds-taskbar-flyout">
+                <li><a href="{% url 'inscription:dashboard' %}" class="{% if request.resolver_match.namespace == 'inscription' and request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}">📊 Synthèse</a></li>
+                <li><a href="{% url 'inscription:eleve_list' %}" class="{% if 'eleve' in request.path %}is-active{% endif %}">👥 Fiches Élèves</a></li>
+                <li><a href="{% url 'inscription:inscription_list' %}" class="{% if 'inscrire' in request.path or request.resolver_match.url_name == 'inscription_list' or request.resolver_match.url_name == 'inscription_create' or request.resolver_match.url_name == 'inscription_update' %}is-active{% endif %}">✍️ Inscriptions</a></li>
+                <li><a href="{% url 'utilisateur:direction_communication_list' %}" class="{% if 'direction' in request.path %}is-active{% endif %}">📢 Communications parents</a></li>
+            </ul>
+        </div>
+
+        <div class="ds-taskbar-app ds-taskbar-app--menu {% if 'pedagogie' in request.path or request.resolver_match.namespace == 'inscription' and 'classe' in request.path %}is-active{% endif %}">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true" title="Pédagogie">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">🏫</span>
+                <span class="ds-taskbar-app__label">Pédagogie</span>
+            </button>
+            <ul class="ds-taskbar-flyout">
+                <li><a href="{% url 'pedagogie:dashboard' %}" class="{% if request.resolver_match.namespace == 'pedagogie' and request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}">📊 Synthèse</a></li>
+                <li><a href="{% url 'pedagogie:matiere_list' %}" class="{% if 'matiere' in request.path %}is-active{% endif %}">📖 Liste des matières</a></li>
+                <li><a href="{% url 'pedagogie:matiere_create' %}" class="{% if request.path == '/pedagogie/matiere/nouvelle/' %}is-active{% endif %}">➕ Nouvelle matière</a></li>
+                <li><a href="{% url 'pedagogie:periodes_bulletin' %}" class="{% if 'periodes' in request.path %}is-active{% endif %}">📅 Périodes bulletin</a></li>
+                <li><a href="{% url 'inscription:classe_list' %}" class="{% if request.resolver_match.namespace == 'inscription' and 'classe' in request.path %}is-active{% endif %}">🏫 Classes &amp; salles</a></li>
+            </ul>
+        </div>
+
+        {% if request.user.peut_acceder_finances %}
+        <div class="ds-taskbar-app ds-taskbar-app--menu {% if 'finances' in request.path %}is-active{% endif %}">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">💰</span>
+                <span class="ds-taskbar-app__label">Finances</span>
+            </button>
+            <ul class="ds-taskbar-flyout">
+                <li><a href="{% url 'finances:dashboard' %}" class="{% if request.resolver_match.namespace == 'finances' and request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}">📊 Synthèse</a></li>
+                <li><a href="{% url 'finances:frais_scolaire_list' %}" class="{% if 'frais-scolaires' in request.path or 'frais_scolaire' in request.resolver_match.url_name %}is-active{% endif %}">📋 Frais scolaires</a></li>
+                <li><a href="{% url 'finances:budget_annuel' %}" class="{% if request.resolver_match.url_name == 'budget_annuel' %}is-active{% endif %}">📐 Budget</a></li>
+                <li><a href="{% url 'finances:paiement_list' %}" class="{% if 'paiement' in request.resolver_match.url_name and 'demande' not in request.resolver_match.url_name %}is-active{% endif %}">💳 Paiements élèves</a></li>
+                <li><a href="{% url 'finances:demandes_modification_list' %}" class="{% if 'demande' in request.resolver_match.url_name %}is-active{% endif %}">✏️ Demandes de correction</a></li>
+                <li><a href="{% url 'finances:taux_change_list' %}" class="{% if 'taux' in request.path %}is-active{% endif %}">💱 Taux de change</a></li>
+                {% if request.user.is_superuser %}
+                <li><a href="{% url 'finances:whatsapp_config' %}" class="{% if 'whatsapp' in request.path %}is-active{% endif %}">📱 WhatsApp central</a></li>
+                {% endif %}
+                <li><a href="{% url 'finances:salaires_list' %}" class="{% if 'salaires' in request.path %}is-active{% endif %}">👷 Payer le personnel</a></li>
+                <li><a href="{% url 'finances:hoada_plan_comptable' %}" class="{% if 'hoada/comptes' in request.path %}is-active{% endif %}">📒 Plan comptable</a></li>
+                <li><a href="{% url 'finances:hoada_journaux_list' %}" class="{% if 'journaux' in request.path %}is-active{% endif %}">📓 Journaux</a></li>
+                <li><a href="{% url 'finances:hoada_ecritures_list' %}" class="{% if 'ecritures' in request.path %}is-active{% endif %}">🧾 Écritures</a></li>
+                <li><a href="{% url 'finances:hoada_grand_livre' %}" class="{% if 'grand-livre' in request.path %}is-active{% endif %}">📄 Grand livre</a></li>
+                <li><a href="{% url 'finances:hoada_balance' %}" class="{% if 'balance' in request.path %}is-active{% endif %}">📊 Balance</a></li>
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="ds-taskbar-app ds-taskbar-app--menu {% if 'grh' in request.path and request.resolver_match.url_name != 'dashboard' %}is-active{% endif %}">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">👥</span>
+                <span class="ds-taskbar-app__label">GRH</span>
+            </button>
+            <ul class="ds-taskbar-flyout">
+                <li><a href="{% url 'grh:dashboard' %}" class="{% if request.resolver_match.namespace == 'grh' and request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}">📊 Synthèse</a></li>
+                <li><a href="{% url 'grh:personnel_list' %}" class="{% if 'personnel' in request.path %}is-active{% endif %}">👥 Personnel</a></li>
+                <li><a href="{% url 'grh:contrat_list' %}" class="{% if 'contrats' in request.path %}is-active{% endif %}">📄 Contrats</a></li>
+                <li><a href="{% url 'grh:conge_list' %}" class="{% if 'conges' in request.path %}is-active{% endif %}">📅 Congés</a></li>
+                <li><a href="{% url 'grh:presence_list' %}" class="{% if request.resolver_match.namespace == 'grh' and 'presences' in request.path %}is-active{% endif %}">⏰ Présences</a></li>
+                <li><a href="{% url 'grh:paie_list' %}" class="{% if 'paies' in request.path %}is-active{% endif %}">💳 Rémunération</a></li>
+            </ul>
+        </div>
+
+        {% if request.user.is_superuser %}
+        <a class="ds-taskbar-app" href="/admin/">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">⚙️</span>
+                <span class="ds-taskbar-app__label">Admin</span>
+            </span>
+        </a>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    {% if request.user.is_authenticated %}
+    <div class="ds-taskbar__tray">
+        <div class="ds-taskbar-app ds-taskbar-app--menu ds-taskbar-app--user">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true" title="{{ request.user.nom_complet }}">
+                <span class="ds-taskbar-app__glyph ds-taskbar-app__avatar">
+                    {% if request.user.avatar %}
+                    <img src="{{ request.user.avatar.url }}" alt="">
+                    {% else %}
+                    {{ request.user.prenom|slice:":1"|upper }}{{ request.user.last_name|slice:":1"|upper }}
+                    {% endif %}
+                </span>
+                <span class="ds-taskbar-app__label">Compte</span>
+            </button>
+            <ul class="ds-taskbar-flyout ds-taskbar-flyout--end">
+                <li class="ds-taskbar-flyout__meta">
+                    <strong>{{ request.user.nom_complet }}</strong>
+                    <span>{{ request.user.get_role_display }}{% if nom_ecole %} · {{ nom_ecole }}{% endif %}</span>
+                </li>
+                <li><a href="{% url 'utilisateur:profil' %}">👤 Mon profil</a></li>
+                <li><a href="{% url 'utilisateur:logout' %}" class="ds-taskbar-flyout__danger">⏻ Déconnexion</a></li>
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+</nav>

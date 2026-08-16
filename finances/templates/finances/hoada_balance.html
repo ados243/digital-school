@@ -4,7 +4,9 @@
 {% block page_subtitle %}Synthèse des mouvements et soldes par compte.{% endblock %}
 
 {% block header_actions %}
+{% if request.user.peut_gerer_ecritures %}
 <a href="{% url 'finances:hoada_ecritures_create' %}" class="btn btn-primary">+ Nouvelle écriture</a>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -39,7 +41,9 @@
                 <tr>
                     <td colspan="6" style="text-align:center; color:var(--text-muted); padding:3rem 1.5rem;">
                         Aucune écriture comptable pour cette école.
+                        {% if request.user.peut_gerer_ecritures %}
                         <a href="{% url 'finances:hoada_ecritures_create' %}">Saisir une écriture</a>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

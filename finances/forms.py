@@ -1,5 +1,6 @@
 import re
 from django import forms
+from django.db.models import Q
 from decimal import Decimal
 from common.form_mixins import FormControlMixin
 
@@ -69,8 +70,18 @@ class FraisScolaireForm(FormControlMixin, forms.ModelForm):
         super().__init__(*args, **kwargs)
         if ecole:
             self.fields['type_frais'].queryset = TypeFrais.objects.filter(ecole=ecole)
-            self.fields['annee'].queryset = annees_for_ecole(ecole)
+            annee_qs = annees_for_ecole(ecole).filter(est_encoure=True)
+            # En modification, conserver l'année déjà liée si elle n'est plus « en cours »
+            if self.instance and self.instance.pk and self.instance.annee_id:
+                annee_qs = annees_for_ecole(ecole).filter(
+                    Q(est_encoure=True) | Q(pk=self.instance.annee_id)
+                )
+            self.fields['annee'].queryset = annee_qs
             self.fields['section'].queryset = sections_for_ecole(ecole)
+            annee_courante = annee_qs.filter(est_encoure=True).first()
+            if annee_courante and not (self.instance and self.instance.pk):
+                self.fields['annee'].initial = annee_courante.pk
+                self.fields['annee'].empty_label = None
 
 
 class TauxChangeForm(FormControlMixin, forms.ModelForm):
@@ -118,7 +129,7 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             "actif": "Activer les notifications WhatsApp",
             "provider": "Fournisseur",
             "api_token": "Token / Access token",
-            "instance_id": "Instance ID (Ultramsg) ou Phone Number ID (Meta)",
+            "instance_id": "Phone Number ID (Meta) ou Instance ID (Ultramsg)",
             "api_url": "URL API (optionnel)",
             "indicatif_pays": "Indicatif pays (sans +)",
             "template_meta": "Nom du modèle Meta",
@@ -126,13 +137,29 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             "template_variables": "Variables du modèle (ordre {{1}}, {{2}}, …)",
             "message_modele": "Texte du message (Ultramsg / sans modèle Meta)",
         }
+        help_texts = {
+            "api_token": (
+                "Meta : collez le jeton permanent (Utilisateur système), pas le jeton "
+                "temporaire de 24 h. Ne pas mettre « Bearer » devant. "
+                "Laisser vide pour conserver le jeton déjà enregistré."
+            ),
+            "instance_id": (
+                "Meta : Phone number ID (chiffres, ex. 123456789012345), "
+                "pas le numéro +243…"
+            ),
+        }
         widgets = {
             "api_token": forms.PasswordInput(
-                render_value=True,
-                attrs={"placeholder": "Token API", "autocomplete": "off"},
+                render_value=False,
+                attrs={
+                    "placeholder": "Laisser vide pour conserver le jeton actuel",
+                    "autocomplete": "new-password",
+                    "spellcheck": "false",
+                },
             ),
-            "instance_id": forms.TextInput(attrs={"placeholder": "ex. instance12345"}),
-            "api_url": forms.TextInput(
+            "instance_id": forms.TextInput(
+                attrs={"placeholder": "ex. 123456789012345 (Phone Number ID Meta)"}
+            ),            "api_url": forms.TextInput(
                 attrs={"placeholder": "Laisser vide pour l'URL par défaut"}
             ),
             "indicatif_pays": forms.TextInput(attrs={"placeholder": "243"}),
@@ -152,6 +179,17 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
                 }
             ),
         }
+
+    def clean_api_token(self):
+        token = (self.cleaned_data.get("api_token") or "").strip()
+        if not token:
+            if self.instance and getattr(self.instance, "pk", None):
+                return self.instance.api_token
+            return token
+        # Évite un double « Bearer » si l'utilisateur colle l'en-tête complet
+        if token.lower().startswith("bearer "):
+            token = token[7:].strip()
+        return token
 
     def clean_indicatif_pays(self):
         ind = re.sub(r"\D", "", self.cleaned_data.get("indicatif_pays") or "")

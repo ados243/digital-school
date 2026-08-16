@@ -50,13 +50,22 @@
                     </td>
                     <td>{{ el.sexe }}</td>
                     <td>{{ el.date_de_naissance|date:"d/m/Y" }}</td>
-                    <td>{{ el.quartier.quartier }} <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ el.adresse }}</span></td>
+                    <td>
+                        {% if el.titeur.quartier %}
+                        {{ el.titeur.quartier.quartier }}
+                        {% else %}—{% endif %}
+                        <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ el.titeur.adresse|default:"—" }}</span>
+                    </td>
                     <td>
                         <strong>{{ el.titeur.prenom }} {{ el.titeur.nom }}</strong>
                         <span style="display:block; font-size:0.8rem; color:var(--text-muted);">Tél : {{ el.titeur.telephone }}</span>
                     </td>
                     <td style="text-align: right; padding-right: 1.5rem;">
+                        {% if el.id in eleves_inscrits_ids %}
+                        <span class="badge badge-info" style="margin-right: 0.25rem;" title="{% if annee_courante %}{{ annee_courante.anne_scolaire }}{% endif %}">Déjà inscrit</span>
+                        {% else %}
                         <a href="{% url 'inscription:inscription_create' %}?eleve={{ el.id }}" class="btn btn-success btn-sm" style="margin-right: 0.25rem;">✍️ Inscrire</a>
+                        {% endif %}
                         <a href="{% url 'inscription:eleve_update' el.pk %}" class="btn btn-secondary btn-sm" style="margin-right: 0.25rem;">✏️ Modifier</a>
                         <a href="{% url 'inscription:eleve_delete' el.pk %}" class="btn btn-danger btn-sm">🗑️ Supprimer</a>
                     </td>

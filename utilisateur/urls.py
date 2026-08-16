@@ -8,8 +8,11 @@ from . import travaux_views
 from . import bulletin_views
 from . import evolution_views
 from . import cours_views
+from . import live_views
+from . import profil_views
 from .forms import ConnexionForm
 from pedagogie import views as pedagogie_views
+from pedagogie.video_views import servir_video_cours
 
 
 app_name = 'utilisateur'
@@ -32,6 +35,39 @@ urlpatterns = [
     ),
     path('creer-compte/', views.inscription_view, name='inscription'),
     path('bienvenue/', views.post_login_redirect, name='post_login'),
+
+    # Récupération de mot de passe
+    path(
+        'mot-de-passe-oublie/',
+        profil_views.MotDePasseOublieView.as_view(),
+        name='password_reset',
+    ),
+    path(
+        'mot-de-passe-oublie/envoye/',
+        profil_views.MotDePasseOublieDoneView.as_view(),
+        name='password_reset_done',
+    ),
+    path(
+        'reinitialiser-mot-de-passe/<uidb64>/<token>/',
+        profil_views.MotDePasseResetConfirmView.as_view(),
+        name='password_reset_confirm',
+    ),
+    path(
+        'reinitialiser-mot-de-passe/termine/',
+        profil_views.MotDePasseResetCompleteView.as_view(),
+        name='password_reset_complete',
+    ),
+
+    # Vidéos de cours (stockage local privé — hors /media/)
+    path(
+        'mon-espace/videos-cours/<path:relative_path>',
+        servir_video_cours,
+        name='cours_video',
+    ),
+
+    # Profil / personnalisation du compte
+    path('mon-espace/profil/', profil_views.profil_view, name='profil'),
+
     path('mon-espace/', views.portail_view, name='portail'),
     path('mon-espace/enfant/<int:pk>/', views.parent_enfant_detail, name='parent_enfant'),
     path('mon-espace/enseignant/', views.enseignant_dashboard, name='enseignant_dashboard'),
@@ -62,6 +98,30 @@ urlpatterns = [
     path('mon-espace/etudier/cours/<int:pk>/', cours_views.cours_eleve_detail, name='cours_eleve_detail'),
     path('mon-espace/etudier/chapitre/<int:pk>/', cours_views.chapitre_eleve_detail, name='chapitre_eleve_detail'),
     path('mon-espace/etudier/lecon/<int:pk>/', cours_views.lecon_eleve_detail, name='lecon_eleve_detail'),
+
+    # Cours en direct / visioconférence (enseignant)
+    path('mon-espace/enseignant/direct/', live_views.direct_enseignant_list, name='direct_enseignant_list'),
+    path('mon-espace/enseignant/direct/nouveau/', live_views.direct_enseignant_create, name='direct_enseignant_create'),
+    path('mon-espace/enseignant/direct/<int:pk>/modifier/', live_views.direct_enseignant_update, name='direct_enseignant_update'),
+    path('mon-espace/enseignant/direct/<int:pk>/salle/', live_views.direct_enseignant_salle, name='direct_enseignant_salle'),
+    path(
+        'mon-espace/enseignant/direct/<int:pk>/<str:action>/',
+        live_views.direct_enseignant_statut,
+        name='direct_enseignant_statut',
+    ),
+
+    # Cours en direct / visioconférence (élève)
+    path('mon-espace/etudier/direct/', live_views.direct_eleve_list, name='direct_eleve_list'),
+    path('mon-espace/etudier/direct/<int:pk>/salle/', live_views.direct_eleve_salle, name='direct_eleve_salle'),
+
+    # Questions pendant la visioconférence
+    path('mon-espace/direct/<int:pk>/questions/', live_views.direct_questions, name='direct_questions'),
+    path('mon-espace/direct/<int:pk>/questions/nouvelle/', live_views.direct_question_create, name='direct_question_create'),
+    path(
+        'mon-espace/direct/<int:pk>/questions/<int:question_id>/<str:action>/',
+        live_views.direct_question_action,
+        name='direct_question_action',
+    ),
 
     # Bulletins scolaires RDC
     path('mon-espace/enseignant/classe/<int:pk>/bulletins/', bulletin_views.bulletin_classe, name='bulletin_classe'),

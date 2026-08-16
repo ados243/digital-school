@@ -4,7 +4,14 @@
 
 {% block page_title %}{% if is_update %}Modifier le paiement{% else %}Encaissement{% endif %}{% endblock %}
 {% block page_subtitle %}
-{% if is_update %}Mettez à jour les informations de ce paiement.{% else %}Enregistrez un encaissement et générez le reçu de l'élève.{% endif %}
+{% if is_update %}
+Mettez à jour les informations de ce paiement.
+{% else %}
+Encaissement : 2 reçus partent automatiquement sur l’imprimante par défaut (format du pilote).
+Pour supprimer la boîte de dialogue Windows, ouvrez la caisse via
+<code style="font-size:.85em;">scripts\lancer_caisse_impression.bat</code>
+(Chrome / Edge en impression silencieuse).
+{% endif %}
 {% endblock %}
 
 {% block header_actions %}

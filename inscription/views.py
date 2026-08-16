@@ -2,8 +2,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Q
-from .models import Eleve, Tuteur, Inscription, Classe, Annee_Scolaire
-from .forms import EleveForm, TuteurForm, InscriptionForm, ClasseForm
+from django.http import JsonResponse
+from django.urls import reverse
+from .models import Eleve, Inscription, Classe, Annee_Scolaire, Quartier
+from .forms import EleveForm, TuteurForm, InscriptionForm, ClasseForm, QuartierForm
 from .tenant import (
     get_user_ecole,
     eleves_for_ecole,
@@ -12,6 +14,35 @@ from .tenant import (
     classes_for_ecole,
     annees_for_ecole,
 )
+
+
+def _tuteur_payload(tuteur):
+    nom_complet = f"{tuteur.prenom} {tuteur.nom} {tuteur.Post_nom}".strip()
+    return {
+        "id": tuteur.id,
+        "nom": nom_complet,
+        "matricule": tuteur.matricule,
+        "telephone": tuteur.telephone or "",
+        "label": f"{nom_complet} · {tuteur.matricule}".strip(),
+    }
+
+
+def _quartier_payload(quartier):
+    commune = getattr(quartier.commune, "commune", "") if quartier.commune_id else ""
+    label = f"{quartier.quartier} ({commune})" if commune else quartier.quartier
+    return {
+        "id": quartier.id,
+        "quartier": quartier.quartier,
+        "commune": commune,
+        "label": label,
+    }
+
+
+def _is_ajax(request):
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("Accept") or "")
+    )
 
 
 def _classe_stats(classe, annee=None):
@@ -51,34 +82,106 @@ def dashboard(request):
 @login_required
 def tuteur_create(request):
     ecole = get_user_ecole(request)
+    form_prefix = (
+        "tuteur_modal"
+        if request.method == "POST"
+        and any(k.startswith("tuteur_modal-") for k in request.POST)
+        else None
+    )
     if request.method == 'POST':
-        form = TuteurForm(request.POST)
+        form = TuteurForm(request.POST, prefix=form_prefix)
         if form.is_valid():
             tuteur = form.save(commit=False)
             tuteur.ecole = ecole
             tuteur.save()
+            if _is_ajax(request):
+                return JsonResponse({"ok": True, "tuteur": _tuteur_payload(tuteur)})
             messages.success(request, f"Tuteur {tuteur.nom} enregistré avec succès.")
             next_url = request.GET.get('next')
             if next_url:
                 return redirect(next_url)
             return redirect('inscription:eleve_list')
+        if _is_ajax(request):
+            errors = {
+                field: [str(e) for e in errs]
+                for field, errs in form.errors.items()
+            }
+            return JsonResponse({"ok": False, "errors": errors}, status=400)
     else:
         form = TuteurForm()
-    return render(request, 'inscription/tuteur_form.html', {'form': form})
+    return render(
+        request,
+        'inscription/tuteur_form.html',
+        {
+            'form': form,
+            'quartier_form': QuartierForm(prefix='quartier_modal'),
+            'quartier_create_url': reverse('inscription:quartier_create'),
+        },
+    )
+
+
+@login_required
+def quartier_create(request):
+    """Création AJAX d'un quartier depuis le formulaire parent / tuteur."""
+    form_prefix = (
+        "quartier_modal"
+        if request.method == "POST"
+        and any(k.startswith("quartier_modal-") for k in request.POST)
+        else None
+    )
+    if request.method != "POST":
+        return redirect("inscription:tuteur_create")
+
+    form = QuartierForm(request.POST, prefix=form_prefix)
+    if form.is_valid():
+        quartier = form.save()
+        if _is_ajax(request):
+            return JsonResponse({"ok": True, "quartier": _quartier_payload(quartier)})
+        messages.success(request, f"Quartier « {quartier.quartier} » créé.")
+        return redirect("inscription:tuteur_create")
+
+    if _is_ajax(request):
+        errors = {
+            field: [str(e) for e in errs] for field, errs in form.errors.items()
+        }
+        return JsonResponse({"ok": False, "errors": errors}, status=400)
+    messages.error(request, "Impossible de créer le quartier.")
+    return redirect("inscription:tuteur_create")
 
 
 @login_required
 def eleve_list(request):
     ecole = get_user_ecole(request)
     query = request.GET.get('q', '')
-    eleves = eleves_for_ecole(ecole)
+    eleves = eleves_for_ecole(ecole).select_related(
+        'titeur', 'titeur__quartier', 'titeur__quartier__commune'
+    )
     if query:
         eleves = eleves.filter(
             Q(nom__icontains=query) |
             Q(prenom__icontains=query) |
             Q(matricule__icontains=query)
         )
-    return render(request, 'inscription/eleve_list.html', {'eleves': eleves, 'query': query})
+
+    annee = Annee_Scolaire.objects.filter(est_encoure=True).first()
+    eleves_inscrits_ids = set()
+    if annee:
+        eleves_inscrits_ids = set(
+            inscriptions_for_ecole(ecole)
+            .filter(annee_s=annee, eleve_id__in=eleves.values_list('id', flat=True))
+            .values_list('eleve_id', flat=True)
+        )
+
+    return render(
+        request,
+        'inscription/eleve_list.html',
+        {
+            'eleves': eleves,
+            'query': query,
+            'eleves_inscrits_ids': eleves_inscrits_ids,
+            'annee_courante': annee,
+        },
+    )
 
 
 @login_required
@@ -119,22 +222,17 @@ def eleve_update(request, pk):
 
 def _eleve_form_context(ecole, form, title, eleve=None):
     tuteurs_qs = tuteurs_for_ecole(ecole).order_by('nom', 'prenom')
-    tuteurs_data = [
-        {
-            'id': t.id,
-            'nom': f"{t.prenom} {t.nom} {t.Post_nom}".strip(),
-            'matricule': t.matricule,
-            'telephone': t.telephone or '',
-            'label': f"{t.prenom} {t.nom} {t.Post_nom} · {t.matricule}".strip(),
-        }
-        for t in tuteurs_qs
-    ]
+    tuteurs_data = [_tuteur_payload(t) for t in tuteurs_qs]
     return {
         'form': form,
         'title': title,
         'eleve': eleve,
         'tuteurs_count': tuteurs_qs.count(),
         'tuteurs_data': tuteurs_data,
+        'tuteur_form': TuteurForm(prefix='tuteur_modal'),
+        'tuteur_create_url': reverse('inscription:tuteur_create'),
+        'quartier_form': QuartierForm(prefix='quartier_modal'),
+        'quartier_create_url': reverse('inscription:quartier_create'),
     }
 
 @login_required

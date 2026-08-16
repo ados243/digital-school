@@ -209,14 +209,10 @@ def valeurs_template(config, contexte: dict) -> List[str]:
 
 
 def get_config_pour_ecole(ecole):
+    """Toujours la config centrale — un seul compte WhatsApp pour toutes les écoles."""
     from .models import ConfigWhatsApp
 
-    if ecole is None:
-        return None
-    try:
-        return ConfigWhatsApp.objects.get(ecole=ecole)
-    except ConfigWhatsApp.DoesNotExist:
-        return None
+    return ConfigWhatsApp.charger_centrale()
 
 
 def _envoyer_ultramsg(config, telephone: str, message: str) -> Tuple[bool, str, str]:
@@ -273,6 +269,8 @@ def _envoyer_meta(
 ) -> Tuple[bool, str, str]:
     phone_id = (config.instance_id or "").strip()
     token = (config.api_token or "").strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
     if not phone_id or not token:
         return False, "", "Phone Number ID ou token Meta manquant."
 

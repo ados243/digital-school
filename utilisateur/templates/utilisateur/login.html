@@ -39,8 +39,9 @@
         <button type="submit" class="btn btn-primary btn-lg btn-form-submit" style="width:100%;">Se connecter</button>
     </form>
 
-    <div class="auth-card__footer">
-        Pas encore de compte ? <a href="{% url 'utilisateur:inscription' %}">Créer un compte</a>
+    <div class="auth-card__footer" style="display:flex;flex-direction:column;gap:.5rem;">
+        <a href="{% url 'utilisateur:password_reset' %}">Mot de passe oublié ?</a>
+        <span>Pas encore de compte ? <a href="{% url 'utilisateur:inscription' %}">Créer un compte</a></span>
     </div>
 </div>
 {% endblock %}

@@ -1,27 +1,17 @@
 from django import template
-import re
 
 register = template.Library()
 
 
 @register.filter
-def video_embed(url):
-    """Retourne une URL d'embed YouTube/Vimeo ou None."""
-    if not url:
+def video_playback_url(fichier):
+    """URL de lecture (signée si stockage cloud, sinon MEDIA local)."""
+    if not fichier:
         return ''
-    url = url.strip()
-    # YouTube
-    m = re.search(
-        r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([A-Za-z0-9_-]{6,})',
-        url,
-    )
-    if m:
-        return f'https://www.youtube.com/embed/{m.group(1)}'
-    # Vimeo
-    m = re.search(r'vimeo\.com/(?:video/)?(\d+)', url)
-    if m:
-        return f'https://player.vimeo.com/video/{m.group(1)}'
-    return ''
+    try:
+        return fichier.url
+    except Exception:
+        return ''
 
 
 @register.filter

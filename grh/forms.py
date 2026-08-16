@@ -56,13 +56,53 @@ class ContratForm(FormControlMixin, forms.ModelForm):
             'date_fin': forms.DateInput(attrs={'type': 'date'}),
             'salaire_base': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
         }
+        help_texts = {
+            'personnel': 'Un seul contrat par personne dans l’établissement. Les agents déjà sous contrat n’apparaissent pas.',
+        }
 
     def __init__(self, *args, ecole=None, **kwargs):
         super().__init__(*args, **kwargs)
+        qs = Personnel.objects.all()
         if ecole is not None:
-            self.fields['personnel'].queryset = (
-                Personnel.objects.filter(ecole=ecole).order_by('nom', 'Post_nom', 'prenom')
+            qs = qs.filter(ecole=ecole)
+
+        deja_ids = set(Contrat.objects.values_list('personnel_id', flat=True))
+        current_id = None
+        if self.instance and self.instance.pk and self.instance.personnel_id:
+            current_id = self.instance.personnel_id
+            deja_ids.discard(current_id)
+
+        qs = qs.exclude(pk__in=deja_ids)
+        if current_id:
+            # Garantir que le titulaire actuel reste sélectionnable / visible
+            qs = Personnel.objects.filter(pk=current_id) | qs
+
+        self.fields['personnel'].queryset = qs.distinct().order_by(
+            'nom', 'Post_nom', 'prenom'
+        )
+        if current_id:
+            self.fields['personnel'].disabled = True
+
+    def clean_personnel(self):
+        if self.instance and self.instance.pk and self.fields['personnel'].disabled:
+            return self.instance.personnel
+        personnel = self.cleaned_data.get('personnel')
+        if not personnel:
+            return personnel
+        qs = Contrat.objects.filter(personnel=personnel)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError(
+                "Ce membre du personnel a déjà un contrat dans cet établissement."
             )
+        return personnel
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.instance and self.instance.pk and self.fields['personnel'].disabled:
+            cleaned['personnel'] = self.instance.personnel
+        return cleaned
 
 
 class CongeForm(FormControlMixin, forms.ModelForm):

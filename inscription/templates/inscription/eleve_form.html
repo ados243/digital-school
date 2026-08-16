@@ -2,10 +2,85 @@
 
 {% block title %}{{ title }}{% endblock %}
 {% block page_title %}{{ title }}{% endblock %}
-{% block page_subtitle %}Saisissez les informations de l'élève.{% endblock %}
+{% block page_subtitle %}Saisissez les informations de l'élève. La résidence est renseignée sur la fiche du tuteur.{% endblock %}
 
 {% block header_actions %}
 <a href="{% url 'inscription:eleve_list' %}" class="btn btn-secondary">Annuler</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tuteur-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .tuteur-modal.is-open { display: flex; }
+  .tuteur-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .45);
+  }
+  .tuteur-modal__dialog {
+    position: relative;
+    z-index: 1;
+    width: min(720px, 100%);
+    max-height: min(90vh, 820px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, .22);
+  }
+  .tuteur-modal__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .tuteur-modal__header h3 { margin: 0; font-size: 1.1rem; }
+  .tuteur-modal__close {
+    background: none;
+    border: none;
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: .15rem .35rem;
+  }
+  .tuteur-modal__body {
+    padding: 1.1rem 1.25rem;
+    overflow: auto;
+  }
+  .tuteur-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: .75rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-light, #f6f7f9);
+  }
+  .tuteur-modal__errors {
+    display: none;
+    margin-bottom: 1rem;
+    padding: .75rem 1rem;
+    border-radius: 8px;
+    background: var(--danger-light);
+    color: var(--danger);
+    border: 1px solid #f5c6cb;
+    font-size: .9rem;
+  }
+  .tuteur-modal__errors.is-visible { display: block; }
+  body.modal-open { overflow: hidden; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -14,14 +89,14 @@
 <div class="alert alert-warning form-alert">
     <strong>Aucun tuteur enregistré.</strong> Créez d'abord un parent ou tuteur avant d'enregistrer un élève.
     <div style="margin-top: .75rem;">
-        <a href="{% url 'inscription:tuteur_create' %}?next={{ request.path }}" class="btn btn-primary btn-sm">Créer un tuteur</a>
+        <button type="button" class="btn btn-primary btn-sm" data-open-tuteur-modal>Créer un tuteur</button>
     </div>
 </div>
 {% endif %}
 
 {% url 'inscription:eleve_list' as list_url %}
 <div class="qb-form">
-    <form method="post" enctype="multipart/form-data" class="form-horizontal">
+    <form method="post" enctype="multipart/form-data" class="form-horizontal" id="eleve-form">
         {% csrf_token %}
         {% include 'includes/form_errors.html' %}
         <div class="qb-form__layout">
@@ -50,8 +125,8 @@
                     </div>
                 </div>
                 <div class="qb-form__section-head">
-                    <span>Résidence &amp; tuteur</span>
-                    <a href="{% url 'inscription:tuteur_create' %}?next={{ request.path }}" style="font-size:.75rem;font-weight:600;color:var(--secondary);text-decoration:none;text-transform:none;letter-spacing:0;">+ Nouveau tuteur</a>
+                    <span>Tuteur / parent</span>
+                    <button type="button" data-open-tuteur-modal style="font-size:.75rem;font-weight:600;color:var(--secondary);background:none;border:none;cursor:pointer;text-transform:none;letter-spacing:0;padding:0;">+ Nouveau tuteur</button>
                 </div>
                 <div class="qb-form__body">
                     <div class="form-grid-2">
@@ -70,18 +145,16 @@
                                     </div>
                                     <div class="form-sr-only">{{ form.titeur }}</div>
                                     {% if form.titeur.errors %}<p class="form-error" role="alert">{{ form.titeur.errors|striptags }}</p>{% endif %}
-                                    <p class="form-help">Tapez le nom du parent / tuteur pour filtrer la liste.</p>
+                                    <p class="form-help">La résidence (quartier / adresse) est définie sur la fiche du tuteur.</p>
                                 </div>
                             </div>
                         </div>
-                        {% include 'includes/form_field.html' with field=form.quartier %}
                     </div>
-                    {% include 'includes/form_field.html' with field=form.adresse full_width=True %}
                     {% include 'includes/form_field.html' with field=form.photo full_width=True %}
                 </div>
                 <div class="qb-form__footer">
                     <a href="{{ list_url }}" class="btn btn-secondary">Annuler</a>
-                    <button type="submit" class="btn btn-primary btn-lg" {% if tuteurs_count == 0 and not eleve %}disabled{% endif %}>Enregistrer l'élève</button>
+                    <button type="submit" class="btn btn-primary btn-lg" id="eleve-submit" {% if tuteurs_count == 0 and not eleve %}disabled{% endif %}>Enregistrer l'élève</button>
                 </div>
             </div>
             <aside class="qb-form__sidebar">
@@ -92,7 +165,7 @@
                     </div>
                     <div class="panel-body">
                         <ul class="qb-form__recap">
-                            <li><span>Tuteurs disponibles</span><strong>{{ tuteurs_count }}</strong></li>
+                            <li><span>Tuteurs disponibles</span><strong id="recap-tuteurs-count">{{ tuteurs_count }}</strong></li>
                             <li><span>Tuteur sélectionné</span><strong id="recap-tuteur">—</strong></li>
                         </ul>
                     </div>
@@ -101,6 +174,39 @@
         </div>
     </form>
 </div>
+
+<div class="tuteur-modal" id="tuteur-modal" aria-hidden="true" role="dialog" aria-labelledby="tuteur-modal-title">
+  <div class="tuteur-modal__backdrop" data-close-tuteur-modal></div>
+  <div class="tuteur-modal__dialog">
+    <div class="tuteur-modal__header">
+      <h3 id="tuteur-modal-title">Nouveau tuteur / parent</h3>
+      <button type="button" class="tuteur-modal__close" data-close-tuteur-modal aria-label="Fermer">&times;</button>
+    </div>
+    <form id="tuteur-modal-form" method="post" action="{{ tuteur_create_url }}">
+      {% csrf_token %}
+      <div class="tuteur-modal__body">
+        <div class="tuteur-modal__errors" id="tuteur-modal-errors"></div>
+        <div class="form-grid-2">
+          {% include 'includes/form_field.html' with field=tuteur_form.lien_parente %}
+          {% include 'includes/form_field.html' with field=tuteur_form.nom %}
+          {% include 'includes/form_field.html' with field=tuteur_form.Post_nom %}
+          {% include 'includes/form_field.html' with field=tuteur_form.prenom %}
+          {% include 'includes/form_field.html' with field=tuteur_form.telephone %}
+          {% include 'includes/form_field.html' with field=tuteur_form.telephone2 %}
+          {% include 'includes/form_field.html' with field=tuteur_form.email %}
+          {% include 'includes/form_field.html' with field=tuteur_form.quartier %}
+        </div>
+        {% include 'includes/form_field.html' with field=tuteur_form.adresse full_width=True %}
+      </div>
+      <div class="tuteur-modal__footer">
+        <button type="button" class="btn btn-secondary" data-close-tuteur-modal>Annuler</button>
+        <button type="submit" class="btn btn-primary" id="tuteur-modal-submit">Valider</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% include 'inscription/includes/quartier_modal.html' with quartier_select_ids=tuteur_form.quartier.id_for_label %}
 {% endblock %}
 
 {% block extra_js %}
@@ -111,9 +217,15 @@
     const tuteurInput = document.getElementById('tuteur-combobox');
     const tuteurDropdown = document.getElementById('tuteur-dropdown');
     const recapTuteur = document.getElementById('recap-tuteur');
+    const recapCount = document.getElementById('recap-tuteurs-count');
+    const eleveSubmit = document.getElementById('eleve-submit');
+    const modal = document.getElementById('tuteur-modal');
+    const modalForm = document.getElementById('tuteur-modal-form');
+    const modalErrors = document.getElementById('tuteur-modal-errors');
+    const modalSubmit = document.getElementById('tuteur-modal-submit');
     if (!tuteurSelect || !tuteurInput || !tuteurDropdown) return;
 
-    const tuteurMap = Object.fromEntries(tuteurs.map(t => [String(t.id), t]));
+    let tuteurMap = Object.fromEntries(tuteurs.map(t => [String(t.id), t]));
 
     function renderDropdown(filter) {
         const q = (filter || '').toLowerCase().trim();
@@ -158,9 +270,41 @@
         if (t) {
             tuteurInput.value = t.label;
             if (recapTuteur) recapTuteur.textContent = t.nom;
-        } else {
-            if (recapTuteur) recapTuteur.textContent = '—';
+        } else if (recapTuteur) {
+            recapTuteur.textContent = '—';
         }
+    }
+
+    function addTuteurToCombobox(t) {
+        tuteurs.unshift(t);
+        tuteurMap = Object.fromEntries(tuteurs.map(x => [String(x.id), x]));
+        const opt = document.createElement('option');
+        opt.value = String(t.id);
+        opt.textContent = t.label;
+        tuteurSelect.appendChild(opt);
+        if (recapCount) recapCount.textContent = String(tuteurs.length);
+        if (eleveSubmit) eleveSubmit.disabled = false;
+        selectTuteur(t);
+    }
+
+    function openModal() {
+        if (!modal) return;
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        if (modalErrors) {
+            modalErrors.classList.remove('is-visible');
+            modalErrors.textContent = '';
+        }
+        const first = modalForm && modalForm.querySelector('input, select, textarea');
+        if (first) first.focus();
+    }
+
+    function closeModal() {
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
     }
 
     tuteurInput.addEventListener('input', () => {
@@ -177,6 +321,69 @@
             tuteurInput.setAttribute('aria-expanded', 'false');
         }
     });
+
+    document.querySelectorAll('[data-open-tuteur-modal]').forEach(btn => {
+        btn.addEventListener('click', openModal);
+    });
+    document.querySelectorAll('[data-close-tuteur-modal]').forEach(btn => {
+        btn.addEventListener('click', closeModal);
+    });
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' && modal && modal.classList.contains('is-open')) {
+            closeModal();
+        }
+    });
+
+    if (modalForm) {
+        modalForm.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            if (modalErrors) {
+                modalErrors.classList.remove('is-visible');
+                modalErrors.textContent = '';
+            }
+            if (modalSubmit) {
+                modalSubmit.disabled = true;
+                modalSubmit.textContent = 'Enregistrement…';
+            }
+            try {
+                const resp = await fetch(modalForm.action, {
+                    method: 'POST',
+                    body: new FormData(modalForm),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                    },
+                });
+                const data = await resp.json();
+                if (!resp.ok || !data.ok) {
+                    const parts = [];
+                    if (data.errors) {
+                        Object.keys(data.errors).forEach(field => {
+                            parts.push((data.errors[field] || []).join(' '));
+                        });
+                    }
+                    if (modalErrors) {
+                        modalErrors.textContent = parts.join(' ') || 'Impossible d’enregistrer le tuteur.';
+                        modalErrors.classList.add('is-visible');
+                    }
+                    return;
+                }
+                addTuteurToCombobox(data.tuteur);
+                modalForm.reset();
+                closeModal();
+            } catch (err) {
+                if (modalErrors) {
+                    modalErrors.textContent = 'Erreur réseau. Réessayez.';
+                    modalErrors.classList.add('is-visible');
+                }
+            } finally {
+                if (modalSubmit) {
+                    modalSubmit.disabled = false;
+                    modalSubmit.textContent = 'Valider';
+                }
+            }
+        });
+    }
 
     syncFromSelect();
 })();

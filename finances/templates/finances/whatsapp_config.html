@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 
-{% block title %}WhatsApp paiements{% endblock %}
-{% block page_title %}Notifications WhatsApp{% endblock %}
-{% block page_subtitle %}À chaque paiement validé, un reçu est envoyé au téléphone du tuteur.{% endblock %}
+{% block title %}WhatsApp central{% endblock %}
+{% block page_title %}WhatsApp central{% endblock %}
+{% block page_subtitle %}Un seul compte WhatsApp pour toutes les écoles. À chaque paiement validé, le tuteur reçoit le reçu.{% endblock %}
 
 {% block header_actions %}
 <a href="{% url 'finances:dashboard' %}" class="btn btn-secondary">Retour</a>
@@ -34,7 +34,21 @@
       <h3>Configuration</h3>
     </div>
     <div class="panel-body">
-      <form method="post" class="form-horizontal">
+      <div class="form-help" style="margin-bottom:1.25rem; padding:1rem 1.1rem; background:var(--primary-light); border-radius:12px; color:var(--text-main);">
+        <strong>Configuration centrale — toutes les écoles</strong>
+        <ol style="margin:.55rem 0 0 1.15rem; padding:0; display:grid; gap:.4rem;">
+          <li>Créez un compte sur <a href="https://ultramsg.com" target="_blank" rel="noopener">ultramsg.com</a> (le plus simple pour démarrer).</li>
+          <li>Créez une instance, puis scannez le QR code avec le WhatsApp de la plateforme.</li>
+          <li>Copiez l’<em>Instance ID</em> et le <em>Token</em> dans le formulaire ci-dessous.</li>
+          <li>Cochez « Activer », indiquez l’indicatif <strong>243</strong>, enregistrez, puis envoyez un test.</li>
+        </ol>
+        <p style="margin:.7rem 0 0;">
+          Alternative officielle : fournisseur <strong>Meta Cloud API</strong>
+          (compte Business + modèle de message approuvé). Plus long à valider.
+        </p>
+      </div>
+
+      <form method="post" class="form-horizontal" id="whatsapp-config-form">
         {% csrf_token %}
         <input type="hidden" name="action" value="save_config">
         {% include 'includes/form_errors.html' %}
@@ -44,10 +58,14 @@
         {% include 'includes/form_field.html' with field=form.instance_id %}
         {% include 'includes/form_field.html' with field=form.api_url %}
         {% include 'includes/form_field.html' with field=form.indicatif_pays %}
+        <div class="wa-fields-meta">
         {% include 'includes/form_field.html' with field=form.template_meta %}
         {% include 'includes/form_field.html' with field=form.template_langue %}
         {% include 'includes/form_field.html' with field=form.template_variables full_width=True %}
+        </div>
+        <div class="wa-fields-text">
         {% include 'includes/form_field.html' with field=form.message_modele full_width=True %}
+        </div>
 
         {% if mapping_vars %}
         <div class="form-help" style="margin-top:.75rem; padding:.75rem; background:rgba(37,99,235,.05); border-radius:8px;">
@@ -114,6 +132,7 @@
         <thead>
           <tr>
             <th>Date</th>
+            {% if journal_multi_ecoles %}<th>École</th>{% endif %}
             <th>Destinataire</th>
             <th>Reçu</th>
             <th>Statut</th>
@@ -124,6 +143,7 @@
           {% for n in notifications %}
           <tr>
             <td>{{ n.date_envoi|date:"d/m/Y H:i" }}</td>
+            {% if journal_multi_ecoles %}<td>{{ n.ecole }}</td>{% endif %}
             <td style="font-family:monospace;">{{ n.destinataire|default:"—" }}</td>
             <td>
               {% if n.paiement %}
@@ -151,7 +171,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="5" style="text-align:center; color:var(--text-muted); padding:1.5rem;">
+            <td colspan="{% if journal_multi_ecoles %}6{% else %}5{% endif %}" style="text-align:center; color:var(--text-muted); padding:1.5rem;">
               Aucune notification pour le moment.
             </td>
           </tr>
@@ -162,4 +182,27 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var form = document.getElementById('whatsapp-config-form');
+  if (!form) return;
+  var provider = form.querySelector('#id_provider');
+  var meta = form.querySelector('.wa-fields-meta');
+  var text = form.querySelector('.wa-fields-text');
+  var instance = form.querySelector('#id_instance_id');
+  function sync() {
+    var v = (provider && provider.value) || 'ULTRAMSG';
+    if (meta) meta.style.display = v === 'META' ? '' : 'none';
+    if (text) text.style.display = v === 'META' ? 'none' : '';
+    if (instance) {
+      instance.placeholder = v === 'META' ? 'Phone Number ID Meta' : 'ex. instance12345';
+    }
+  }
+  if (provider) provider.addEventListener('change', sync);
+  sync();
+})();
+</script>
 {% endblock %}

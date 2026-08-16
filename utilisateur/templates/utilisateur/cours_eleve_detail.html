@@ -116,7 +116,7 @@
                     <div class="ll-ch-group">
                         <a href="{% url 'utilisateur:chapitre_eleve_detail' ch.chapitre.id %}" class="ll-ch-group__title">
                             <span>Chapitre {{ ch.chapitre.ordre }} — {{ ch.chapitre.titre }}</span>
-                            <small>{{ ch.terminees }}/{{ ch.total }} · {% if ch.chapitre.video_url %}▶ {% endif %}{% if ch.chapitre.image %}🖼 {% endif %}</small>
+                            <small>{{ ch.terminees }}/{{ ch.total }} · {% if ch.chapitre.video %}▶ {% endif %}{% if ch.chapitre.image %}🖼 {% endif %}</small>
                         </a>
                         <ol class="ll-toc">
                             {% for row in ch.sous_rows %}
@@ -127,7 +127,7 @@
                                         <strong>{{ row.lecon.titre }}</strong>
                                         <small>
                                             {{ row.lecon.get_type_contenu_display }}
-                                            {% if row.lecon.video_url %} · Vidéo{% endif %}
+                                            {% if row.lecon.video %} · Vidéo{% endif %}
                                             {% if row.lecon.image %} · Image{% endif %}
                                         </small>
                                     </span>

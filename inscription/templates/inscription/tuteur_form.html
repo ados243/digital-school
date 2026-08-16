@@ -6,11 +6,12 @@
 
 {% block header_actions %}
 <button type="button" onclick="window.history.back()" class="btn btn-secondary">Annuler</button>
+<button type="submit" form="tuteur-form" class="btn btn-primary">Valider</button>
 {% endblock %}
 
 {% block content %}
 <div class="qb-form qb-form--narrow">
-    <form method="post" class="form-horizontal">
+    <form method="post" class="form-horizontal" id="tuteur-form">
         {% csrf_token %}
         {% include 'includes/form_errors.html' %}
         <div class="qb-form__layout qb-form__layout--single">
@@ -36,19 +37,29 @@
                         {% include 'includes/form_field.html' with field=form.prenom %}
                     </div>
                 </div>
-                <div class="qb-form__section-head">Coordonnées</div>
+                <div class="qb-form__section-head">Coordonnées &amp; résidence</div>
                 <div class="qb-form__body">
                     <div class="form-grid-2">
                         {% include 'includes/form_field.html' with field=form.telephone %}
                         {% include 'includes/form_field.html' with field=form.telephone2 %}
                         {% include 'includes/form_field.html' with field=form.email %}
+                        {% include 'includes/form_field.html' with field=form.quartier %}
                     </div>
+                    <p class="form-help" style="margin-top:-.35rem;">
+                        Dans la liste Quartier, choisissez « ➕ Ajouter un quartier » si le quartier n’existe pas encore.
+                    </p>
+                    {% include 'includes/form_field.html' with field=form.adresse full_width=True %}
                 </div>
                 <div class="qb-form__footer">
-                    {% include 'includes/form_actions.html' with submit_label="Enregistrer le tuteur" cancel_onclick="window.history.back()" %}
+                    <div class="form-actions">
+                        <button type="button" onclick="window.history.back()" class="btn btn-secondary">Annuler</button>
+                        <button type="submit" class="btn btn-primary btn-lg btn-form-submit">Valider</button>
+                    </div>
                 </div>
             </div>
         </div>
     </form>
 </div>
+
+{% include 'inscription/includes/quartier_modal.html' with quartier_select_ids=form.quartier.id_for_label %}
 {% endblock %}

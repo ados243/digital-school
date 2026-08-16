@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+
+{% block title %}Budget annuel{% endblock %}
+{% block page_title %}Budget annuel{% endblock %}
+{% block page_subtitle %}
+  Toutes les rubriques (recettes &amp; dépenses)
+  {% if annee %}— année {{ annee }}{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:frais_scolaire_list' %}" class="btn btn-secondary">Frais scolaires</a>
+<a href="{% url 'finances:dashboard' %}" class="btn btn-secondary">Synthèse</a>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 24px;">
+
+  <div class="panel" style="margin-bottom: 1rem; {% if not taux_courant %}border-color: #f59e0b;{% endif %}">
+    <div class="panel-body" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span style="font-size: 1.5rem;" aria-hidden="true">💱</span>
+        <div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em;">Taux de change</div>
+          {% if taux_courant %}
+          <div style="font-size: 1.35rem; font-weight: 700; font-family: monospace;">
+            1 USD = {{ taux_courant.taux }} CDF
+          </div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">
+            En vigueur depuis le {{ taux_courant.date_effet|date:"d/m/Y" }}
+          </div>
+          {% else %}
+          <div style="font-size: 1.1rem; font-weight: 600; color: #b45309;">Non défini</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">
+            <a href="{% url 'finances:taux_change_list' %}">Saisir un taux</a> pour convertir USD ↔ CDF
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      <a href="{% url 'finances:taux_change_list' %}" class="btn btn-secondary btn-sm">Gérer le taux</a>
+    </div>
+  </div>
+
+  <form method="get" class="panel" style="margin-bottom: 1.25rem;">
+    <div class="panel-body" style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: end;">
+      <div>
+        <label for="annee">Année scolaire</label>
+        <select name="annee" id="annee" class="form-control" onchange="this.form.submit()">
+          {% for a in annees %}
+          <option value="{{ a.id }}" {% if annee and a.id == annee.id %}selected{% endif %}>
+            {{ a }}{% if a.est_encoure %} (en cours){% endif %}
+          </option>
+          {% empty %}
+          <option value="">Aucune année</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </form>
+
+  {% if projection.alertes %}
+  <div class="alert alert-warning" style="margin-bottom: 1rem;">
+    {% for alerte in projection.alertes %}
+    <div>{{ alerte }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
+    <div class="panel" style="margin: 0;">
+      <div class="panel-body">
+        <div style="color: var(--text-muted); font-size: 0.85rem;">Capacité</div>
+        <div style="font-size: 1.4rem; font-weight: 700;">{{ projection.capacite_totale }}</div>
+      </div>
+    </div>
+    <div class="panel" style="margin: 0;">
+      <div class="panel-body">
+        <div style="color: var(--text-muted); font-size: 0.85rem;">Recettes USD</div>
+        <div style="font-size: 1.4rem; font-weight: 700;">{{ plan.total_recettes_usd }}</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">{{ plan.total_recettes_cdf }} CDF</div>
+      </div>
+    </div>
+    <div class="panel" style="margin: 0;">
+      <div class="panel-body">
+        <div style="color: var(--text-muted); font-size: 0.85rem;">Dépenses USD</div>
+        <div style="font-size: 1.4rem; font-weight: 700;">{{ plan.total_depenses_usd }}</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">{{ plan.total_depenses_cdf }} CDF</div>
+      </div>
+    </div>
+    <div class="panel" style="margin: 0;">
+      <div class="panel-body">
+        <div style="color: var(--text-muted); font-size: 0.85rem;">Solde budgétaire</div>
+        <div style="font-size: 1.4rem; font-weight: 700;">{{ solde_usd }} USD</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">{{ solde_cdf }} CDF</div>
+      </div>
+    </div>
+    <div class="panel" style="margin: 0;">
+      <div class="panel-body">
+        <div style="color: var(--text-muted); font-size: 0.85rem;">Minerval réalisé</div>
+        <div style="font-size: 1.1rem; font-weight: 700;">{{ realise.usd }} USD</div>
+        <div style="font-size: 0.95rem;">{{ realise.cdf }} CDF</div>
+      </div>
+    </div>
+  </div>
+
+  {% if budget %}
+  <div class="alert alert-success" style="margin-bottom: 1rem;">
+    Budget fixé le {{ budget.date_fixation|date:"d/m/Y H:i" }}
+    {% if budget.fixe_par %}par {{ budget.fixe_par }}{% endif %}.
+    {% if budget.commentaire %}<div style="margin-top: 0.35rem;">{{ budget.commentaire }}</div>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if annee %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="annee" value="{{ annee.id }}">
+    <input type="hidden" name="action" value="fixer">
+
+    <div class="panel" style="margin-bottom: 1.25rem;">
+      <div class="panel-header">
+        <h3 style="margin: 0;">Recettes</h3>
+      </div>
+      <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Rubrique</th>
+              <th style="width: 140px;">USD</th>
+              <th style="width: 160px;">CDF</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for poste in plan.recettes %}
+            <tr>
+              <td>
+                <strong>{{ poste.rubrique.libelle }}</strong>
+                {% if poste.rubrique.calcul_auto %}
+                <span class="badge badge-success" style="margin-left: 0.35rem;">Auto</span>
+                {% endif %}
+                {% if poste.rubrique.description %}
+                <div style="font-size: 0.8rem; color: var(--text-muted);">{{ poste.rubrique.description }}</div>
+                {% endif %}
+              </td>
+              <td>
+                <input type="number" step="0.01" min="0" class="form-control"
+                       name="usd_{{ poste.rubrique.id }}" value="{{ poste.montant_usd }}">
+              </td>
+              <td>
+                <input type="number" step="0.01" min="0" class="form-control"
+                       name="cdf_{{ poste.rubrique.id }}" value="{{ poste.montant_cdf }}">
+              </td>
+              <td>
+                <input type="text" class="form-control" name="note_{{ poste.rubrique.id }}"
+                       value="{{ poste.note }}" placeholder="—">
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--text-muted);">Aucune rubrique recette.</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Total recettes</th>
+              <th>{{ plan.total_recettes_usd }}</th>
+              <th>{{ plan.total_recettes_cdf }}</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom: 1.25rem;">
+      <div class="panel-header">
+        <h3 style="margin: 0;">Dépenses</h3>
+      </div>
+      <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Rubrique</th>
+              <th style="width: 140px;">USD</th>
+              <th style="width: 160px;">CDF</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for poste in plan.depenses %}
+            <tr>
+              <td>
+                <strong>{{ poste.rubrique.libelle }}</strong>
+                {% if poste.rubrique.calcul_auto %}
+                <span class="badge badge-success" style="margin-left: 0.35rem;">Auto</span>
+                {% endif %}
+                {% if poste.rubrique.description %}
+                <div style="font-size: 0.8rem; color: var(--text-muted);">{{ poste.rubrique.description }}</div>
+                {% endif %}
+              </td>
+              <td>
+                <input type="number" step="0.01" min="0" class="form-control"
+                       name="usd_{{ poste.rubrique.id }}" value="{{ poste.montant_usd }}">
+              </td>
+              <td>
+                <input type="number" step="0.01" min="0" class="form-control"
+                       name="cdf_{{ poste.rubrique.id }}" value="{{ poste.montant_cdf }}">
+              </td>
+              <td>
+                <input type="text" class="form-control" name="note_{{ poste.rubrique.id }}"
+                       value="{{ poste.note }}" placeholder="—">
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--text-muted);">Aucune rubrique dépense.</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Total dépenses</th>
+              <th>{{ plan.total_depenses_usd }}</th>
+              <th>{{ plan.total_depenses_cdf }}</th>
+              <th></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom: 1.25rem;">
+      <div class="panel-header">
+        <h3 style="margin: 0;">Détail minerval par classe</h3>
+      </div>
+      <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Section</th>
+              <th>Classe</th>
+              <th>Capacité</th>
+              <th>Minerval / élève</th>
+              <th>Devise</th>
+              <th>Sous-total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ligne in projection.lignes %}
+            <tr {% if ligne.sans_minerval %}style="opacity: 0.65;"{% endif %}>
+              <td>{{ ligne.classe.section }}</td>
+              <td>{{ ligne.classe.classe }}</td>
+              <td>{{ ligne.capacite }}</td>
+              <td>{{ ligne.montant_unitaire }}</td>
+              <td>{% if ligne.devise %}{{ ligne.devise }}{% else %}—{% endif %}</td>
+              <td><strong>{{ ligne.sous_total }}</strong></td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" style="text-align:center; color: var(--text-muted); padding: 1.5rem;">
+                Aucune classe.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h3 style="margin: 0;">{% if budget %}Mettre à jour le budget{% else %}Fixer le budget{% endif %}</h3>
+      </div>
+      <div class="panel-body">
+        <label for="commentaire">Commentaire (optionnel)</label>
+        <textarea name="commentaire" id="commentaire" class="form-control" rows="2"
+          placeholder="Ex. Budget initial 2025-2026">{% if budget %}{{ budget.commentaire }}{% endif %}</textarea>
+        <div style="margin-top: 1rem;">
+          <button type="submit" class="btn btn-primary">
+            {% if budget %}Enregistrer le budget{% else %}Fixer le budget de l’année{% endif %}
+          </button>
+        </div>
+      </div>
+    </div>
+  </form>
+  {% endif %}
+
+</div>
+{% endblock %}

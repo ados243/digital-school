@@ -11,6 +11,7 @@ class Personnel(models.Model):
         ('Directeur', 'Directeur'),
         ('Directeur des études', 'Directeur des études'),
         ('Préfet', 'Préfet'),
+        ('Promoteur', 'Promoteur'),
         ('Enseignant', 'Enseignant'),
         ('Trésorier', 'Trésorier'),
         ('Caissier', 'Caissier'),
@@ -33,18 +34,19 @@ class Personnel(models.Model):
     quartier = models.ForeignKey(Quartier, on_delete=models.DO_NOTHING)
     adresse = models.CharField(max_length=200)
     photo = models.ImageField(null=True, blank=True)
-    matricule = models.CharField(max_length=10)
+    matricule = models.CharField(max_length=10, unique=True)
     telephone = models.CharField(max_length=12)
     fonction = models.CharField(max_length=30, choices=FONCTION_CHOICES, default='Enseignant')
 
     class Meta:
-        unique_together = ("ecole", "matricule")
+        verbose_name = "Personnel"
+        verbose_name_plural = "Personnel"
 
     def generer_matricule(self):
-        """Matricule séquentiel du type PER-000001, propre à chaque école."""
+        """Matricule séquentiel du type PER-000001, unique dans toute l'application."""
         prefixe = "PER-"
         dernier = (
-            Personnel.objects.filter(ecole=self.ecole, matricule__startswith=prefixe)
+            Personnel.objects.filter(matricule__startswith=prefixe)
             .order_by("matricule")
             .last()
         )
@@ -53,7 +55,7 @@ class Personnel(models.Model):
             try:
                 sequence = int(dernier.matricule[len(prefixe):])
             except ValueError:
-                sequence = Personnel.objects.filter(ecole=self.ecole).count()
+                sequence = Personnel.objects.count()
         return f"{prefixe}{sequence + 1:06d}"
 
     def save(self, *args, **kwargs):
@@ -83,6 +85,16 @@ class Contrat(models.Model):
     salaire_base = models.DecimalField(max_digits=12, decimal_places=2)
     devise = models.ForeignKey('finances.Devise', on_delete=models.PROTECT)
     statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default='ACTIF')
+
+    class Meta:
+        verbose_name = "Contrat"
+        verbose_name_plural = "Contrats"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["personnel"],
+                name="uniq_contrat_par_personnel",
+            )
+        ]
 
     def __str__(self):
         return f"Contrat {self.type_contrat} - {self.personnel.nom}"
@@ -128,6 +140,26 @@ class Presence(models.Model):
 
     def __str__(self):
         return f"Présence {self.date} - {self.personnel.nom}: {self.statut}"
+
+    @property
+    def a_pointe_arrivee(self):
+        if self.statut in ('ABSENT', 'CONGE'):
+            return True
+        return self.heure_arrivee is not None
+
+    @property
+    def a_pointe_depart(self):
+        if self.statut in ('ABSENT', 'CONGE'):
+            return True
+        return self.heure_depart is not None
+
+    @property
+    def en_attente_depart(self):
+        return (
+            self.statut in ('PRESENT', 'RETARD')
+            and self.heure_arrivee is not None
+            and self.heure_depart is None
+        )
 
 class Paie(models.Model):
     STATUT_CHOICES = [

@@ -1,9 +1,15 @@
+import uuid
+from urllib.parse import quote, urlencode
+
+from django.conf import settings
 from django.db import models
 from django.db.models import Avg
 
 from grh.models import Personnel
 from inscription.models import Ecole, Section, Classe, Annee_Scolaire, Inscription, Cycle
 
+from .storage import get_cours_video_storage, upload_to_cours_video
+from .validators import validate_cours_video
 
 class Matiere(models.Model):
     ecole = models.ForeignKey(Ecole, on_delete=models.CASCADE)
@@ -621,10 +627,14 @@ class ChapitreCours(models.Model):
         verbose_name='Introduction du chapitre',
         help_text='Texte d’introduction du chapitre (optionnel).',
     )
-    video_url = models.URLField(
+    video = models.FileField(
+        upload_to=upload_to_cours_video,
+        storage=get_cours_video_storage,
+        null=True,
         blank=True,
         verbose_name='Vidéo du chapitre',
-        help_text='Lien YouTube / Vimeo pour ce chapitre.',
+        help_text='Fichier vidéo hébergé (MP4/WebM). Taille max. configurable (COURS_VIDEO_MAX_MB).',
+        validators=[validate_cours_video],
     )
     image = models.ImageField(
         upload_to='cours_chapitres/%Y/%m/',
@@ -648,6 +658,10 @@ class ChapitreCours(models.Model):
     @property
     def nb_sous_chapitres(self):
         return self.sous_chapitres.count()
+
+    @property
+    def has_video(self):
+        return bool(self.video)
 
 
 class LeconEnLigne(models.Model):
@@ -689,10 +703,14 @@ class LeconEnLigne(models.Model):
         blank=True,
         help_text='Texte du cours (explications, exercices, consignes…).',
     )
-    video_url = models.URLField(
+    video = models.FileField(
+        upload_to=upload_to_cours_video,
+        storage=get_cours_video_storage,
+        null=True,
         blank=True,
-        verbose_name='Lien vidéo',
-        help_text='Lien YouTube, Vimeo ou autre (optionnel).',
+        verbose_name='Vidéo',
+        help_text='Fichier vidéo hébergé (MP4/WebM). Taille max. configurable (COURS_VIDEO_MAX_MB).',
+        validators=[validate_cours_video],
     )
     image = models.ImageField(
         upload_to='cours_sous_chapitres/%Y/%m/',
@@ -733,6 +751,10 @@ class LeconEnLigne(models.Model):
             self.cours_id = self.chapitre.cours_id
         super().save(*args, **kwargs)
 
+    @property
+    def has_video(self):
+        return bool(self.video)
+
     def duree_affichee(self):
         m = self.duree_minutes or 0
         if not m:
@@ -764,3 +786,146 @@ class ProgressionLecon(models.Model):
 
     def __str__(self):
         return f'{self.inscription} — {self.lecon}'
+
+
+class CoursEnDirect(models.Model):
+    """Séance de cours synchrone par visioconférence (Jitsi Meet)."""
+
+    STATUT_PLANIFIE = 'PLANIFIE'
+    STATUT_EN_COURS = 'EN_COURS'
+    STATUT_TERMINE = 'TERMINE'
+    STATUT_ANNULE = 'ANNULE'
+    STATUT_CHOICES = [
+        (STATUT_PLANIFIE, 'Planifié'),
+        (STATUT_EN_COURS, 'En cours'),
+        (STATUT_TERMINE, 'Terminé'),
+        (STATUT_ANNULE, 'Annulé'),
+    ]
+
+    ecole = models.ForeignKey(Ecole, on_delete=models.CASCADE, related_name='cours_en_direct')
+    annee_scolaire = models.ForeignKey(
+        Annee_Scolaire, on_delete=models.CASCADE, related_name='cours_en_direct'
+    )
+    classe = models.ForeignKey(Classe, on_delete=models.CASCADE, related_name='cours_en_direct')
+    matiere = models.ForeignKey(Matiere, on_delete=models.CASCADE, related_name='cours_en_direct')
+    enseignant = models.ForeignKey(
+        Personnel,
+        on_delete=models.CASCADE,
+        related_name='cours_en_direct',
+        verbose_name='Enseignant',
+    )
+    titre = models.CharField(max_length=200)
+    description = models.TextField(
+        blank=True,
+        verbose_name='Description du cours',
+        help_text='Sujets abordés, préparations requises, etc.',
+    )
+    date_heure_prevue = models.DateTimeField(verbose_name='Date et heure prévues')
+    duree_minutes = models.PositiveIntegerField(
+        default=60, verbose_name='Durée estimée (min)'
+    )
+    jitsi_room_id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        verbose_name='ID de salle Jitsi',
+    )
+    statut = models.CharField(
+        max_length=20, choices=STATUT_CHOICES, default=STATUT_PLANIFIE
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Cours en direct'
+        verbose_name_plural = 'Cours en direct'
+        ordering = ['-date_heure_prevue']
+
+    def __str__(self):
+        return f'{self.titre} — {self.classe} ({self.get_statut_display()})'
+
+    @property
+    def room_name(self):
+        prefix = getattr(settings, 'JITSI_ROOM_PREFIX', 'ds') or 'ds'
+        return f'{prefix}-{self.jitsi_room_id}'
+
+    def jitsi_embed_url(self, display_name=''):
+        domain = (getattr(settings, 'JITSI_DOMAIN', None) or 'meet.jit.si').strip().rstrip('/')
+        if domain.startswith('https://') or domain.startswith('http://'):
+            domain = domain.split('://', 1)[1]
+        params = {
+            'config.prejoinPageEnabled': 'false',
+            'config.startWithAudioMuted': 'false',
+            'config.startWithVideoMuted': 'false',
+        }
+        if display_name:
+            params['userInfo.displayName'] = display_name
+        query = urlencode(params, quote_via=quote)
+        return f'https://{domain}/{self.room_name}#{query}'
+
+    def peut_etre_rejoint(self, *, est_enseignant=False):
+        """Enseignant : planifié ou en cours. Élève : en cours (ou fenêtre autour de l'horaire)."""
+        if self.statut == self.STATUT_ANNULE or self.statut == self.STATUT_TERMINE:
+            return False
+        if est_enseignant:
+            return self.statut in (self.STATUT_PLANIFIE, self.STATUT_EN_COURS)
+        if self.statut == self.STATUT_EN_COURS:
+            return True
+        if self.statut == self.STATUT_PLANIFIE and self.date_heure_prevue:
+            from django.utils import timezone
+            from datetime import timedelta
+
+            now = timezone.now()
+            debut = self.date_heure_prevue - timedelta(minutes=15)
+            fin = self.date_heure_prevue + timedelta(minutes=self.duree_minutes or 60)
+            return debut <= now <= fin
+        return False
+
+
+class QuestionCoursDirect(models.Model):
+    """Question posée pendant une séance de visioconférence."""
+
+    STATUT_OUVERTE = 'OUVERTE'
+    STATUT_REPONDUE = 'REPONDUE'
+    STATUT_CHOICES = [
+        (STATUT_OUVERTE, 'Ouverte'),
+        (STATUT_REPONDUE, 'Répondue'),
+    ]
+
+    seance = models.ForeignKey(
+        CoursEnDirect, on_delete=models.CASCADE, related_name='questions'
+    )
+    auteur = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='questions_cours_direct',
+    )
+    auteur_nom = models.CharField(max_length=150, blank=True)
+    texte = models.TextField(verbose_name='Question', max_length=1000)
+    reponse = models.TextField(blank=True, verbose_name='Réponse')
+    statut = models.CharField(
+        max_length=20, choices=STATUT_CHOICES, default=STATUT_OUVERTE
+    )
+    epinglee = models.BooleanField(default=False, verbose_name='Épinglée')
+    created_at = models.DateTimeField(auto_now_add=True)
+    repondu_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Question de cours en direct'
+        verbose_name_plural = 'Questions de cours en direct'
+        ordering = ['-epinglee', '-created_at']
+
+    def __str__(self):
+        return f'Q{self.pk} — {self.seance_id}: {self.texte[:40]}'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'auteur_nom': self.auteur_nom or 'Participant',
+            'texte': self.texte,
+            'reponse': self.reponse or '',
+            'statut': self.statut,
+            'epinglee': self.epinglee,
+            'created_at': self.created_at.isoformat() if self.created_at else '',
+            'repondu_at': self.repondu_at.isoformat() if self.repondu_at else '',
+        }

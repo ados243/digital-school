@@ -61,7 +61,7 @@
                     <strong>Chapitre {{ chapitre.ordre }} — {{ chapitre.titre }}</strong>
                     <div class="ll-muted">
                         {{ sous|length }} sous-chapitre{{ sous|length|pluralize }}
-                        {% if chapitre.video_url %} · Vidéo{% endif %}
+                        {% if chapitre.video %} · Vidéo{% endif %}
                         {% if chapitre.image %} · Image{% endif %}
                         {% if not chapitre.publie %} · <span class="badge badge-secondary">Brouillon</span>{% endif %}
                     </div>
@@ -78,7 +78,7 @@
                     <span>{{ chapitre.ordre }}.{{ sc.ordre }} {{ sc.titre }}</span>
                     <span class="ll-muted">
                         {{ sc.get_type_contenu_display }} · {{ sc.duree_affichee }}
-                        {% if sc.video_url %} · ▶{% endif %}
+                        {% if sc.video %} · ▶{% endif %}
                         {% if sc.image %} · 🖼{% endif %}
                     </span>
                 </li>
@@ -107,7 +107,7 @@
                         {% include 'includes/form_field.html' with field=chapitre_form.titre %}
                         {% include 'includes/form_field.html' with field=chapitre_form.resume %}
                         {% include 'includes/form_field.html' with field=chapitre_form.ordre %}
-                        {% include 'includes/form_field.html' with field=chapitre_form.video_url %}
+                        {% include 'includes/form_field.html' with field=chapitre_form.video %}
                         {% include 'includes/form_field.html' with field=chapitre_form.image %}
                         {% include 'includes/form_field.html' with field=chapitre_form.publie %}
                     </div>

@@ -9,8 +9,6 @@ from .forms import InscriptionForm
 
 def root_redirect(request):
     if request.user.is_authenticated:
-        if getattr(request.user, 'is_caissier', False) and not request.user.is_superuser:
-            return redirect('finances:paiement_list')
         return redirect('utilisateur:post_login')
     return redirect('utilisateur:login')
 
@@ -37,12 +35,21 @@ def post_login_redirect(request):
     user = request.user
     if user.is_parent or user.is_eleve:
         return redirect('utilisateur:portail')
-    # Caissier en premier (rôle OU fonction GRH), avant le profil enseignant.
-    if getattr(user, 'is_caissier', False) and not user.is_superuser:
+    # Caissier en premier (rôle OU fonction GRH), avant les autres profils finance.
+    if user.is_caissier and not user.is_superuser:
         return redirect('finances:paiement_list')
-    if user.is_professeur:
+    if user.is_tresorerie_restreinte and not user.is_superuser:
+        return redirect('finances:dashboard')
+    if user.is_directeur_etudes and not user.is_superuser:
+        return redirect('pedagogie:dashboard')
+    if user.is_secretaire and not user.is_superuser:
+        return redirect('inscription:dashboard')
+    if user.is_prefet and not user.is_superuser:
+        return redirect('grh:dashboard')
+    if user.is_professeur and not user.is_superuser:
         return redirect('utilisateur:enseignant_dashboard')
-    return redirect('grh:dashboard')
+    # Superuser, promoteur, manager, directeur… : tableau de bord Finances
+    return redirect('finances:dashboard')
 
 
 def _personnel_connecte(user):

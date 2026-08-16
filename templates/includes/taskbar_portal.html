@@ -1,0 +1,108 @@
+{% load static %}
+<nav class="ds-taskbar" id="app-taskbar" aria-label="Barre de navigation">
+    <a class="ds-taskbar__brand" href="{% if request.user.is_professeur %}{% url 'utilisateur:enseignant_dashboard' %}{% else %}{% url 'utilisateur:portail' %}{% endif %}" title="{% if nom_ecole %}{{ nom_ecole }} — {% endif %}Digital School">
+        <img src="{% static 'images/logo-ds.png' %}" alt="">
+        <span class="ds-taskbar__brand-text">
+            <span class="ds-taskbar__brand-name">Digital School</span>
+            {% if nom_ecole %}
+            <span class="ds-taskbar__brand-school">{{ nom_ecole }}</span>
+            {% endif %}
+        </span>
+    </a>
+
+    <div class="ds-taskbar__apps">
+        {% if request.user.is_professeur %}
+        <a class="ds-taskbar-app {% if request.resolver_match.url_name == 'enseignant_dashboard' or request.resolver_match.url_name == 'enseignant_classe' %}is-active{% endif %}" href="{% url 'utilisateur:enseignant_dashboard' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">🏫</span>
+                <span class="ds-taskbar-app__label">Classes</span>
+            </span>
+        </a>
+        <a class="ds-taskbar-app {% if 'direct' in request.resolver_match.url_name or 'cours_enseignant' in request.resolver_match.url_name or 'chapitre_enseignant' in request.resolver_match.url_name or 'lecon_enseignant' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'utilisateur:direct_enseignant_list' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">📡</span>
+                <span class="ds-taskbar-app__label">Cours</span>
+            </span>
+        </a>
+        <a class="ds-taskbar-app {% if 'messagerie' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'utilisateur:messagerie_inbox' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">💬</span>
+                <span class="ds-taskbar-app__label">Messages</span>
+            </span>
+        </a>
+        {% if est_titulaire_quelconque %}
+        <a class="ds-taskbar-app {% if request.resolver_match.url_name == 'presence_list' %}is-active{% endif %}" href="{% url 'utilisateur:presence_list' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">📋</span>
+                <span class="ds-taskbar-app__label">Présences</span>
+            </span>
+        </a>
+        {% endif %}
+        <a class="ds-taskbar-app {% if 'travail' in request.resolver_match.url_name or 'evolution' in request.resolver_match.url_name or 'bulletin' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'utilisateur:travail_list' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">📝</span>
+                <span class="ds-taskbar-app__label">Travaux</span>
+            </span>
+        </a>
+
+        {% elif request.user.is_parent %}
+        <a class="ds-taskbar-app {% if request.resolver_match.url_name == 'portail' or request.resolver_match.url_name == 'parent_enfant' %}is-active{% endif %}" href="{% url 'utilisateur:portail' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">👨‍👩‍👧</span>
+                <span class="ds-taskbar-app__label">Enfants</span>
+            </span>
+        </a>
+        <a class="ds-taskbar-app {% if 'annonce' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'utilisateur:parent_annonces' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">📢</span>
+                <span class="ds-taskbar-app__label">Annonces</span>
+            </span>
+        </a>
+        <a class="ds-taskbar-app {% if 'messagerie' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'utilisateur:messagerie_inbox' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">💬</span>
+                <span class="ds-taskbar-app__label">Messages</span>
+            </span>
+        </a>
+
+        {% elif request.user.is_eleve %}
+        <a class="ds-taskbar-app {% if request.resolver_match.url_name == 'portail' %}is-active{% endif %}" href="{% url 'utilisateur:portail' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">🏠</span>
+                <span class="ds-taskbar-app__label">Espace</span>
+            </span>
+        </a>
+        <a class="ds-taskbar-app {% if 'direct' in request.resolver_match.url_name or 'cours_eleve' in request.resolver_match.url_name or 'chapitre_eleve' in request.resolver_match.url_name or 'lecon_eleve' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'utilisateur:direct_eleve_list' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">📡</span>
+                <span class="ds-taskbar-app__label">Cours</span>
+            </span>
+        </a>
+        {% endif %}
+    </div>
+
+    {% if request.user.is_authenticated %}
+    <div class="ds-taskbar__tray">
+        <div class="ds-taskbar-app ds-taskbar-app--menu ds-taskbar-app--user {% if request.resolver_match.url_name == 'profil' %}is-active{% endif %}">
+            <button type="button" class="ds-taskbar-app__btn" aria-expanded="false" aria-haspopup="true" title="{{ request.user.nom_complet }}">
+                <span class="ds-taskbar-app__glyph ds-taskbar-app__avatar">
+                    {% if request.user.avatar %}
+                    <img src="{{ request.user.avatar.url }}" alt="">
+                    {% else %}
+                    {{ request.user.prenom|slice:":1"|upper }}{{ request.user.last_name|slice:":1"|upper }}
+                    {% endif %}
+                </span>
+                <span class="ds-taskbar-app__label">Compte</span>
+            </button>
+            <ul class="ds-taskbar-flyout ds-taskbar-flyout--end">
+                <li class="ds-taskbar-flyout__meta">
+                    <strong>{{ request.user.nom_complet }}</strong>
+                    <span>{{ request.user.get_role_display }}{% if nom_ecole %} · {{ nom_ecole }}{% endif %}</span>
+                </li>
+                <li><a href="{% url 'utilisateur:profil' %}">👤 Mon profil</a></li>
+                <li><a href="{% url 'utilisateur:logout' %}" class="ds-taskbar-flyout__danger">⏻ Déconnexion</a></li>
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+</nav>

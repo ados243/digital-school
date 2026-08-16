@@ -1,0 +1,17 @@
+{# Lecteur HTML5 pour vidéos de cours hébergées (cloud / local). #}
+{% load elearning_tags %}
+{% if video_file %}
+<div class="ll-video">
+    <video
+        controls
+        playsinline
+        preload="metadata"
+        controlslist="nodownload"
+        {% if poster %}poster="{{ poster }}"{% endif %}
+        title="{{ title|default:'Vidéo du cours' }}"
+    >
+        <source src="{{ video_file|video_playback_url }}" type="video/mp4">
+        Votre navigateur ne prend pas en charge la lecture vidéo.
+    </video>
+</div>
+{% endif %}

@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Matiere, AffectationEnseignement, DivisionAnnee, PeriodeBulletin, BulletinEleve,
     TravailCote, NoteEleve, PresenceClasse, PresenceEleve, CoursEnLigne, ChapitreCours,
-    LeconEnLigne, ProgressionLecon,
+    LeconEnLigne, ProgressionLecon, CoursEnDirect, QuestionCoursDirect,
 )
 
 
@@ -28,14 +28,14 @@ class AffectationEnseignementAdmin(admin.ModelAdmin):
 class LeconEnLigneInline(admin.TabularInline):
     model = LeconEnLigne
     extra = 0
-    fields = ('ordre', 'titre', 'type_contenu', 'duree_minutes', 'publie', 'video_url')
+    fields = ('ordre', 'titre', 'type_contenu', 'duree_minutes', 'publie', 'video')
     fk_name = 'chapitre'
 
 
 class ChapitreCoursInline(admin.StackedInline):
     model = ChapitreCours
     extra = 0
-    fields = ('ordre', 'titre', 'publie', 'video_url', 'image')
+    fields = ('ordre', 'titre', 'publie', 'video', 'image')
     show_change_link = True
 
 
@@ -70,6 +70,26 @@ class LeconEnLigneAdmin(admin.ModelAdmin):
 class ProgressionLeconAdmin(admin.ModelAdmin):
     list_display = ('inscription', 'lecon', 'vue', 'terminee', 'vue_at')
     list_filter = ('terminee', 'vue')
+
+
+@admin.register(CoursEnDirect)
+class CoursEnDirectAdmin(admin.ModelAdmin):
+    list_display = (
+        'titre', 'classe', 'matiere', 'enseignant',
+        'date_heure_prevue', 'statut', 'ecole',
+    )
+    list_filter = ('statut', 'ecole', 'classe', 'matiere')
+    search_fields = ('titre', 'matiere__libelle', 'classe__classe')
+    autocomplete_fields = ('classe', 'matiere', 'enseignant', 'annee_scolaire', 'ecole')
+    readonly_fields = ('jitsi_room_id', 'created_at', 'updated_at')
+
+
+@admin.register(QuestionCoursDirect)
+class QuestionCoursDirectAdmin(admin.ModelAdmin):
+    list_display = ('seance', 'auteur_nom', 'statut', 'epinglee', 'created_at')
+    list_filter = ('statut', 'epinglee', 'seance__ecole')
+    search_fields = ('texte', 'reponse', 'auteur_nom', 'seance__titre')
+    autocomplete_fields = ('seance', 'auteur')
 
 
 class PeriodeBulletinInline(admin.TabularInline):

@@ -9,6 +9,11 @@ from .models import (
     DemandeModificationPaiement,
     ConfigWhatsApp,
     NotificationWhatsApp,
+    ClotureCaisse,
+    BudgetAnnuel,
+    LigneBudget,
+    PosteBudget,
+    RubriqueBudget,
     # HOADA
     CompteComptable,
     JournalComptable,
@@ -46,6 +51,66 @@ class DemandeModificationPaiementAdmin(admin.ModelAdmin):
     search_fields = ("motif", "demande_par", "paiement__numero_recu")
 
 
+@admin.register(ClotureCaisse)
+class ClotureCaisseAdmin(admin.ModelAdmin):
+    list_display = (
+        "date_journee",
+        "ecole",
+        "caissier",
+        "nb_paiements",
+        "total_usd",
+        "total_cdf",
+        "date_cloture",
+    )
+    list_filter = ("ecole", "date_journee")
+    search_fields = ("caissier", "commentaire")
+    readonly_fields = ("date_cloture",)
+
+
+class LigneBudgetInline(admin.TabularInline):
+    model = LigneBudget
+    extra = 0
+    readonly_fields = (
+        "classe",
+        "capacite",
+        "montant_unitaire",
+        "devise",
+        "sous_total",
+        "type_frais_libelle",
+    )
+
+
+class PosteBudgetInline(admin.TabularInline):
+    model = PosteBudget
+    extra = 0
+    autocomplete_fields = ("rubrique",)
+
+
+@admin.register(RubriqueBudget)
+class RubriqueBudgetAdmin(admin.ModelAdmin):
+    list_display = ("code", "libelle", "nature", "ordre", "calcul_auto", "actif")
+    list_filter = ("nature", "actif", "calcul_auto")
+    search_fields = ("code", "libelle")
+    ordering = ("nature", "ordre")
+
+
+@admin.register(BudgetAnnuel)
+class BudgetAnnuelAdmin(admin.ModelAdmin):
+    list_display = (
+        "annee",
+        "ecole",
+        "capacite_totale",
+        "total_recettes_usd",
+        "total_depenses_usd",
+        "date_fixation",
+        "fixe_par",
+    )
+    list_filter = ("ecole", "annee")
+    search_fields = ("fixe_par", "commentaire")
+    readonly_fields = ("date_maj",)
+    inlines = [PosteBudgetInline, LigneBudgetInline]
+
+
 @admin.register(TypeFrais)
 class TypeFraisAdmin(admin.ModelAdmin):
     list_display = ("libelle", "ecole")
@@ -61,8 +126,9 @@ class FraisScolaireAdmin(admin.ModelAdmin):
 
 @admin.register(ConfigWhatsApp)
 class ConfigWhatsAppAdmin(admin.ModelAdmin):
-    list_display = ("ecole", "actif", "provider", "indicatif_pays")
+    list_display = ("__str__", "ecole", "actif", "provider", "indicatif_pays")
     list_filter = ("actif", "provider")
+    search_fields = ("instance_id", "template_meta")
 
 
 @admin.register(NotificationWhatsApp)

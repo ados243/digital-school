@@ -49,6 +49,11 @@
     border-radius: 12px;
     box-shadow: var(--shadow-sm);
     color: #000;
+    font-weight: 700;
+  }
+  .receipt,
+  .receipt * {
+    font-weight: 700 !important;
   }
   .receipt__inner { padding: 1.5rem; }
   .receipt__header {
@@ -158,6 +163,39 @@
     font-size: .7rem;
     margin: .5rem 0;
   }
+  .receipt__copy-label {
+    text-align: center;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: .5rem;
+  }
+  .receipt-autoprint-banner {
+    max-width: 520px;
+    margin: 2rem auto;
+    padding: 1.25rem 1.5rem;
+    text-align: center;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+  }
+  .receipt-autoprint-banner p {
+    margin: .35rem 0 0;
+    color: var(--text-muted);
+    font-size: .9rem;
+  }
+  body.receipt-autoprinting .receipt {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+  }
+  body.receipt-autoprinting .page-header,
+  body.receipt-autoprinting .breadcrumbs {
+    display: none !important;
+  }
 
   /* Largeur écran selon format choisi */
   .receipt[data-format="a4"] { max-width: 800px; }
@@ -203,6 +241,8 @@
       max-width: none !important;
     }
 
+    .receipt-autoprint-banner { display: none !important; }
+
     .receipt {
       border: none !important;
       box-shadow: none !important;
@@ -210,10 +250,22 @@
       margin: 0 !important;
       max-width: 100% !important;
       width: 100% !important;
+      position: static !important;
+      left: auto !important;
+    }
+
+    .receipt + .receipt {
+      page-break-before: always;
+      break-before: page;
+      margin-top: 0 !important;
     }
 
     .receipt__inner { padding: 0 !important; }
     .receipt__cut { display: block; }
+    .receipt__copy-label {
+      color: #000 !important;
+      margin-bottom: .35rem;
+    }
 
     /* Format A4 */
     body.receipt-print-a4 .receipt__grid { grid-template-columns: 1fr 1fr; }
@@ -250,13 +302,20 @@
 </style>
 
 <style id="receipt-page-style">
-@page { size: auto; margin: 5mm; }
+@page { size: auto; margin: 2mm; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="receipt-toolbar no-print">
-  <button type="button" class="btn btn-primary" id="btn-print-receipt">🖨️ Imprimer</button>
+{% if autoprint %}
+<div class="receipt-autoprint-banner no-print" id="receipt-autoprint-banner">
+  <strong>Impression automatique — {{ copies }} exemplaire{{ copies|pluralize }}</strong>
+  <p>Reçu {{ paiement.numero_recu }} · format de l’imprimante par défaut</p>
+</div>
+{% endif %}
+
+<div class="receipt-toolbar no-print"{% if autoprint %} hidden{% endif %}>
+  <button type="button" class="btn btn-primary" id="btn-print-receipt">🖨️ Imprimer{% if copies == 2 %} (2 ex.){% endif %}</button>
   {% if request.user.is_caissier %}
   <a href="{% url 'finances:paiement_create' %}" class="btn btn-secondary">+ Nouveau paiement</a>
   {% endif %}
@@ -271,8 +330,12 @@
   </div>
 </div>
 
-<article class="receipt" id="receipt" data-format="auto">
+{% for exemplaire in exemplaires %}
+<article class="receipt{% if forloop.first %} is-primary-receipt{% endif %}" {% if forloop.first %}id="receipt"{% endif %} data-format="auto">
   <div class="receipt__inner">
+    {% if exemplaire %}
+    <div class="receipt__copy-label">{{ exemplaire }}</div>
+    {% endif %}
     <header class="receipt__header">
       <div class="receipt__school">
         <h2>{{ ecole.ecole|default:request.user.ecole.ecole|default:"Digital School" }}</h2>
@@ -389,27 +452,32 @@
     </footer>
   </div>
 </article>
+{% endfor %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
 (function () {
   var STORAGE_KEY = 'ds_receipt_print_format';
-  var receipt = document.getElementById('receipt');
+  var receipts = document.querySelectorAll('.receipt');
   var pageStyle = document.getElementById('receipt-page-style');
   var body = document.body;
   var autoprint = {{ autoprint|yesno:"true,false" }};
+  var nextUrl = "{% if next_url %}{{ next_url|escapejs }}{% else %}{% url 'finances:paiement_list' %}{% endif %}";
+  var redirected = false;
 
   var PAGE_CSS = {
-    auto: '@page { size: auto; margin: 4mm; }',
+    auto: '@page { size: auto; margin: 2mm; }',
     a4: '@page { size: A4; margin: 12mm; }',
-    '80mm': '@page { size: 80mm auto; margin: 3mm; }',
+    '80mm': '@page { size: 80mm auto; margin: 2mm; }',
     '58mm': '@page { size: 58mm auto; margin: 2mm; }'
   };
 
   function applyFormat(format) {
     format = PAGE_CSS[format] ? format : 'auto';
-    receipt.setAttribute('data-format', format);
+    receipts.forEach(function (receipt) {
+      receipt.setAttribute('data-format', format);
+    });
     body.classList.remove(
       'receipt-print-auto',
       'receipt-print-a4',
@@ -421,16 +489,18 @@
     document.querySelectorAll('.receipt-format-btn').forEach(function (btn) {
       btn.classList.toggle('is-active', btn.getAttribute('data-format') === format);
     });
-    try { localStorage.setItem(STORAGE_KEY, format); } catch (e) {}
+    if (!autoprint) {
+      try { localStorage.setItem(STORAGE_KEY, format); } catch (e) {}
+    }
   }
 
   function detectPrinterFormat() {
-    // Heuristique : largeur utile d'impression du navigateur / pilote
+    // Encaissement auto : toujours le format natif de l'imprimante (pilote Windows)
+    if (autoprint) return 'auto';
     try {
       if (window.matchMedia('(max-width: 240px)').matches) return '58mm';
       if (window.matchMedia('(max-width: 340px)').matches) return '80mm';
     } catch (e) {}
-    // Sinon conserver le dernier choix, ou Auto (size: auto = taille imprimante)
     try {
       var saved = localStorage.getItem(STORAGE_KEY);
       if (saved && PAGE_CSS[saved]) return saved;
@@ -438,8 +508,7 @@
     return 'auto';
   }
 
-  var initial = detectPrinterFormat();
-  applyFormat(initial);
+  applyFormat(detectPrinterFormat());
 
   document.querySelectorAll('.receipt-format-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -448,20 +517,41 @@
   });
 
   function doPrint() {
-    // Avant impression, si Auto : laisser size:auto pour coller à l'imprimante branchée
-    if (receipt.getAttribute('data-format') === 'auto') {
-      if (pageStyle) pageStyle.textContent = PAGE_CSS.auto;
-    }
+    // Force le format imprimante (size: auto) juste avant l'envoi
+    applyFormat('auto');
+    if (pageStyle) pageStyle.textContent = PAGE_CSS.auto;
     window.print();
   }
 
+  function goNext() {
+    if (!autoprint || redirected) return;
+    redirected = true;
+    window.location.href = nextUrl;
+  }
+
   var printBtn = document.getElementById('btn-print-receipt');
-  if (printBtn) printBtn.addEventListener('click', doPrint);
+  if (printBtn) {
+    printBtn.addEventListener('click', function () {
+      // Réimpression manuelle : 2 ex. déjà dans la page si copies=2
+      doPrint();
+    });
+  }
 
   if (autoprint) {
-    window.addEventListener('load', function () {
-      setTimeout(doPrint, 350);
-    });
+    body.classList.add('receipt-autoprinting');
+    window.addEventListener('afterprint', goNext);
+    // Impression immédiate (avec Chrome/Edge --kiosk-printing : aucun dialogue)
+    function startSilentPrint() {
+      doPrint();
+      setTimeout(goNext, 4000);
+    }
+    if (document.readyState === 'complete') {
+      setTimeout(startSilentPrint, 50);
+    } else {
+      window.addEventListener('load', function () {
+        setTimeout(startSilentPrint, 50);
+      });
+    }
   }
 })();
 </script>

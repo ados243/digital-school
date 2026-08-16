@@ -1,0 +1,419 @@
+{% extends 'base.html' %}
+
+{% block title %}Clôture de caisse{% endblock %}
+{% block page_title %}Clôture de la journée{% endblock %}
+{% block page_subtitle %}
+  {% if cloture %}
+  Journée du {{ jour|date:"d/m/Y" }} clôturée le {{ cloture.date_cloture|date:"d/m/Y H:i" }} par {{ cloture.caissier }}.
+  {% else %}
+  Synthèse de vos encaissements du {{ jour|date:"d/m/Y" }} — clôturez pour figer les indicateurs.
+  {% endif %}
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:paiement_list' %}" class="btn btn-secondary">Retour paiements</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .cloture-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .cloture-modal.is-open { display: flex; }
+  .cloture-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+  }
+  .cloture-modal__dialog {
+    position: relative;
+    z-index: 1;
+    width: min(480px, 100%);
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+    overflow: hidden;
+  }
+  .cloture-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border, #e5e7eb);
+  }
+  .cloture-modal__header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+  }
+  .cloture-modal__close {
+    border: none;
+    background: transparent;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text-muted);
+  }
+  .cloture-modal__body {
+    padding: 1.25rem 1.35rem;
+  }
+  .cloture-modal__icon {
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    margin: 0 auto 1rem;
+    font-size: 1.5rem;
+  }
+  .cloture-modal__icon--warn {
+    background: rgba(245, 158, 11, 0.15);
+  }
+  .cloture-modal__icon--ok {
+    background: rgba(16, 185, 129, 0.15);
+  }
+  .cloture-modal__lead {
+    text-align: center;
+    margin: 0 0 1rem;
+    line-height: 1.45;
+  }
+  .cloture-modal__stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+    margin: 0 0 1rem;
+  }
+  .cloture-modal__stat {
+    background: rgba(37, 99, 235, 0.05);
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 10px;
+    padding: 0.65rem 0.75rem;
+    text-align: center;
+  }
+  .cloture-modal__stat span {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.2rem;
+  }
+  .cloture-modal__stat strong {
+    font-family: monospace;
+    font-size: 1rem;
+  }
+  .cloture-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    padding: 0 1.25rem 1.25rem;
+    flex-wrap: wrap;
+  }
+  body.modal-open { overflow: hidden; }
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="get" class="filter-chips" style="display:flex; gap:.75rem; align-items:end; flex-wrap:wrap; margin-bottom:1rem;">
+  <div class="form-field" style="margin:0;">
+    <label class="form-field__label" for="id_date">Journée</label>
+    <div class="form-field__control">
+      <input type="date" name="date" id="id_date" class="form-control" value="{{ jour|date:'Y-m-d' }}" onchange="this.form.submit()">
+    </div>
+  </div>
+</form>
+
+{% if cloture %}
+<section class="kpi-grid" style="margin-bottom:1.25rem;">
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Paiements validés</div>
+      <div class="kpi-value">{{ kpis.nb_paiements }}</div>
+    </div>
+    <div class="kpi-footer">🧾 Reçus de la journée</div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Élèves concernés</div>
+      <div class="kpi-value">{{ kpis.nb_eleves }}</div>
+    </div>
+    <div class="kpi-footer">👥 Inscriptions distinctes</div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Total USD</div>
+      <div class="kpi-value" style="font-family:monospace; font-size:1.35rem;">{{ kpis.total_usd }}</div>
+    </div>
+    <div class="kpi-footer">💵 Encaissé en dollars</div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Total CDF</div>
+      <div class="kpi-value" style="font-family:monospace; font-size:1.35rem;">{{ kpis.total_cdf }}</div>
+    </div>
+    <div class="kpi-footer">💵 Encaissé en francs</div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Espèces</div>
+      <div class="kpi-value" style="font-size:1.05rem; font-family:monospace;">
+        {{ kpis.total_especes_usd }} USD<br>
+        <span style="font-size:.95rem;">{{ kpis.total_especes_cdf }} CDF</span>
+      </div>
+    </div>
+    <div class="kpi-footer">💵 Mode espèces</div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Mobile Money</div>
+      <div class="kpi-value" style="font-size:1.05rem; font-family:monospace;">
+        {{ kpis.total_mobile_usd }} USD<br>
+        <span style="font-size:.95rem;">{{ kpis.total_mobile_cdf }} CDF</span>
+      </div>
+    </div>
+    <div class="kpi-footer">📱 Mode Mobile Money</div>
+  </div>
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Autres modes</div>
+      <div class="kpi-value" style="font-size:1.05rem; font-family:monospace;">
+        {{ kpis.total_autres_usd }} USD<br>
+        <span style="font-size:.95rem;">{{ kpis.total_autres_cdf }} CDF</span>
+      </div>
+    </div>
+    <div class="kpi-footer">🏦 Virement / chèque…</div>
+  </div>
+</section>
+
+{% if cloture.commentaire %}
+<div class="panel" style="margin-bottom:1.25rem;">
+  <div class="panel-body">
+    <strong>Commentaire de clôture</strong>
+    <p style="margin:.5rem 0 0; white-space:pre-wrap;">{{ cloture.commentaire }}</p>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+<div class="panel" style="margin-bottom:1.25rem;">
+  <div class="panel-header"><h3>Avant clôture</h3></div>
+  <div class="panel-body">
+    <p style="margin:0 0 1rem; color:var(--text-muted);">
+      Aperçu : <strong>{{ kpis.nb_paiements }}</strong> paiement(s) ·
+      <strong>{{ kpis.nb_eleves }}</strong> élève(s) ·
+      <strong>{{ kpis.total_usd }} USD</strong> ·
+      <strong>{{ kpis.total_cdf }} CDF</strong>
+    </p>
+    <form method="post" class="form-horizontal" id="cloture-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="cloturer">
+      <div class="form-field">
+        <label class="form-field__label" for="id_commentaire">Commentaire (optionnel)</label>
+        <div class="form-field__control">
+          <textarea name="commentaire" id="id_commentaire" class="form-control" rows="2" placeholder="Ex. caisse remise au trésorier…"></textarea>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary" id="btn-open-cloture-confirm">🔒 Clôturer la journée</button>
+    </form>
+  </div>
+</div>
+
+{# Popup de confirmation avant clôture #}
+<div class="cloture-modal" id="cloture-confirm-modal" aria-hidden="true" role="dialog" aria-labelledby="cloture-confirm-title">
+  <div class="cloture-modal__backdrop" data-close-cloture-modal></div>
+  <div class="cloture-modal__dialog">
+    <div class="cloture-modal__header">
+      <h3 id="cloture-confirm-title">Confirmer la clôture</h3>
+      <button type="button" class="cloture-modal__close" data-close-cloture-modal aria-label="Fermer">&times;</button>
+    </div>
+    <div class="cloture-modal__body">
+      <div class="cloture-modal__icon cloture-modal__icon--warn">🔒</div>
+      <p class="cloture-modal__lead">
+        Clôturer la journée du <strong>{{ jour|date:"d/m/Y" }}</strong>&nbsp;?<br>
+        Les indicateurs seront figés. Cette action est définitive pour aujourd’hui.
+      </p>
+      <div class="cloture-modal__stats">
+        <div class="cloture-modal__stat"><span>Paiements</span><strong>{{ kpis.nb_paiements }}</strong></div>
+        <div class="cloture-modal__stat"><span>Élèves</span><strong>{{ kpis.nb_eleves }}</strong></div>
+        <div class="cloture-modal__stat"><span>Total USD</span><strong>{{ kpis.total_usd }}</strong></div>
+        <div class="cloture-modal__stat"><span>Total CDF</span><strong>{{ kpis.total_cdf }}</strong></div>
+      </div>
+    </div>
+    <div class="cloture-modal__footer">
+      <button type="button" class="btn btn-secondary" data-close-cloture-modal>Annuler</button>
+      <button type="button" class="btn btn-primary" id="btn-confirm-cloture">Oui, clôturer</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if just_closed and cloture %}
+{# Popup de confirmation après clôture #}
+<div class="cloture-modal is-open" id="cloture-success-modal" aria-hidden="false" role="dialog" aria-labelledby="cloture-success-title">
+  <div class="cloture-modal__backdrop" data-close-success-modal></div>
+  <div class="cloture-modal__dialog">
+    <div class="cloture-modal__header">
+      <h3 id="cloture-success-title">Journée clôturée</h3>
+      <button type="button" class="cloture-modal__close" data-close-success-modal aria-label="Fermer">&times;</button>
+    </div>
+    <div class="cloture-modal__body">
+      <div class="cloture-modal__icon cloture-modal__icon--ok">✓</div>
+      <p class="cloture-modal__lead">
+        La journée du <strong>{{ jour|date:"d/m/Y" }}</strong> a été clôturée avec succès<br>
+        le {{ cloture.date_cloture|date:"d/m/Y à H:i" }}.
+      </p>
+      <div class="cloture-modal__stats">
+        <div class="cloture-modal__stat"><span>Paiements</span><strong>{{ kpis.nb_paiements }}</strong></div>
+        <div class="cloture-modal__stat"><span>Élèves</span><strong>{{ kpis.nb_eleves }}</strong></div>
+        <div class="cloture-modal__stat"><span>Total USD</span><strong>{{ kpis.total_usd }}</strong></div>
+        <div class="cloture-modal__stat"><span>Total CDF</span><strong>{{ kpis.total_cdf }}</strong></div>
+      </div>
+    </div>
+    <div class="cloture-modal__footer">
+      <button type="button" class="btn btn-primary" data-close-success-modal>Voir les KPI</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="dashboard-grid">
+  <div class="panel">
+    <div class="panel-header"><h3>Détail des encaissements</h3></div>
+    <div class="panel-body table-responsive" style="padding:0;">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Heure</th>
+            <th>Reçu</th>
+            <th>Élève</th>
+            <th>Frais</th>
+            <th>Mode</th>
+            <th>Montant</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in paiements %}
+          <tr>
+            <td>{{ p.date_encodage|date:"H:i" }}</td>
+            <td style="font-family:monospace; font-weight:700; color:var(--primary);">{{ p.numero_recu }}</td>
+            <td>{{ p.eleve.eleve.prenom }} {{ p.eleve.eleve.nom }}</td>
+            <td>{{ p.frais.type_frais.libelle }}</td>
+            <td>{{ p.get_mode_paiement_display }}</td>
+            <td style="font-family:monospace; font-weight:600;">
+              {% if p.montant_origine and p.taux_change %}
+                {{ p.montant_origine }} {% if p.devise_origine %}{{ p.devise_origine }}{% else %}CDF{% endif %}
+              {% else %}
+                {{ p.montant_paye }} {{ p.devise }}
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" style="text-align:center; color:var(--text-muted); padding:1.5rem;">
+              Aucun paiement validé pour cette journée.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header"><h3>Historique des clôtures</h3></div>
+    <div class="panel-body table-responsive" style="padding:0;">
+      <table class="custom-table">
+        <thead>
+          <tr>
+            <th>Journée</th>
+            <th>Reçus</th>
+            <th>USD</th>
+            <th>CDF</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in historique %}
+          <tr>
+            <td>{{ c.date_journee|date:"d/m/Y" }}</td>
+            <td>{{ c.nb_paiements }}</td>
+            <td style="font-family:monospace;">{{ c.total_usd }}</td>
+            <td style="font-family:monospace;">{{ c.total_cdf }}</td>
+            <td>
+              <a href="?date={{ c.date_journee|date:'Y-m-d' }}" class="btn btn-secondary btn-sm">KPI</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="5" style="text-align:center; color:var(--text-muted); padding:1.5rem;">
+              Aucune clôture pour le moment.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var confirmModal = document.getElementById('cloture-confirm-modal');
+  var successModal = document.getElementById('cloture-success-modal');
+  var form = document.getElementById('cloture-form');
+  var openBtn = document.getElementById('btn-open-cloture-confirm');
+  var confirmBtn = document.getElementById('btn-confirm-cloture');
+
+  function openModal(el) {
+    if (!el) return;
+    el.classList.add('is-open');
+    el.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+  }
+  function closeModal(el) {
+    if (!el) return;
+    el.classList.remove('is-open');
+    el.setAttribute('aria-hidden', 'true');
+    if (!document.querySelector('.cloture-modal.is-open')) {
+      document.body.classList.remove('modal-open');
+    }
+  }
+
+  if (openBtn && confirmModal) {
+    openBtn.addEventListener('click', function () { openModal(confirmModal); });
+  }
+  if (confirmBtn && form) {
+    confirmBtn.addEventListener('click', function () {
+      closeModal(confirmModal);
+      form.submit();
+    });
+  }
+  document.querySelectorAll('[data-close-cloture-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function () { closeModal(confirmModal); });
+  });
+  document.querySelectorAll('[data-close-success-modal]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      closeModal(successModal);
+      // Retirer just_closed de l'URL pour ne pas réouvrir au rechargement
+      if (window.history && window.history.replaceState) {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('just_closed');
+        window.history.replaceState({}, '', url.pathname + url.search);
+      }
+    });
+  });
+
+  if (successModal) {
+    document.body.classList.add('modal-open');
+  }
+})();
+</script>
+{% endblock %}

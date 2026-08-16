@@ -3,147 +3,256 @@
 {% block title %}Présences & Pointage{% endblock %}
 
 {% block page_title %}Présences & Pointage{% endblock %}
-{% block page_subtitle %}Suivi des présences quotidiennes du personnel.{% endblock %}
+{% block page_subtitle %}Pointage en deux étapes : arrivée le matin, départ le soir.{% endblock %}
+
+{% block extra_css %}
+<style>
+  .presence-steps {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .presence-steps a {
+    text-decoration: none;
+  }
+  .presence-step-card {
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: 12px;
+    padding: .85rem 1rem;
+    background: #fff;
+    min-width: 160px;
+  }
+  .presence-step-card.is-active {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, .15);
+  }
+  .presence-step-card strong {
+    display: block;
+    font-size: .95rem;
+  }
+  .presence-step-card span {
+    font-size: .8rem;
+    color: var(--text-muted);
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="form-layout-split">
-    <div class="qb-form">
-        <form method="post" action="{% url 'grh:presence_record' %}" class="form-horizontal">
-            {% csrf_token %}
-            <input type="hidden" name="date" value="{{ filter_date|date:'Y-m-d' }}">
-            <div class="qb-form__document">
-                <div class="qb-form__section-head">Enregistrer un pointage</div>
-                <div class="qb-form__body">
-                    <div class="form-grid-2">
-                        <div class="form-group">
-                            <label for="personnel">Employé</label>
-                            <select name="personnel" id="personnel" class="form-control" required>
-                                <option value="">-- Sélectionner l'employé --</option>
-                                {% for p in personnel_non_pointes %}
-                                <option value="{{ p.id }}">{{ p.prenom }} {{ p.nom }} ({{ p.fonction }})</option>
-                                {% endfor %}
-                            </select>
-                            {% if not personnel_non_pointes %}
-                            <small class="form-help" style="color: var(--success); font-weight: 600;">Tout le personnel a été pointé.</small>
-                            {% endif %}
-                        </div>
-                        <div class="form-group">
-                            <label for="statut">Statut</label>
-                            <select name="statut" id="statut" class="form-control" required onchange="toggleTimeFields(this.value)">
-                                <option value="PRESENT" selected>Présent</option>
-                                <option value="RETARD">En Retard</option>
-                                <option value="ABSENT">Absent</option>
-                                <option value="CONGE">En Congé</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div id="time-fields" class="form-grid-2">
-                        <div class="form-group">
-                            <label for="heure_arrivee">Heure d'arrivée</label>
-                            <input type="time" name="heure_arrivee" id="heure_arrivee" class="form-control" value="07:30">
-                        </div>
-                        <div class="form-group">
-                            <label for="heure_depart">Heure de départ</label>
-                            <input type="time" name="heure_depart" id="heure_depart" class="form-control" value="16:00">
-                        </div>
-                    </div>
-                </div>
-                <div class="qb-form__footer">
-                    {% if not personnel_non_pointes and not presences %}
-                    {% include 'includes/form_actions.html' with submit_label="Enregistrer le pointage" submit_disabled=True %}
-                    {% else %}
-                    {% include 'includes/form_actions.html' with submit_label="Enregistrer le pointage" %}
-                    {% endif %}
-                </div>
-            </div>
-        </form>
+<form method="get" action="{% url 'grh:presence_list' %}" class="filter-chips" style="display:flex; gap:.75rem; align-items:end; flex-wrap:wrap; margin-bottom:1rem;">
+  <input type="hidden" name="etape" value="{{ etape }}">
+  <div class="form-field" style="margin:0;">
+    <label class="form-field__label" for="filter_date">Date</label>
+    <div class="form-field__control">
+      <input type="date" name="date" id="filter_date" class="form-control" value="{{ filter_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+    </div>
+  </div>
+</form>
 
-        <form method="get" action="{% url 'grh:presence_list' %}" class="form-horizontal" style="margin-top: 1rem;">
-            <div class="qb-form__document">
-                <div class="qb-form__section-head">Filtrer par date</div>
-                <div class="qb-form__body">
-                    <div class="form-group" style="padding: .85rem 1.25rem; margin: 0;">
-                        <label for="filter_date">Date</label>
-                        <input type="date" name="date" id="filter_date" class="form-control" value="{{ filter_date|date:'Y-m-d' }}" onchange="this.form.submit()">
-                    </div>
-                </div>
+<div class="presence-steps">
+  <a href="?date={{ filter_date|date:'Y-m-d' }}&etape=arrivee" class="presence-step-card {% if etape != 'depart' %}is-active{% endif %}">
+    <strong>1 · Arrivée</strong>
+    <span>{{ personnel_a_arriver|length }} à pointer</span>
+  </a>
+  <a href="?date={{ filter_date|date:'Y-m-d' }}&etape=depart" class="presence-step-card {% if etape == 'depart' %}is-active{% endif %}">
+    <strong>2 · Départ</strong>
+    <span>{{ presences_a_partir|length }} en attente</span>
+  </a>
+</div>
+
+<div class="form-layout-split">
+  <div class="qb-form">
+    {% if etape == 'depart' %}
+    <form method="post" action="{% url 'grh:presence_record' %}" class="form-horizontal">
+      {% csrf_token %}
+      <input type="hidden" name="date" value="{{ filter_date|date:'Y-m-d' }}">
+      <input type="hidden" name="etape" value="depart">
+      <div class="qb-form__document">
+        <div class="qb-form__section-head">Étape 2 — Pointer le départ</div>
+        <div class="qb-form__body">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="personnel_depart">Employé (arrivé, sans départ)</label>
+              <select name="personnel" id="personnel_depart" class="form-control" required {% if not presences_a_partir %}disabled{% endif %}>
+                <option value="">-- Sélectionner --</option>
+                {% for pres in presences_a_partir %}
+                <option value="{{ pres.personnel_id }}">
+                  {{ pres.personnel.prenom }} {{ pres.personnel.nom }}
+                  · arrivé {{ pres.heure_arrivee|time:"H:i" }}
+                </option>
+                {% endfor %}
+              </select>
+              {% if not presences_a_partir %}
+              <small class="form-help" style="color: var(--success); font-weight: 600;">Aucun départ en attente.</small>
+              {% endif %}
             </div>
-        </form>
-    </div>
-    
-    <div>
-        <div class="panel">
-            <div class="panel-header">
-                <h3>Registre du {{ filter_date|date:"d F Y" }}</h3>
+            <div class="form-group">
+              <label for="heure_depart">Heure de départ</label>
+              <input type="time" name="heure_depart" id="heure_depart" class="form-control" value="{{ now_time }}" required>
             </div>
-            <div class="panel-body table-responsive" style="padding: 0;">
-                <table class="custom-table">
-                    <thead>
-                        <tr>
-                            <th>Employé</th>
-                            <th>Statut</th>
-                            <th>Arrivée</th>
-                            <th>Départ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for pres in presences %}
-                        <tr>
-                            <td>
-                                <strong>{{ pres.personnel.nom }} {{ pres.personnel.prenom }}</strong>
-                                <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ pres.personnel.fonction }}</span>
-                            </td>
-                            <td>
-                                {% if pres.statut == 'PRESENT' %}
-                                    <span class="badge badge-success">Présent</span>
-                                {% elif pres.statut == 'RETARD' %}
-                                    <span class="badge badge-warning">Retard</span>
-                                {% elif pres.statut == 'ABSENT' %}
-                                    <span class="badge badge-danger">Absent</span>
-                                {% else %}
-                                    <span class="badge badge-info">Congé</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if pres.heure_arrivee %}
-                                    {{ pres.heure_arrivee|time:"H:i" }}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if pres.heure_depart %}
-                                    {{ pres.heure_depart|time:"H:i" }}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="4" style="text-align: center; padding: 3rem; color: var(--text-muted);">
-                                Aucun pointage enregistré pour cette date. <br>
-                                Utilisez le formulaire de gauche pour ajouter des pointages.
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+          </div>
         </div>
+        <div class="qb-form__footer">
+          <button type="submit" class="btn btn-primary" {% if not presences_a_partir %}disabled{% endif %}>
+            🚪 Enregistrer le départ
+          </button>
+        </div>
+      </div>
+    </form>
+    {% else %}
+    <form method="post" action="{% url 'grh:presence_record' %}" class="form-horizontal" id="form-arrivee">
+      {% csrf_token %}
+      <input type="hidden" name="date" value="{{ filter_date|date:'Y-m-d' }}">
+      <input type="hidden" name="etape" value="arrivee">
+      <div class="qb-form__document">
+        <div class="qb-form__section-head">Étape 1 — Pointer l'arrivée</div>
+        <div class="qb-form__body">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="personnel_arrivee">Employé</label>
+              <select name="personnel" id="personnel_arrivee" class="form-control" required {% if not personnel_a_arriver %}disabled{% endif %}>
+                <option value="">-- Sélectionner --</option>
+                {% for p in personnel_a_arriver %}
+                <option value="{{ p.id }}">{{ p.prenom }} {{ p.nom }} ({{ p.fonction }})</option>
+                {% endfor %}
+              </select>
+              {% if not personnel_a_arriver %}
+              <small class="form-help" style="color: var(--success); font-weight: 600;">Toutes les arrivées sont pointées.</small>
+              {% endif %}
+            </div>
+            <div class="form-group">
+              <label for="statut">Statut</label>
+              <select name="statut" id="statut" class="form-control" required>
+                <option value="PRESENT" selected>Présent</option>
+                <option value="RETARD">En retard</option>
+                <option value="ABSENT">Absent</option>
+                <option value="CONGE">En congé</option>
+              </select>
+            </div>
+          </div>
+          <div id="time-fields-arrivee" class="form-group">
+            <label for="heure_arrivee">Heure d'arrivée</label>
+            <input type="time" name="heure_arrivee" id="heure_arrivee" class="form-control" value="{{ now_time }}">
+          </div>
+        </div>
+        <div class="qb-form__footer">
+          <button type="submit" class="btn btn-primary" {% if not personnel_a_arriver %}disabled{% endif %}>
+            🕘 Enregistrer l'arrivée
+          </button>
+        </div>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Registre du {{ filter_date|date:"d F Y" }}</h3>
+      </div>
+      <div class="panel-body table-responsive" style="padding: 0;">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>Employé</th>
+              <th>Statut</th>
+              <th>Arrivée</th>
+              <th>Départ</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pres in presences %}
+            <tr>
+              <td>
+                <strong>{{ pres.personnel.nom }} {{ pres.personnel.prenom }}</strong>
+                <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ pres.personnel.fonction }}</span>
+              </td>
+              <td>
+                {% if pres.statut == 'PRESENT' %}
+                  <span class="badge badge-success">Présent</span>
+                {% elif pres.statut == 'RETARD' %}
+                  <span class="badge badge-warning">Retard</span>
+                {% elif pres.statut == 'ABSENT' %}
+                  <span class="badge badge-danger">Absent</span>
+                {% else %}
+                  <span class="badge badge-info">Congé</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if pres.heure_arrivee %}
+                  {{ pres.heure_arrivee|time:"H:i" }}
+                {% elif pres.statut == 'ABSENT' or pres.statut == 'CONGE' %}
+                  —
+                {% else %}
+                  <span style="color:var(--text-muted);">En attente</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if pres.heure_depart %}
+                  {{ pres.heure_depart|time:"H:i" }}
+                {% elif pres.en_attente_depart %}
+                  <span class="badge badge-warning">À pointer</span>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td style="text-align:right; padding-right:1rem;">
+                {% if pres.en_attente_depart %}
+                <form method="post" action="{% url 'grh:presence_record' %}" style="display:inline;">
+                  {% csrf_token %}
+                  <input type="hidden" name="etape" value="depart">
+                  <input type="hidden" name="date" value="{{ filter_date|date:'Y-m-d' }}">
+                  <input type="hidden" name="personnel" value="{{ pres.personnel_id }}">
+                  <input type="hidden" name="heure_depart" value="{{ now_time }}">
+                  <button type="submit" class="btn btn-secondary btn-sm" title="Pointer le départ maintenant">🚪 Départ</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 3rem; color: var(--text-muted);">
+                Aucun pointage pour cette date.<br>
+                Commencez par l’étape <strong>Arrivée</strong>.
+              </td>
+            </tr>
+            {% endfor %}
+            {% for p in personnel_a_arriver %}
+            <tr style="opacity:.85;">
+              <td>
+                <strong>{{ p.nom }} {{ p.prenom }}</strong>
+                <span style="display:block; font-size:0.8rem; color:var(--text-muted);">{{ p.fonction }}</span>
+              </td>
+              <td><span class="badge badge-warning">Non pointé</span></td>
+              <td colspan="2" style="color:var(--text-muted);">En attente d’arrivée</td>
+              <td></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    function toggleTimeFields(val) {
-        const timeFields = document.getElementById('time-fields');
-        if (val === 'ABSENT' || val === 'CONGE') {
-            timeFields.style.display = 'none';
-        } else {
-            timeFields.style.display = 'grid';
-        }
-    }
+(function () {
+  var statut = document.getElementById('statut');
+  var timeFields = document.getElementById('time-fields-arrivee');
+  var heure = document.getElementById('heure_arrivee');
+  function sync() {
+    if (!statut || !timeFields) return;
+    var hide = statut.value === 'ABSENT' || statut.value === 'CONGE';
+    timeFields.style.display = hide ? 'none' : '';
+    if (heure) heure.required = !hide;
+  }
+  if (statut) {
+    statut.addEventListener('change', sync);
+    sync();
+  }
+})();
 </script>
 {% endblock %}

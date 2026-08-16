@@ -4,7 +4,9 @@
 {% block page_subtitle %}Toutes les écritures saisies, regroupées par compte.{% endblock %}
 
 {% block header_actions %}
+{% if request.user.peut_gerer_ecritures %}
 <a href="{% url 'finances:hoada_ecritures_create' %}" class="btn btn-primary">+ Nouvelle écriture</a>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -83,7 +85,9 @@
 <div class="panel">
     <div class="panel-body" style="text-align:center; color:var(--text-muted); padding:3rem 1.5rem;">
         <p style="margin-bottom:1rem;">Aucune écriture comptable pour cette école.</p>
+        {% if request.user.peut_gerer_ecritures %}
         <a href="{% url 'finances:hoada_ecritures_create' %}" class="btn btn-primary">Saisir une écriture</a>
+        {% endif %}
     </div>
 </div>
 {% endif %}

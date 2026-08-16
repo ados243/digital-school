@@ -1,0 +1,129 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Cours en ligne{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Cours en ligne</h1>
+    <p>Dispensez vos cours en visioconférence : planifiez une séance, démarrez, et les élèves rejoignent la salle.</p>
+</div>
+
+<div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:direct_enseignant_create' %}" class="btn btn-primary">+ Nouveau cours (visio)</a>
+    <a href="{% url 'utilisateur:cours_enseignant_list' %}" class="btn btn-secondary">Cours enregistrés (ressources)</a>
+</div>
+
+<section class="kpi-grid" style="margin-bottom:1.25rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Séances</div>
+            <div class="kpi-value">{{ seances|length }}</div>
+        </div>
+        <div class="kpi-footer">Liste filtrée</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Planifiées</div>
+            <div class="kpi-value">{{ nb_planifies }}</div>
+        </div>
+        <div class="kpi-footer">À venir</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">En cours</div>
+            <div class="kpi-value">{{ nb_en_cours }}</div>
+        </div>
+        <div class="kpi-footer">Salles ouvertes</div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-body">
+        <form method="get" class="form-grid-2" style="align-items:end;">
+            <div class="form-group">
+                <label class="form-label">Statut</label>
+                <select name="statut" class="form-control" onchange="this.form.submit()">
+                    <option value="">Tous</option>
+                    <option value="PLANIFIE" {% if filtre_statut == 'PLANIFIE' %}selected{% endif %}>Planifié</option>
+                    <option value="EN_COURS" {% if filtre_statut == 'EN_COURS' %}selected{% endif %}>En cours</option>
+                    <option value="TERMINE" {% if filtre_statut == 'TERMINE' %}selected{% endif %}>Terminé</option>
+                    <option value="ANNULE" {% if filtre_statut == 'ANNULE' %}selected{% endif %}>Annulé</option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Séance</th>
+                    <th>Classe</th>
+                    <th>Matière</th>
+                    <th>Date / heure</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in seances %}
+                <tr>
+                    <td>
+                        <strong>{{ s.titre }}</strong>
+                        {% if s.description %}
+                        <span style="display:block;font-size:.85rem;color:var(--text-muted);">{{ s.description|truncatechars:80 }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ s.classe }}</td>
+                    <td>{{ s.matiere }}</td>
+                    <td>{{ s.date_heure_prevue|date:"d/m/Y H:i" }} · {{ s.duree_minutes }} min</td>
+                    <td>
+                        {% if s.statut == 'EN_COURS' %}
+                        <span class="badge badge-success">{{ s.get_statut_display }}</span>
+                        {% elif s.statut == 'PLANIFIE' %}
+                        <span class="badge badge-info">{{ s.get_statut_display }}</span>
+                        {% elif s.statut == 'ANNULE' %}
+                        <span class="badge badge-danger">{{ s.get_statut_display }}</span>
+                        {% else %}
+                        <span class="badge">{{ s.get_statut_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="white-space:nowrap;">
+                        {% if s.statut == 'PLANIFIE' or s.statut == 'EN_COURS' %}
+                        <a href="{% url 'utilisateur:direct_enseignant_salle' s.id %}" class="btn btn-primary btn-sm">Rejoindre</a>
+                        <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' s.id 'demarrer' %}" style="display:inline;">
+                            {% csrf_token %}
+                            {% if s.statut == 'PLANIFIE' %}
+                            <button type="submit" class="btn btn-secondary btn-sm">Démarrer</button>
+                            {% endif %}
+                        </form>
+                        {% endif %}
+                        {% if s.statut == 'EN_COURS' %}
+                        <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' s.id 'terminer' %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-secondary btn-sm">Terminer</button>
+                        </form>
+                        {% endif %}
+                        {% if s.statut == 'PLANIFIE' or s.statut == 'EN_COURS' %}
+                        <a href="{% url 'utilisateur:direct_enseignant_update' s.id %}" class="btn btn-secondary btn-sm">Modifier</a>
+                        <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' s.id 'annuler' %}" style="display:inline;" onsubmit="return confirm('Annuler cette séance ?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-secondary btn-sm">Annuler</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center;padding:2rem;">
+                        Aucune séance. <a href="{% url 'utilisateur:direct_enseignant_create' %}">Planifier un cours en visioconférence</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

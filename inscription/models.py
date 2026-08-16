@@ -144,8 +144,21 @@ class Tuteur(models.Model):
     prenom = models.CharField(max_length=250)
     lien_parente = models.CharField(max_length=25, choices=lien_parente_choice, default='pere')
     telephone = models.CharField(max_length=14)
-    telephone2 = models.CharField(max_length=14, null= True)
-    email = models.EmailField(null=True)
+    telephone2 = models.CharField(max_length=14, null= True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+    quartier = models.ForeignKey(
+        Quartier,
+        on_delete=models.DO_NOTHING,
+        null=True,
+        blank=True,
+        verbose_name="Quartier de résidence",
+    )
+    adresse = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        verbose_name="Adresse de résidence",
+    )
 
     class Meta:
         verbose_name = "Tuteur"
@@ -182,28 +195,25 @@ class Eleve(models.Model):
             ('Feminin', 'F'),
         ]
         ecole = models.ForeignKey(Ecole, on_delete=models.CASCADE)
-        matricule = models.CharField(max_length=10)
+        matricule = models.CharField(max_length=10, unique=True)
         nom = models.CharField(max_length=250)
         Post_nom = models.CharField(max_length=250)
         prenom = models.CharField(max_length=250)
         titeur = models.ForeignKey(Tuteur, on_delete=models.CASCADE)
-        sexe = models.CharField(max_length=20, choices=Sexe_choices, default='Masculin')
+        sexe = models.CharField(max_length=20, choices=Sexe_choices)
         date_de_naissance = models.DateField()
-        nationalite = models.CharField(max_length=50)
-        quartier = models.ForeignKey(Quartier, on_delete= models.DO_NOTHING)
-        adresse = models.CharField(max_length=200)
+        nationalite = models.CharField(max_length=50, default="Congolaise")
         photo = models.ImageField(null=True, blank=True)
 
         class Meta:
             verbose_name = "Élève"
             verbose_name_plural = "Élèves"
-            unique_together = ("ecole", "matricule")
 
         def generer_matricule(self):
-            """Matricule séquentiel du type ELV-000001, propre à chaque école."""
+            """Matricule séquentiel du type ELV-000001, unique dans toute l'application."""
             prefixe = "ELV-"
             dernier = (
-                Eleve.objects.filter(ecole=self.ecole, matricule__startswith=prefixe)
+                Eleve.objects.filter(matricule__startswith=prefixe)
                 .order_by("matricule")
                 .last()
             )
@@ -212,7 +222,7 @@ class Eleve(models.Model):
                 try:
                     sequence = int(dernier.matricule[len(prefixe):])
                 except ValueError:
-                    sequence = Eleve.objects.filter(ecole=self.ecole).count()
+                    sequence = Eleve.objects.count()
             return f"{prefixe}{sequence + 1:06d}"
 
         def save(self, *args, **kwargs):

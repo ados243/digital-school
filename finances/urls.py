@@ -36,6 +36,8 @@ urlpatterns = [
     path("paiements/<int:pk>/supprimer/", views.paiement_delete, name="paiement_delete"),
     path("paiements/<int:pk>/print/", views.paiement_print, name="paiement_print"),
     path("classes/<int:classe_id>/paiements/", views.classe_paiements, name="classe_paiements"),
+    path("cloture/", views.cloture_caisse, name="cloture_caisse"),
+    path("budget/", views.budget_annuel, name="budget_annuel"),
 
     # Taux de change CDF ↔ USD
     path("taux-change/", views.taux_change_list, name="taux_change_list"),

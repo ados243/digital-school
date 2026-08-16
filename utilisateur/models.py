@@ -28,7 +28,12 @@ class Utilisateur(AbstractUser):
 
     prenom = models.CharField(max_length=255)
     role = models.CharField(max_length=20, choices=role_choices, default='DIRECTEUR')
-    avatar = models.ImageField(null=True, blank=True)
+    avatar = models.ImageField(
+        upload_to='avatars/%Y/%m/',
+        null=True,
+        blank=True,
+        verbose_name='Photo de profil',
+    )
     ecole = models.ForeignKey(Ecole, on_delete=models.DO_NOTHING, null=True)
 
     # Rattachement du compte à la fiche métier déjà existante (créée par l'école).
@@ -55,20 +60,108 @@ class Utilisateur(AbstractUser):
         return self.role == 'ELEVE'
 
     @property
+    def fonction_personnel(self):
+        """Fonction GRH liée au compte, si une fiche Personnel existe."""
+        from django.core.exceptions import ObjectDoesNotExist
+        try:
+            return self.personnel.fonction
+        except ObjectDoesNotExist:
+            return None
+
+    @property
     def is_caissier(self):
         """Compte rôle CAISSIER, ou fiche personnel GRH avec fonction Caissier."""
         if self.role == 'CAISSIER':
             return True
-        from django.core.exceptions import ObjectDoesNotExist
-        try:
-            return self.personnel.fonction == 'Caissier'
-        except ObjectDoesNotExist:
+        return self.fonction_personnel == 'Caissier'
+
+    @property
+    def is_tresorier(self):
+        """Compte rôle TRESORIE, ou fiche personnel GRH avec fonction Trésorier."""
+        if self.role == 'TRESORIE':
+            return True
+        return self.fonction_personnel == 'Trésorier'
+
+    @property
+    def is_comptable(self):
+        return self.fonction_personnel == 'Comptable'
+
+    @property
+    def is_directeur_etudes(self):
+        return self.fonction_personnel == 'Directeur des études'
+
+    @property
+    def is_secretaire(self):
+        return self.fonction_personnel == 'Secrétaire'
+
+    @property
+    def is_prefet(self):
+        return self.fonction_personnel == 'Préfet'
+
+    @property
+    def is_promoteur(self):
+        return self.fonction_personnel == 'Promoteur'
+
+    @property
+    def is_manager(self):
+        return self.role == 'MANAGER'
+
+    @property
+    def is_directeur(self):
+        """Directeur général (rôle ou fonction GRH), hors directeur des études."""
+        if self.role == 'DIRECTEUR':
+            return True
+        return self.fonction_personnel == 'Directeur'
+
+    @property
+    def is_tresorerie_restreinte(self):
+        """Trésorier / Comptable : module finances uniquement (hors caissier)."""
+        if self.is_caissier:
             return False
+        return self.is_tresorier or self.is_comptable
+
+    @property
+    def peut_acceder_finances(self):
+        """Accès au module finances : trésorerie, manager, directeur, promoteur ou superuser."""
+        if self.is_superuser:
+            return True
+        if self.is_prefet:
+            return False
+        if self.is_promoteur:
+            return True
+        if self.is_tresorerie_restreinte:
+            return True
+        if self.is_manager or self.is_directeur:
+            return True
+        return False
+
+    @property
+    def peut_gerer_ecritures(self):
+        """Passer / modifier les écritures comptables : trésorier, comptable ou superuser."""
+        if self.is_superuser:
+            return True
+        return self.is_tresorerie_restreinte
+
+    @property
+    def peut_modifier_hors_grh(self):
+        """False pour préfet / promoteur (lecture seule hors périmètre d'écriture)."""
+        if self.is_superuser:
+            return True
+        if self.is_prefet or self.is_promoteur:
+            return False
+        return True
 
     @property
     def is_professeur(self):
-        # Un caissier (même rattaché au corps professoral) n'est pas traité comme enseignant.
-        if self.is_caissier:
+        # Profils administratifs restreints : ne pas traiter comme enseignant.
+        if self.is_caissier or self.is_tresorerie_restreinte:
+            return False
+        if (
+            self.is_directeur_etudes
+            or self.is_secretaire
+            or self.is_prefet
+            or self.is_promoteur
+        ):
             return False
         return self.role in ('PROFESSEUR', 'ENSEIGNANT')
 

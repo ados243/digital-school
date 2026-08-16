@@ -14,6 +14,7 @@ urlpatterns = [
     
     # Tuteurs
     path('tuteurs/nouveau/', views.tuteur_create, name='tuteur_create'),
+    path('quartiers/nouveau/', views.quartier_create, name='quartier_create'),
     
     # Inscriptions
     path('inscrire/', views.inscription_create, name='inscription_create'),

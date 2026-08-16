@@ -4,6 +4,72 @@
 {% block page_title %}{% if object %}Modifier{% else %}Nouveau{% endif %} frais scolaire{% endblock %}
 {% block page_subtitle %}Définissez le montant, la section et l'échéance du frais.{% endblock %}
 
+{% block extra_css %}
+<style>
+  .type-frais-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .type-frais-modal.is-open { display: flex; }
+  .type-frais-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+  }
+  .type-frais-modal__dialog {
+    position: relative;
+    z-index: 1;
+    width: min(520px, 100%);
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  }
+  .type-frais-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .type-frais-modal__header h3 { margin: 0; font-size: 1.1rem; }
+  .type-frais-modal__close {
+    border: none;
+    background: transparent;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #64748b;
+  }
+  .type-frais-modal__body { padding: 1.25rem; }
+  .type-frais-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid #e5e7eb;
+  }
+  .type-frais-modal__errors {
+    display: none;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-size: 0.9rem;
+  }
+  .type-frais-modal__errors.is-visible { display: block; }
+  body.modal-open { overflow: hidden; }
+</style>
+{% endblock %}
+
 {% block header_actions %}
 <a href="{% url 'finances:frais_scolaire_list' %}" class="btn btn-secondary">Annuler</a>
 {% endblock %}
@@ -20,7 +86,7 @@
                 <div class="qb-form__status-value">{{ types_count }}</div>
                 <div class="qb-form__status-meta">
                     {% if types_count == 0 %}
-                    <a href="{% url 'finances:type_frais_create' %}">Créer un type de frais</a>
+                    Choisissez « Ajouter » dans le menu type de frais
                     {% else %}Catégories disponibles{% endif %}
                 </div>
             </div>
@@ -80,4 +146,158 @@
         </div>
     </form>
 </div>
+
+{% if type_frais_form and type_frais_create_url %}
+<div class="type-frais-modal" id="type-frais-modal" aria-hidden="true" role="dialog" aria-labelledby="type-frais-modal-title">
+  <div class="type-frais-modal__backdrop" data-close-type-frais-modal></div>
+  <div class="type-frais-modal__dialog">
+    <div class="type-frais-modal__header">
+      <h3 id="type-frais-modal-title">Nouveau type de frais</h3>
+      <button type="button" class="type-frais-modal__close" data-close-type-frais-modal aria-label="Fermer">&times;</button>
+    </div>
+    <form id="type-frais-modal-form" method="post" action="{{ type_frais_create_url }}">
+      {% csrf_token %}
+      <div class="type-frais-modal__body">
+        <div class="type-frais-modal__errors" id="type-frais-modal-errors"></div>
+        <div class="form-grid-2">
+          {% include 'includes/form_field.html' with field=type_frais_form.libelle %}
+          {% include 'includes/form_field.html' with field=type_frais_form.description %}
+        </div>
+      </div>
+      <div class="type-frais-modal__footer">
+        <button type="button" class="btn btn-secondary" data-close-type-frais-modal>Annuler</button>
+        <button type="submit" class="btn btn-primary" id="type-frais-modal-submit">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const select = document.getElementById('{{ form.type_frais.id_for_label }}');
+    const modal = document.getElementById('type-frais-modal');
+    const modalForm = document.getElementById('type-frais-modal-form');
+    const modalErrors = document.getElementById('type-frais-modal-errors');
+    const modalSubmit = document.getElementById('type-frais-modal-submit');
+    if (!select || !modal || !modalForm) return;
+
+    const addOption = document.createElement('option');
+    addOption.value = '__add__';
+    addOption.textContent = '➕ Ajouter';
+    select.appendChild(addOption);
+
+    let previousValue = select.value || '';
+
+    function openModal() {
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        if (modalErrors) {
+            modalErrors.classList.remove('is-visible');
+            modalErrors.textContent = '';
+        }
+        const first = modalForm.querySelector('input, select, textarea');
+        if (first) first.focus();
+    }
+
+    function closeModal() {
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
+        if (select.value === '__add__') {
+            select.value = previousValue;
+        }
+    }
+
+    function addTypeFraisOption(item) {
+        const addOpt = select.querySelector('option[value="__add__"]');
+        const opt = document.createElement('option');
+        opt.value = String(item.id);
+        opt.textContent = item.label || item.libelle;
+        opt.selected = true;
+        if (addOpt) {
+            select.insertBefore(opt, addOpt);
+        } else {
+            select.appendChild(opt);
+        }
+        previousValue = String(item.id);
+        select.value = previousValue;
+    }
+
+    select.addEventListener('focus', () => {
+        if (select.value !== '__add__') previousValue = select.value;
+    });
+
+    select.addEventListener('change', () => {
+        if (select.value === '__add__') {
+            openModal();
+            return;
+        }
+        previousValue = select.value;
+    });
+
+    document.querySelectorAll('[data-close-type-frais-modal]').forEach(btn => {
+        btn.addEventListener('click', closeModal);
+    });
+    document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' && modal.classList.contains('is-open')) {
+            closeModal();
+        }
+    });
+
+    modalForm.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        if (modalErrors) {
+            modalErrors.classList.remove('is-visible');
+            modalErrors.textContent = '';
+        }
+        if (modalSubmit) {
+            modalSubmit.disabled = true;
+            modalSubmit.textContent = 'Enregistrement…';
+        }
+        try {
+            const resp = await fetch(modalForm.action, {
+                method: 'POST',
+                body: new FormData(modalForm),
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) {
+                const parts = [];
+                if (data.errors) {
+                    Object.keys(data.errors).forEach(field => {
+                        parts.push((data.errors[field] || []).join(' '));
+                    });
+                }
+                if (modalErrors) {
+                    modalErrors.textContent = parts.join(' ') || 'Impossible d’enregistrer le type de frais.';
+                    modalErrors.classList.add('is-visible');
+                }
+                return;
+            }
+            addTypeFraisOption(data.type_frais);
+            modalForm.reset();
+            modal.classList.remove('is-open');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        } catch (err) {
+            if (modalErrors) {
+                modalErrors.textContent = 'Erreur réseau. Réessayez.';
+                modalErrors.classList.add('is-visible');
+            }
+        } finally {
+            if (modalSubmit) {
+                modalSubmit.disabled = false;
+                modalSubmit.textContent = 'Enregistrer';
+            }
+        }
+    });
+})();
+</script>
 {% endblock %}

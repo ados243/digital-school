@@ -1,0 +1,225 @@
+{% if quartier_form and quartier_create_url %}
+<style>
+  .quartier-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1600;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .quartier-modal.is-open { display: flex; }
+  .quartier-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+  }
+  .quartier-modal__dialog {
+    position: relative;
+    z-index: 1;
+    width: min(480px, 100%);
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  }
+  .quartier-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .quartier-modal__header h3 { margin: 0; font-size: 1.1rem; }
+  .quartier-modal__close {
+    border: none;
+    background: transparent;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #64748b;
+  }
+  .quartier-modal__body { padding: 1.25rem; }
+  .quartier-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: .65rem;
+    padding: 0 1.25rem 1.25rem;
+  }
+  .quartier-modal__errors {
+    display: none;
+    margin-bottom: .85rem;
+    padding: .75rem .9rem;
+    border-radius: 8px;
+    background: rgba(185, 28, 28, .08);
+    color: #b91c1c;
+    font-size: .9rem;
+  }
+  .quartier-modal__errors.is-visible { display: block; }
+  body.modal-open { overflow: hidden; }
+</style>
+
+<div class="quartier-modal" id="quartier-modal" aria-hidden="true" role="dialog" aria-labelledby="quartier-modal-title" data-select-ids="{{ quartier_select_ids }}">
+  <div class="quartier-modal__backdrop" data-close-quartier-modal></div>
+  <div class="quartier-modal__dialog">
+    <div class="quartier-modal__header">
+      <h3 id="quartier-modal-title">Nouveau quartier</h3>
+      <button type="button" class="quartier-modal__close" data-close-quartier-modal aria-label="Fermer">&times;</button>
+    </div>
+    <form id="quartier-modal-form" method="post" action="{{ quartier_create_url }}">
+      {% csrf_token %}
+      <div class="quartier-modal__body">
+        <div class="quartier-modal__errors" id="quartier-modal-errors"></div>
+        <div class="form-grid-2">
+          {% include 'includes/form_field.html' with field=quartier_form.commune %}
+          {% include 'includes/form_field.html' with field=quartier_form.quartier %}
+        </div>
+      </div>
+      <div class="quartier-modal__footer">
+        <button type="button" class="btn btn-secondary" data-close-quartier-modal>Annuler</button>
+        <button type="submit" class="btn btn-primary" id="quartier-modal-submit">Valider</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('quartier-modal');
+  var modalForm = document.getElementById('quartier-modal-form');
+  var modalErrors = document.getElementById('quartier-modal-errors');
+  var modalSubmit = document.getElementById('quartier-modal-submit');
+  if (!modal || !modalForm) return;
+
+  var selectIds = (modal.getAttribute('data-select-ids') || '')
+    .split(',')
+    .map(function (s) { return s.trim(); })
+    .filter(Boolean);
+  if (!selectIds.length) return;
+
+  var activeSelect = null;
+  var previousValues = {};
+
+  function openModal(select) {
+    activeSelect = select;
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+    if (modalErrors) {
+      modalErrors.classList.remove('is-visible');
+      modalErrors.textContent = '';
+    }
+    var first = modalForm.querySelector('select, input, textarea');
+    if (first) first.focus();
+  }
+
+  function closeModal() {
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+    if (!document.querySelector('.tuteur-modal.is-open, .type-frais-modal.is-open, .cloture-modal.is-open')) {
+      document.body.classList.remove('modal-open');
+    }
+    if (activeSelect && activeSelect.value === '__add_quartier__') {
+      activeSelect.value = previousValues[activeSelect.id] || '';
+    }
+    activeSelect = null;
+  }
+
+  function addQuartierOption(select, item) {
+    var addOpt = select.querySelector('option[value="__add_quartier__"]');
+    var opt = document.createElement('option');
+    opt.value = String(item.id);
+    opt.textContent = item.label || item.quartier;
+    opt.selected = true;
+    if (addOpt) select.insertBefore(opt, addOpt);
+    else select.appendChild(opt);
+    previousValues[select.id] = String(item.id);
+    select.value = String(item.id);
+  }
+
+  selectIds.forEach(function (id) {
+    var select = document.getElementById(id);
+    if (!select) return;
+    if (!select.querySelector('option[value="__add_quartier__"]')) {
+      var addOption = document.createElement('option');
+      addOption.value = '__add_quartier__';
+      addOption.textContent = '➕ Ajouter un quartier';
+      select.appendChild(addOption);
+    }
+    previousValues[select.id] = select.value || '';
+    select.addEventListener('focus', function () {
+      if (select.value !== '__add_quartier__') previousValues[select.id] = select.value;
+    });
+    select.addEventListener('change', function () {
+      if (select.value === '__add_quartier__') {
+        openModal(select);
+        return;
+      }
+      previousValues[select.id] = select.value;
+    });
+  });
+
+  document.querySelectorAll('[data-close-quartier-modal]').forEach(function (btn) {
+    btn.addEventListener('click', closeModal);
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && modal.classList.contains('is-open')) closeModal();
+  });
+
+  modalForm.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    if (modalErrors) {
+      modalErrors.classList.remove('is-visible');
+      modalErrors.textContent = '';
+    }
+    if (modalSubmit) {
+      modalSubmit.disabled = true;
+      modalSubmit.textContent = 'Enregistrement…';
+    }
+    try {
+      var resp = await fetch(modalForm.action, {
+        method: 'POST',
+        body: new FormData(modalForm),
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'application/json',
+        },
+      });
+      var data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        var msgs = [];
+        if (data.errors) {
+          Object.keys(data.errors).forEach(function (k) {
+            msgs = msgs.concat(data.errors[k]);
+          });
+        }
+        if (modalErrors) {
+          modalErrors.textContent = msgs.join(' ') || 'Erreur lors de l’enregistrement.';
+          modalErrors.classList.add('is-visible');
+        }
+        return;
+      }
+      selectIds.forEach(function (id) {
+        var select = document.getElementById(id);
+        if (select) addQuartierOption(select, data.quartier);
+      });
+      modalForm.reset();
+      closeModal();
+    } catch (err) {
+      if (modalErrors) {
+        modalErrors.textContent = 'Erreur réseau. Réessayez.';
+        modalErrors.classList.add('is-visible');
+      }
+    } finally {
+      if (modalSubmit) {
+        modalSubmit.disabled = false;
+        modalSubmit.textContent = 'Valider';
+      }
+    }
+  });
+})();
+</script>
+{% endif %}

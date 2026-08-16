@@ -1,7 +1,8 @@
 from django import forms
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm, PasswordResetForm, SetPasswordForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 
 from common.form_mixins import FormControlMixin
 from inscription.models import Ecole, Eleve, Tuteur
@@ -164,3 +165,108 @@ class InscriptionForm(FormControlMixin, forms.Form):
             cible.save(update_fields=['utilisateur'])
 
         return user
+
+
+class ProfilForm(FormControlMixin, forms.ModelForm):
+    """Personnalisation du compte connecté."""
+
+    telephone = forms.CharField(
+        label="Téléphone",
+        max_length=30,
+        required=False,
+        widget=forms.TextInput(attrs={'placeholder': 'Ex: +243…'}),
+    )
+
+    class Meta:
+        model = Utilisateur
+        fields = ['prenom', 'last_name', 'email', 'avatar']
+        labels = {
+            'prenom': 'Prénom',
+            'last_name': 'Nom',
+            'email': 'Adresse e-mail',
+            'avatar': 'Photo de profil',
+        }
+        widgets = {
+            'email': forms.EmailInput(attrs={'placeholder': 'vous@exemple.com'}),
+        }
+        help_texts = {
+            'email': 'Requis pour récupérer un mot de passe perdu.',
+            'avatar': 'JPG ou PNG, de préférence carrée.',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        user = self.instance
+        initial_tel = ''
+        if getattr(user, 'tuteur_id', None) and user.tuteur:
+            initial_tel = user.tuteur.telephone or ''
+        else:
+            try:
+                initial_tel = user.personnel.telephone or ''
+            except Exception:
+                initial_tel = ''
+        self.fields['telephone'].initial = initial_tel
+        self.fields['email'].required = False
+
+    def save(self, commit=True):
+        user = super().save(commit=commit)
+        telephone = (self.cleaned_data.get('telephone') or '').strip()
+        if not commit:
+            return user
+
+        if user.tuteur_id and user.tuteur:
+            user.tuteur.telephone = telephone
+            user.tuteur.save(update_fields=['telephone'])
+        else:
+            try:
+                personnel = user.personnel
+            except Exception:
+                personnel = None
+            if personnel is not None:
+                personnel.telephone = telephone
+                personnel.save(update_fields=['telephone'])
+        return user
+
+
+class ChangerMotDePasseForm(FormControlMixin, PasswordChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['old_password'].label = 'Mot de passe actuel'
+        self.fields['new_password1'].label = 'Nouveau mot de passe'
+        self.fields['new_password2'].label = 'Confirmer le nouveau mot de passe'
+
+
+class MotDePasseOublieForm(FormControlMixin, PasswordResetForm):
+    """Accepte un e-mail ou un identifiant de connexion."""
+
+    email = forms.CharField(
+        label='Identifiant ou e-mail',
+        max_length=254,
+        widget=forms.TextInput(attrs={
+            'autofocus': True,
+            'placeholder': 'Votre identifiant ou adresse e-mail',
+        }),
+    )
+
+    def get_users(self, email_or_username):
+        value = (email_or_username or '').strip()
+        if not value:
+            return []
+        actifs = Utilisateur.objects.filter(is_active=True).filter(
+            Q(email__iexact=value) | Q(username__iexact=value)
+        )
+        return (
+            u for u in actifs
+            if u.has_usable_password() and (u.email or '').strip()
+        )
+
+    def clean_email(self):
+        # Message identique que le compte existe ou non (anti-énumération).
+        return self.cleaned_data['email'].strip()
+
+
+class NouveauMotDePasseForm(FormControlMixin, SetPasswordForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['new_password1'].label = 'Nouveau mot de passe'
+        self.fields['new_password2'].label = 'Confirmer le nouveau mot de passe'

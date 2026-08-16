@@ -17,13 +17,15 @@
     <a href="{% url 'utilisateur:chapitre_enseignant_delete' chapitre.id %}" class="btn btn-danger btn-sm" style="background:var(--danger);border-color:var(--danger);">Supprimer le chapitre</a>
 </div>
 
-{% if chapitre.image or chapitre.video_url or chapitre.contenu or chapitre.resume %}
+{% if chapitre.image or chapitre.video or chapitre.contenu or chapitre.resume %}
 <div class="panel" style="margin-bottom:1.25rem;">
     <div class="panel-header"><h3>Médias & intro du chapitre</h3></div>
     <div class="panel-body">
         {% if chapitre.resume %}<p><strong>Résumé :</strong> {{ chapitre.resume }}</p>{% endif %}
         {% if chapitre.contenu %}<div class="ll-prose">{{ chapitre.contenu|linebreaks }}</div>{% endif %}
-        {% if chapitre.video_url %}<p><a href="{{ chapitre.video_url }}" target="_blank" rel="noopener">▶ Vidéo du chapitre</a></p>{% endif %}
+        {% if chapitre.video %}
+        {% include 'includes/video_player.html' with video_file=chapitre.video title=chapitre.titre %}
+        {% endif %}
         {% if chapitre.image %}
         <p style="margin-top:.75rem;"><img src="{{ chapitre.image.url }}" alt="" style="max-width:100%;max-height:240px;border-radius:8px;"></p>
         {% endif %}
@@ -55,10 +57,10 @@
                     </td>
                     <td>{{ sc.get_type_contenu_display }}</td>
                     <td>
-                        {% if sc.video_url %}Vidéo{% endif %}
-                        {% if sc.image %}{% if sc.video_url %} · {% endif %}Image{% endif %}
-                        {% if sc.fichier %}{% if sc.video_url or sc.image %} · {% endif %}Fichier{% endif %}
-                        {% if not sc.video_url and not sc.image and not sc.fichier %}—{% endif %}
+                        {% if sc.video %}Vidéo{% endif %}
+                        {% if sc.image %}{% if sc.video %} · {% endif %}Image{% endif %}
+                        {% if sc.fichier %}{% if sc.video or sc.image %} · {% endif %}Fichier{% endif %}
+                        {% if not sc.video and not sc.image and not sc.fichier %}—{% endif %}
                     </td>
                     <td>{{ sc.duree_affichee }}</td>
                     <td style="text-align:right;white-space:nowrap;">
@@ -89,7 +91,7 @@
                         {% include 'includes/form_field.html' with field=sous_form.type_contenu %}
                         {% include 'includes/form_field.html' with field=sous_form.duree_minutes %}
                         {% include 'includes/form_field.html' with field=sous_form.ordre %}
-                        {% include 'includes/form_field.html' with field=sous_form.video_url %}
+                        {% include 'includes/form_field.html' with field=sous_form.video %}
                         {% include 'includes/form_field.html' with field=sous_form.image %}
                         {% include 'includes/form_field.html' with field=sous_form.fichier %}
                         {% include 'includes/form_field.html' with field=sous_form.publie %}

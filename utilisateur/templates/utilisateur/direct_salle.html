@@ -1,0 +1,470 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ seance.titre }} — Visio{% endblock %}
+
+{% block extra_css %}
+<style>
+  .live-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+    gap: 0.75rem;
+    min-height: calc(100vh - 8rem);
+    align-items: stretch;
+  }
+  @media (max-width: 960px) {
+    .live-shell { grid-template-columns: 1fr; }
+  }
+  .live-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .live-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+  }
+  .live-toolbar__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .live-toolbar__meta strong { font-size: 1.05rem; }
+  .live-toolbar__meta span { color: var(--text-muted); font-size: 0.9rem; }
+  .live-frame-wrap {
+    flex: 1;
+    min-height: 60vh;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    background: #0f172a;
+    position: relative;
+  }
+  .live-frame-wrap iframe {
+    width: 100%;
+    height: 100%;
+    min-height: 60vh;
+    border: 0;
+  }
+  .live-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem;
+    text-align: center;
+    color: #e2e8f0;
+    background: linear-gradient(160deg, #0f172a, #1e293b);
+    z-index: 1;
+  }
+  .live-fallback p { margin: 0; max-width: 28rem; color: #cbd5e1; }
+  .portal-main.live-full { max-width: none; }
+
+  .live-qa {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    min-height: 60vh;
+    max-height: calc(100vh - 8rem);
+    overflow: hidden;
+  }
+  .live-qa__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .live-qa__head h2 {
+    margin: 0;
+    font-size: 1rem;
+  }
+  .live-qa__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.4rem;
+    height: 1.4rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: #0077c5;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .live-qa__list {
+    flex: 1;
+    overflow: auto;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    background: #f8fafc;
+  }
+  .live-qa__empty {
+    margin: auto;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    padding: 1.5rem;
+  }
+  .qa-item {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+  }
+  .qa-item.is-pinned {
+    border-color: #0077c5;
+    box-shadow: inset 3px 0 0 #0077c5;
+  }
+  .qa-item.is-answered {
+    opacity: 0.85;
+  }
+  .qa-item__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 0.35rem;
+  }
+  .qa-item__text {
+    margin: 0;
+    font-size: 0.92rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .qa-item__answer {
+    margin: 0.55rem 0 0;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1e3a5f;
+    font-size: 0.88rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .qa-item__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.55rem;
+  }
+  .qa-item__actions .btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+  .live-qa__form {
+    border-top: 1px solid #e5e7eb;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .live-qa__form textarea {
+    min-height: 72px;
+    resize: vertical;
+  }
+  .live-qa__error {
+    display: none;
+    color: #b91c1c;
+    font-size: 0.85rem;
+  }
+  .live-qa__error.is-visible { display: block; }
+  .qa-reply-box {
+    display: none;
+    margin-top: 0.5rem;
+    gap: 0.4rem;
+    flex-direction: column;
+  }
+  .qa-reply-box.is-open { display: flex; }
+</style>
+{% endblock %}
+
+{% block portal_main_class %}live-full{% endblock %}
+
+{% block content %}
+<div class="live-shell"
+     data-role="{{ role }}"
+     data-questions-url="{{ questions_url }}"
+     data-question-create-url="{{ question_create_url }}"
+     data-csrf="{{ csrf_token }}">
+    <div class="live-main">
+        <div class="live-toolbar">
+            <div class="live-toolbar__meta">
+                <strong>{{ seance.titre }}</strong>
+                <span>{{ seance.matiere }} · {{ seance.classe }} · {{ seance.date_heure_prevue|date:"d/m/Y H:i" }}</span>
+            </div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                <a href="{{ jitsi_url }}" class="btn btn-primary btn-sm" target="_blank" rel="noopener">Ouvrir la visio</a>
+                {% if role == 'enseignant' and seance.statut == 'EN_COURS' %}
+                <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' seance.id 'terminer' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary btn-sm">Terminer la séance</button>
+                </form>
+                {% endif %}
+                <a href="{% url retour_url %}" class="btn btn-secondary btn-sm">Quitter</a>
+            </div>
+        </div>
+        <div class="live-frame-wrap">
+            <div class="live-fallback" id="live-fallback">
+                <strong style="font-size:1.2rem;">Salle de visioconférence</strong>
+                <p>Autorisez la caméra et le micro. Posez vos questions dans le panneau à droite.</p>
+                <a href="{{ jitsi_url }}" class="btn btn-primary" target="_blank" rel="noopener">Entrer dans la salle</a>
+            </div>
+            <iframe
+                id="live-iframe"
+                src="{{ jitsi_url }}"
+                allow="camera; microphone; fullscreen; display-capture; autoplay"
+                allowfullscreen
+                title="Salle de visioconférence {{ seance.titre }}"
+                style="position:relative;z-index:2;">
+            </iframe>
+        </div>
+    </div>
+
+    <aside class="live-qa" aria-label="Questions du cours">
+        <div class="live-qa__head">
+            <h2>Questions</h2>
+            <span class="live-qa__badge" id="qa-ouvertes" title="Questions ouvertes">0</span>
+        </div>
+        <div class="live-qa__list" id="qa-list">
+            <div class="live-qa__empty" id="qa-empty">Aucune question pour le moment.</div>
+        </div>
+        <form class="live-qa__form" id="qa-form">
+            <div class="live-qa__error" id="qa-error"></div>
+            <textarea id="qa-texte" class="form-control" maxlength="1000"
+                      placeholder="{% if role == 'enseignant' %}Ajouter une question pour la classe…{% else %}Posez votre question à l’enseignant…{% endif %}"
+                      required></textarea>
+            <button type="submit" class="btn btn-primary" id="qa-submit">Envoyer la question</button>
+        </form>
+    </aside>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const shell = document.querySelector('.live-shell');
+    if (!shell) return;
+
+    const role = shell.dataset.role;
+    const questionsUrl = shell.dataset.questionsUrl;
+    const createUrl = shell.dataset.questionCreateUrl;
+    const csrf = shell.dataset.csrf;
+    const listEl = document.getElementById('qa-list');
+    const emptyEl = document.getElementById('qa-empty');
+    const badgeEl = document.getElementById('qa-ouvertes');
+    const form = document.getElementById('qa-form');
+    const texteEl = document.getElementById('qa-texte');
+    const errorEl = document.getElementById('qa-error');
+    const submitBtn = document.getElementById('qa-submit');
+
+    const known = new Map();
+
+    function esc(s) {
+        return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function timeLabel(iso) {
+        if (!iso) return '';
+        try {
+            const d = new Date(iso);
+            return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function actionUrl(questionId, action) {
+        return `/mon-espace/direct/{{ seance.id }}/questions/${questionId}/${action}/`;
+    }
+
+    function renderQuestion(q) {
+        let el = known.get(q.id);
+        if (!el) {
+            el = document.createElement('article');
+            el.className = 'qa-item';
+            el.dataset.id = String(q.id);
+            known.set(q.id, el);
+            if (emptyEl) emptyEl.style.display = 'none';
+            listEl.appendChild(el);
+        }
+
+        el.classList.toggle('is-pinned', !!q.epinglee);
+        el.classList.toggle('is-answered', q.statut === 'REPONDUE');
+
+        let actions = '';
+        if (role === 'enseignant') {
+            actions = `
+              <div class="qa-item__actions">
+                <button type="button" class="btn btn-secondary" data-reply="${q.id}">Répondre</button>
+                <button type="button" class="btn btn-secondary" data-mark="${q.id}">Traité oralement</button>
+                <button type="button" class="btn btn-secondary" data-pin="${q.id}">${q.epinglee ? 'Désépingler' : 'Épingler'}</button>
+              </div>
+              <div class="qa-reply-box" id="reply-${q.id}">
+                <textarea class="form-control" rows="2" placeholder="Votre réponse écrite…"></textarea>
+                <button type="button" class="btn btn-primary btn-sm" data-send-reply="${q.id}">Publier la réponse</button>
+              </div>`;
+        }
+
+        el.innerHTML = `
+          <div class="qa-item__meta">
+            <span><strong>${esc(q.auteur_nom)}</strong>${q.epinglee ? ' · épinglée' : ''}</span>
+            <span>${esc(timeLabel(q.created_at))}${q.statut === 'REPONDUE' ? ' · répondue' : ''}</span>
+          </div>
+          <p class="qa-item__text">${esc(q.texte)}</p>
+          ${q.reponse ? `<div class="qa-item__answer"><strong>Réponse :</strong> ${esc(q.reponse)}</div>` : ''}
+          ${actions}
+        `;
+    }
+
+    function sortList() {
+        const items = Array.from(known.values());
+        items.sort((a, b) => {
+            const qa = a.classList.contains('is-pinned') ? 1 : 0;
+            const qb = b.classList.contains('is-pinned') ? 1 : 0;
+            if (qa !== qb) return qb - qa;
+            return Number(a.dataset.id) - Number(b.dataset.id);
+        });
+        items.forEach(el => listEl.appendChild(el));
+        if (!items.length && emptyEl) emptyEl.style.display = 'block';
+    }
+
+    async function refresh() {
+        try {
+            const resp = await fetch(questionsUrl, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            const data = await resp.json();
+            if (!resp.ok || !data.ok) return;
+            (data.questions || []).forEach(renderQuestion);
+            sortList();
+            if (badgeEl) badgeEl.textContent = String(data.count_ouvertes || 0);
+        } catch (e) { /* ignore poll errors */ }
+    }
+
+    async function postAction(url, body) {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+                'X-CSRFToken': csrf,
+            },
+            body: body,
+        });
+        return resp.json();
+    }
+
+    if (form) {
+        form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            if (errorEl) {
+                errorEl.classList.remove('is-visible');
+                errorEl.textContent = '';
+            }
+            const texte = (texteEl.value || '').trim();
+            if (texte.length < 3) {
+                if (errorEl) {
+                    errorEl.textContent = 'Posez une question d’au moins 3 caractères.';
+                    errorEl.classList.add('is-visible');
+                }
+                return;
+            }
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Envoi…';
+            }
+            try {
+                const fd = new FormData();
+                fd.append('texte', texte);
+                const data = await postAction(createUrl, fd);
+                if (!data.ok) {
+                    if (errorEl) {
+                        errorEl.textContent = data.error || 'Impossible d’envoyer la question.';
+                        errorEl.classList.add('is-visible');
+                    }
+                    return;
+                }
+                texteEl.value = '';
+                renderQuestion(data.question);
+                sortList();
+                refresh();
+            } catch (e) {
+                if (errorEl) {
+                    errorEl.textContent = 'Erreur réseau. Réessayez.';
+                    errorEl.classList.add('is-visible');
+                }
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Envoyer la question';
+                }
+            }
+        });
+    }
+
+    listEl.addEventListener('click', async (ev) => {
+        const replyBtn = ev.target.closest('[data-reply]');
+        if (replyBtn) {
+            const box = document.getElementById('reply-' + replyBtn.dataset.reply);
+            if (box) box.classList.toggle('is-open');
+            return;
+        }
+        const sendBtn = ev.target.closest('[data-send-reply]');
+        if (sendBtn) {
+            const id = sendBtn.dataset.sendReply;
+            const box = document.getElementById('reply-' + id);
+            const ta = box && box.querySelector('textarea');
+            const fd = new FormData();
+            fd.append('reponse', (ta && ta.value || '').trim());
+            const data = await postAction(actionUrl(id, 'repondre'), fd);
+            if (data.ok) {
+                renderQuestion(data.question);
+                sortList();
+                refresh();
+            }
+            return;
+        }
+        const markBtn = ev.target.closest('[data-mark]');
+        if (markBtn) {
+            const data = await postAction(actionUrl(markBtn.dataset.mark, 'marquer'), new FormData());
+            if (data.ok) {
+                renderQuestion(data.question);
+                sortList();
+                refresh();
+            }
+            return;
+        }
+        const pinBtn = ev.target.closest('[data-pin]');
+        if (pinBtn) {
+            const data = await postAction(actionUrl(pinBtn.dataset.pin, 'epingler'), new FormData());
+            if (data.ok) {
+                renderQuestion(data.question);
+                sortList();
+                refresh();
+            }
+        }
+    });
+
+    refresh();
+    setInterval(refresh, 4000);
+})();
+</script>
+{% endblock %}

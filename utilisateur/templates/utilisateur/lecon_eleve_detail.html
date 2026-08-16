@@ -25,16 +25,12 @@
 
     <div class="ll-player-grid">
         <div class="ll-player-main">
-            {% with embed=lecon.video_url|video_embed %}
-            {% if embed %}
-            <div class="ll-video">
-                <iframe src="{{ embed }}" title="{{ lecon.titre }}" allowfullscreen
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>
-            </div>
-            {% elif lecon.video_url %}
-            <div class="ll-video ll-video--link">
-                <a href="{{ lecon.video_url }}" target="_blank" rel="noopener" class="btn btn-primary">Ouvrir la vidéo</a>
-            </div>
+            {% if lecon.video %}
+                {% if lecon.image %}
+                {% include 'includes/video_player.html' with video_file=lecon.video title=lecon.titre poster=lecon.image.url %}
+                {% else %}
+                {% include 'includes/video_player.html' with video_file=lecon.video title=lecon.titre %}
+                {% endif %}
             {% elif lecon.image %}
             <div class="ll-video ll-video--image">
                 <img src="{{ lecon.image.url }}" alt="{{ lecon.titre }}">
@@ -48,7 +44,6 @@
                 </div>
             </div>
             {% endif %}
-            {% endwith %}
 
             <div class="ll-player-article">
                 <div class="ll-player__meta">
@@ -61,7 +56,7 @@
                 <h1>{{ lecon.titre }}</h1>
                 {% if lecon.resume %}<p class="ll-lead">{{ lecon.resume }}</p>{% endif %}
 
-                {% if lecon.image and lecon.video_url %}
+                {% if lecon.image and lecon.video %}
                 <p style="margin:1rem 0;"><img src="{{ lecon.image.url }}" alt="" style="max-width:100%;border-radius:8px;"></p>
                 {% endif %}
 

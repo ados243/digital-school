@@ -1,0 +1,66 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Cours en ligne{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Cours en ligne</h1>
+    <p>Rejoignez vos cours en visioconférence pour la classe {{ inscription.classe }}.</p>
+</div>
+
+<div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:cours_eleve_list' %}" class="btn btn-secondary">Ressources de cours (hors visio)</a>
+</div>
+
+<div class="panel">
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Séance</th>
+                    <th>Matière</th>
+                    <th>Enseignant</th>
+                    <th>Date / heure</th>
+                    <th>Statut</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in seances %}
+                <tr>
+                    <td>
+                        <strong>{{ s.titre }}</strong>
+                        {% if s.description %}
+                        <span style="display:block;font-size:.85rem;color:var(--text-muted);">{{ s.description|truncatechars:90 }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ s.matiere }}</td>
+                    <td>{{ s.enseignant }}</td>
+                    <td>{{ s.date_heure_prevue|date:"d/m/Y H:i" }} · {{ s.duree_minutes }} min</td>
+                    <td>
+                        {% if s.statut == 'EN_COURS' %}
+                        <span class="badge badge-success">En cours</span>
+                        {% else %}
+                        <span class="badge badge-info">Planifié</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if s.peut_rejoindre %}
+                        <a href="{% url 'utilisateur:direct_eleve_salle' s.id %}" class="btn btn-primary btn-sm">Rejoindre</a>
+                        {% else %}
+                        <span style="font-size:.85rem;color:var(--text-muted);">Bientôt disponible</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center;padding:2rem;">
+                        Aucun cours en direct pour le moment.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

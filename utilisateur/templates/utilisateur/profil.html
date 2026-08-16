@@ -1,0 +1,74 @@
+{% extends base_template %}
+
+{% block title %}Mon profil{% endblock %}
+{% block page_title %}Mon profil{% endblock %}
+{% block page_subtitle %}Personnalisez votre compte et sécurisez votre accès.{% endblock %}
+
+{% block content %}
+<div class="portal-hero" style="margin-bottom:1.25rem;">
+    <h1>Mon profil</h1>
+    <p>Identifiant : <strong>{{ request.user.username }}</strong> · {{ request.user.get_role_display }}</p>
+</div>
+
+<div class="form-grid-2" style="align-items:start; gap:1.25rem;">
+    <div class="qb-form">
+        <form method="post" enctype="multipart/form-data" class="form-horizontal">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="profil">
+            {% include 'includes/form_errors.html' with form=form %}
+            <div class="qb-form__layout qb-form__layout--single">
+                <div class="qb-form__document">
+                    <div class="qb-form__section-head">Informations personnelles</div>
+                    <div class="qb-form__body">
+                        <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+                            {% if request.user.avatar %}
+                            <img src="{{ request.user.avatar.url }}" alt="Avatar"
+                                 style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid var(--border);">
+                            {% else %}
+                            <span class="sidebar-footer__avatar" style="width:72px;height:72px;font-size:1.4rem;display:inline-flex;align-items:center;justify-content:center;">
+                                {{ request.user.prenom|slice:":1"|upper }}{{ request.user.last_name|slice:":1"|upper }}
+                            </span>
+                            {% endif %}
+                            <div>
+                                <div style="font-weight:600;">{{ request.user.nom_complet }}</div>
+                                <div style="color:var(--text-muted);font-size:.9rem;">{{ request.user.email|default:"Aucun e-mail renseigné" }}</div>
+                            </div>
+                        </div>
+                        <div class="form-grid-2">
+                            {% include 'includes/form_field.html' with field=form.prenom %}
+                            {% include 'includes/form_field.html' with field=form.last_name %}
+                            {% include 'includes/form_field.html' with field=form.email %}
+                            {% include 'includes/form_field.html' with field=form.telephone %}
+                            {% include 'includes/form_field.html' with field=form.avatar %}
+                        </div>
+                    </div>
+                    <div class="qb-form__footer">
+                        <button type="submit" class="btn btn-primary">Enregistrer le profil</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="qb-form">
+        <form method="post" class="form-horizontal">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="password">
+            {% include 'includes/form_errors.html' with form=password_form %}
+            <div class="qb-form__layout qb-form__layout--single">
+                <div class="qb-form__document">
+                    <div class="qb-form__section-head">Changer le mot de passe</div>
+                    <div class="qb-form__body">
+                        {% include 'includes/form_field.html' with field=password_form.old_password %}
+                        {% include 'includes/form_field.html' with field=password_form.new_password1 %}
+                        {% include 'includes/form_field.html' with field=password_form.new_password2 %}
+                    </div>
+                    <div class="qb-form__footer">
+                        <button type="submit" class="btn btn-primary">Mettre à jour le mot de passe</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

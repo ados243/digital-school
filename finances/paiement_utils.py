@@ -187,6 +187,261 @@ def minerval_par_classe(ecole, filters=None):
     )
 
 
+def projection_budget_minerval(ecole, annee):
+    """
+    Projette le budget annuel : pour chaque classe,
+    capacité_max × somme des frais minerval de la section (année donnée).
+    """
+    return _projection_frais_par_capacite(
+        ecole, annee, mode="minerval"
+    )
+
+
+def projection_budget_inscription(ecole, annee):
+    """Capacité × frais d'inscription par section."""
+    return _projection_frais_par_capacite(
+        ecole, annee, mode="inscription"
+    )
+
+
+def _projection_frais_par_capacite(ecole, annee, mode="minerval"):
+    from inscription.tenant import classes_for_ecole
+
+    if ecole is None or annee is None:
+        return {
+            "lignes": [],
+            "capacite_totale": 0,
+            "total_usd": Decimal("0"),
+            "total_cdf": Decimal("0"),
+            "alertes": ["École ou année scolaire manquante."],
+        }
+
+    if mode == "inscription":
+        types_filtre = types_frais_inscription_for_ecole(ecole)
+        fallback_q = Q(type_frais__libelle__icontains="inscription") | Q(
+            type_frais__libelle__icontains="inscr"
+        )
+        label_manquant = "inscription"
+    else:
+        types_filtre = types_frais_minerval_for_ecole(ecole)
+        fallback_q = Q(type_frais__libelle__icontains="minerval") | Q(
+            type_frais__libelle__icontains="scolar"
+        )
+        label_manquant = "minerval"
+
+    frais_qs = (
+        frais_for_ecole(ecole)
+        .filter(annee=annee)
+        .select_related("type_frais", "section", "devise")
+    )
+    if types_filtre.exists():
+        frais_qs = frais_qs.filter(type_frais__in=types_filtre)
+    else:
+        frais_qs = frais_qs.filter(fallback_q)
+
+    frais_par_section = {}
+    for frais in frais_qs:
+        frais_par_section.setdefault(frais.section_id, []).append(frais)
+
+    classes = (
+        classes_for_ecole(ecole)
+        .select_related("section")
+        .order_by("section__section", "classe")
+    )
+
+    lignes = []
+    capacite_totale = 0
+    total_usd = Decimal("0")
+    total_cdf = Decimal("0")
+    alertes = []
+    sections_sans = set()
+
+    for classe in classes:
+        capacite = max(0, int(classe.capacite_max or 0))
+        capacite_totale += capacite
+        frais_section = frais_par_section.get(classe.section_id, [])
+
+        if not frais_section:
+            sections_sans.add(str(classe.section))
+            lignes.append(
+                {
+                    "classe": classe,
+                    "capacite": capacite,
+                    "montant_unitaire": Decimal("0"),
+                    "devise": None,
+                    "sous_total": Decimal("0"),
+                    "type_frais_libelle": "",
+                    "sans_minerval": True,
+                }
+            )
+            continue
+
+        par_devise = {}
+        libelles = []
+        for f in frais_section:
+            code = (f.devise.devise if f.devise else "").upper()
+            par_devise.setdefault(code, {"montant": Decimal("0"), "devise": f.devise})
+            par_devise[code]["montant"] += _decimal(f.montant)
+            lib = getattr(f.type_frais, "libelle", "") or ""
+            if lib and lib not in libelles:
+                libelles.append(lib)
+
+        if "USD" in par_devise:
+            code = "USD"
+        elif "CDF" in par_devise:
+            code = "CDF"
+        else:
+            code = next(iter(par_devise))
+
+        montant_unitaire = par_devise[code]["montant"]
+        devise = par_devise[code]["devise"]
+        sous_total = (montant_unitaire * Decimal(capacite)).quantize(Decimal("0.01"))
+
+        if code == "USD":
+            total_usd += sous_total
+        elif code == "CDF":
+            total_cdf += sous_total
+
+        autres = [c for c in par_devise if c != code]
+        if autres:
+            alertes.append(
+                f"Section {classe.section} : {label_manquant} multi-devises "
+                f"({code} retenu, hors {', '.join(autres)})."
+            )
+
+        lignes.append(
+            {
+                "classe": classe,
+                "capacite": capacite,
+                "montant_unitaire": montant_unitaire,
+                "devise": devise,
+                "sous_total": sous_total,
+                "type_frais_libelle": " + ".join(libelles),
+                "sans_minerval": False,
+            }
+        )
+
+    if sections_sans:
+        alertes.append(
+            f"Aucun frais {label_manquant} configuré pour : "
+            + ", ".join(sorted(sections_sans))
+            + "."
+        )
+
+    return {
+        "lignes": lignes,
+        "capacite_totale": capacite_totale,
+        "total_usd": total_usd,
+        "total_cdf": total_cdf,
+        "alertes": alertes,
+    }
+
+
+def projection_salaires_annuels(ecole):
+    """Projection annuelle des salaires : contrats actifs × 12 mois."""
+    from grh.tenant import contrats_for_ecole
+
+    total_usd = Decimal("0")
+    total_cdf = Decimal("0")
+    if ecole is None:
+        return {"total_usd": total_usd, "total_cdf": total_cdf, "nb_contrats": 0}
+
+    contrats = (
+        contrats_for_ecole(ecole)
+        .filter(statut="ACTIF")
+        .select_related("devise")
+    )
+    nb = 0
+    for c in contrats:
+        nb += 1
+        annuel = (_decimal(c.salaire_base) * Decimal("12")).quantize(Decimal("0.01"))
+        code = (c.devise.devise if c.devise else "").upper()
+        if code == "USD":
+            total_usd += annuel
+        elif code == "CDF":
+            total_cdf += annuel
+    return {"total_usd": total_usd, "total_cdf": total_cdf, "nb_contrats": nb}
+
+
+def construire_postes_budget(ecole, annee, budget=None):
+    """
+    Construit la liste des postes (toutes rubriques actives) avec montants
+    proposés (auto) ou déjà figés sur le budget.
+    """
+    from .defaults import assurer_rubriques_budget
+    from .models import RubriqueBudget
+
+    assurer_rubriques_budget()
+    rubriques = list(RubriqueBudget.objects.filter(actif=True))
+
+    proj_min = projection_budget_minerval(ecole, annee)
+    proj_ins = projection_budget_inscription(ecole, annee)
+    proj_sal = projection_salaires_annuels(ecole)
+
+    saved = {}
+    if budget is not None:
+        for p in budget.postes.select_related("rubrique"):
+            saved[p.rubrique_id] = p
+
+    postes = []
+    for rub in rubriques:
+        montant_usd = Decimal("0")
+        montant_cdf = Decimal("0")
+        est_auto = bool(rub.calcul_auto)
+        note = ""
+
+        if rub.calcul_auto == "MINERVAL":
+            montant_usd = proj_min["total_usd"]
+            montant_cdf = proj_min["total_cdf"]
+            note = f"Capacité {proj_min['capacite_totale']} places"
+        elif rub.calcul_auto == "INSCRIPTION":
+            montant_usd = proj_ins["total_usd"]
+            montant_cdf = proj_ins["total_cdf"]
+            note = f"Capacité {proj_ins['capacite_totale']} places"
+        elif rub.calcul_auto == "SALAIRES":
+            montant_usd = proj_sal["total_usd"]
+            montant_cdf = proj_sal["total_cdf"]
+            note = f"{proj_sal['nb_contrats']} contrat(s) × 12 mois"
+
+        poste_saved = saved.get(rub.id)
+        if poste_saved is not None:
+            # Les montants figés priment ; on garde la note auto si vide
+            montant_usd = _decimal(poste_saved.montant_usd)
+            montant_cdf = _decimal(poste_saved.montant_cdf)
+            est_auto = poste_saved.est_auto
+            if poste_saved.note:
+                note = poste_saved.note
+
+        postes.append(
+            {
+                "rubrique": rub,
+                "montant_usd": montant_usd,
+                "montant_cdf": montant_cdf,
+                "est_auto": est_auto,
+                "note": note,
+            }
+        )
+
+    recettes = [p for p in postes if p["rubrique"].nature == "RECETTE"]
+    depenses = [p for p in postes if p["rubrique"].nature == "DEPENSE"]
+
+    def _sum(rows, key):
+        return sum((r[key] for r in rows), Decimal("0"))
+
+    return {
+        "postes": postes,
+        "recettes": recettes,
+        "depenses": depenses,
+        "total_recettes_usd": _sum(recettes, "montant_usd"),
+        "total_recettes_cdf": _sum(recettes, "montant_cdf"),
+        "total_depenses_usd": _sum(depenses, "montant_usd"),
+        "total_depenses_cdf": _sum(depenses, "montant_cdf"),
+        "projection_minerval": proj_min,
+        "projection_inscription": proj_ins,
+        "projection_salaires": proj_sal,
+    }
+
+
 def types_frais_inscription_for_ecole(ecole):
     if ecole is None:
         return TypeFrais.objects.none()

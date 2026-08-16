@@ -1,8 +1,33 @@
 from django import forms
 from common.form_mixins import FormControlMixin
 from grh.models import Personnel
-from .models import AffectationEnseignement, DivisionAnnee, Matiere, PeriodeBulletin, TravailCote, CoursEnLigne, ChapitreCours, LeconEnLigne
+from .models import (
+    AffectationEnseignement,
+    DivisionAnnee,
+    Matiere,
+    PeriodeBulletin,
+    TravailCote,
+    CoursEnLigne,
+    ChapitreCours,
+    LeconEnLigne,
+    CoursEnDirect,
+)
 from inscription.tenant import classes_for_ecole, annees_for_ecole
+from .validators import cours_video_max_mb, validate_cours_video
+
+
+def _configure_video_upload_field(field):
+    """Impose la limite de taille et l’indique dans l’UI."""
+    max_mb = cours_video_max_mb()
+    field.help_text = (
+        f'MP4 ou WebM uniquement — taille maximale : {max_mb} Mo par vidéo '
+        f'(hébergement sécurisé, sans YouTube).'
+    )
+    attrs = field.widget.attrs
+    attrs['accept'] = 'video/mp4,video/webm,video/ogg,.mp4,.webm,.ogg,.mov'
+    attrs['data-max-mb'] = str(max_mb)
+    attrs['data-video-limit'] = '1'
+    attrs['class'] = (attrs.get('class', '') + ' js-video-upload').strip()
 
 
 class MatiereForm(FormControlMixin, forms.ModelForm):
@@ -307,12 +332,12 @@ class CoursEnLigneForm(FormControlMixin, forms.ModelForm):
 class ChapitreCoursForm(FormControlMixin, forms.ModelForm):
     class Meta:
         model = ChapitreCours
-        fields = ['titre', 'resume', 'contenu', 'video_url', 'image', 'ordre', 'publie']
+        fields = ['titre', 'resume', 'contenu', 'video', 'image', 'ordre', 'publie']
         labels = {
             'titre': 'Titre du chapitre',
             'resume': 'Résumé',
             'contenu': 'Introduction',
-            'video_url': 'Vidéo du chapitre',
+            'video': 'Vidéo du chapitre',
             'image': 'Image du chapitre',
             'ordre': 'Ordre',
             'publie': 'Chapitre visible',
@@ -324,9 +349,22 @@ class ChapitreCoursForm(FormControlMixin, forms.ModelForm):
                 'rows': 5,
                 'placeholder': 'Introduction affichée au début du chapitre…',
             }),
-            'video_url': forms.URLInput(attrs={'placeholder': 'https://www.youtube.com/watch?v=…'}),
+            'video': forms.ClearableFileInput(attrs={
+                'accept': 'video/mp4,video/webm,video/ogg,.mp4,.webm,.ogg,.mov',
+            }),
             'ordre': forms.NumberInput(attrs={'min': '1'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'video' in self.fields:
+            _configure_video_upload_field(self.fields['video'])
+
+    def clean_video(self):
+        video = self.cleaned_data.get('video')
+        if video:
+            validate_cours_video(video)
+        return video
 
 
 class LeconEnLigneForm(FormControlMixin, forms.ModelForm):
@@ -334,14 +372,14 @@ class LeconEnLigneForm(FormControlMixin, forms.ModelForm):
         model = LeconEnLigne
         fields = [
             'titre', 'resume', 'type_contenu', 'contenu',
-            'video_url', 'image', 'fichier', 'duree_minutes', 'ordre', 'publie',
+            'video', 'image', 'fichier', 'duree_minutes', 'ordre', 'publie',
         ]
         labels = {
             'titre': 'Titre du sous-chapitre',
             'resume': 'Résumé',
             'type_contenu': 'Type',
             'contenu': 'Contenu pédagogique',
-            'video_url': 'Lien vidéo',
+            'video': 'Vidéo',
             'image': 'Image',
             'fichier': 'Fichier joint',
             'duree_minutes': 'Durée (min)',
@@ -357,7 +395,79 @@ class LeconEnLigneForm(FormControlMixin, forms.ModelForm):
                 'rows': 12,
                 'placeholder': 'Rédigez le cours, les exemples, exercices et corrigés…',
             }),
-            'video_url': forms.URLInput(attrs={'placeholder': 'https://www.youtube.com/watch?v=…'}),
+            'video': forms.ClearableFileInput(attrs={
+                'accept': 'video/mp4,video/webm,video/ogg,.mp4,.webm,.ogg,.mov',
+            }),
             'duree_minutes': forms.NumberInput(attrs={'min': '1'}),
             'ordre': forms.NumberInput(attrs={'min': '1'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'video' in self.fields:
+            _configure_video_upload_field(self.fields['video'])
+
+    def clean_video(self):
+        video = self.cleaned_data.get('video')
+        if video:
+            validate_cours_video(video)
+        return video
+
+
+class CoursEnDirectForm(FormControlMixin, forms.ModelForm):
+    class Meta:
+        model = CoursEnDirect
+        fields = [
+            'annee_scolaire', 'classe', 'matiere', 'titre',
+            'description', 'date_heure_prevue', 'duree_minutes',
+        ]
+        labels = {
+            'annee_scolaire': 'Année scolaire',
+            'classe': 'Classe',
+            'matiere': 'Matière',
+            'titre': 'Titre de la séance',
+            'description': 'Description',
+            'date_heure_prevue': 'Date et heure',
+            'duree_minutes': 'Durée (minutes)',
+        }
+        widgets = {
+            'titre': forms.TextInput(attrs={'placeholder': 'Ex: Révision fractions — séance live'}),
+            'description': forms.Textarea(attrs={
+                'rows': 3,
+                'placeholder': 'Sujets abordés, matériel à préparer…',
+            }),
+            'date_heure_prevue': forms.DateTimeInput(
+                attrs={'type': 'datetime-local'},
+                format='%Y-%m-%dT%H:%M',
+            ),
+            'duree_minutes': forms.NumberInput(attrs={'min': '15', 'step': '15'}),
+        }
+
+    def __init__(self, *args, ecole=None, classes_qs=None, matieres_qs=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['date_heure_prevue'].input_formats = [
+            '%Y-%m-%dT%H:%M',
+            '%Y-%m-%d %H:%M:%S',
+            '%Y-%m-%d %H:%M',
+        ]
+        if ecole:
+            self.fields['annee_scolaire'].queryset = annees_for_ecole(ecole).filter(
+                est_encoure=True
+            )
+            annee = self.fields['annee_scolaire'].queryset.first()
+            if annee and not (self.instance and self.instance.pk):
+                self.fields['annee_scolaire'].initial = annee.pk
+                self.fields['annee_scolaire'].empty_label = None
+        if classes_qs is not None:
+            self.fields['classe'].queryset = classes_qs
+        if matieres_qs is not None:
+            self.fields['matiere'].queryset = matieres_qs
+
+    def clean(self):
+        cleaned = super().clean()
+        classe = cleaned.get('classe')
+        matiere = cleaned.get('matiere')
+        if classe and matiere and matiere.section_id != classe.section_id:
+            self.add_error('matiere', "Cette matière n'appartient pas à la section de la classe.")
+        return cleaned
+

@@ -5,7 +5,7 @@ from io import BytesIO
 
 from django.db import transaction
 from django.db.models import Sum, Count
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
@@ -14,12 +14,37 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 
+def _is_ajax(request):
+    return (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("Accept") or "")
+    )
+
+
+def _type_frais_payload(obj):
+    return {
+        "id": obj.id,
+        "libelle": obj.libelle,
+        "description": obj.description or "",
+        "label": obj.libelle,
+    }
+
+
 def _peut_encaisser(user):
     """Seul un caissier (rôle ou fonction GRH) peut exécuter un paiement."""
     return bool(
         user
         and user.is_authenticated
         and getattr(user, "is_caissier", False)
+    )
+
+
+def _peut_gerer_ecritures(user):
+    """Seuls trésorier / comptable / superuser peuvent passer ou modifier les écritures."""
+    return bool(
+        user
+        and user.is_authenticated
+        and getattr(user, "peut_gerer_ecritures", False)
     )
 
 
@@ -127,6 +152,10 @@ from .models import (
     DemandeModificationPaiement,
     ConfigWhatsApp,
     NotificationWhatsApp,
+    ClotureCaisse,
+    BudgetAnnuel,
+    LigneBudget,
+    PosteBudget,
     # HOADA
     CompteComptable,
     JournalComptable,
@@ -151,6 +180,8 @@ from .paiement_utils import (
     types_frais_minerval_for_ecole,
     minerval_par_classe,
     minerval_paiements_queryset,
+    projection_budget_minerval,
+    construire_postes_budget,
 )
 
 
@@ -686,13 +717,27 @@ def type_frais_list(request):
 @login_required
 def type_frais_create(request):
     ecole = get_user_ecole(request)
+    form_prefix = (
+        "type_frais_modal"
+        if request.method == "POST"
+        and any(k.startswith("type_frais_modal-") for k in request.POST)
+        else None
+    )
     if request.method == "POST":
-        form = TypeFraisForm(request.POST)
+        form = TypeFraisForm(request.POST, prefix=form_prefix)
         if form.is_valid():
             obj = form.save(commit=False)
             obj.ecole = ecole
             obj.save()
+            if _is_ajax(request):
+                return JsonResponse({"ok": True, "type_frais": _type_frais_payload(obj)})
             return redirect("finances:type_frais_list")
+        if _is_ajax(request):
+            errors = {
+                field: [str(e) for e in errs]
+                for field, errs in form.errors.items()
+            }
+            return JsonResponse({"ok": False, "errors": errors}, status=400)
     else:
         form = TypeFraisForm()
     return render(request, "finances/type_frais_form.html", {"form": form})
@@ -748,6 +793,8 @@ def frais_scolaire_create(request):
 
     context = {
         "form": form,
+        "type_frais_form": TypeFraisForm(prefix="type_frais_modal"),
+        "type_frais_create_url": reverse("finances:type_frais_create"),
         "types_count": type_frais_for_ecole(ecole).count(),
         "sections_count": sections_for_ecole(ecole).count(),
         "annee_courante": annees_for_ecole(ecole).filter(est_encoure=True).first(),
@@ -766,7 +813,13 @@ def frais_scolaire_update(request, pk):
             return redirect("finances:frais_scolaire_list")
     else:
         form = FraisScolaireForm(instance=obj, ecole=ecole)
-    return render(request, "finances/frais_scolaire_update_form.html", {"form": form, "object": obj})
+    context = {
+        "form": form,
+        "object": obj,
+        "type_frais_form": TypeFraisForm(prefix="type_frais_modal"),
+        "type_frais_create_url": reverse("finances:type_frais_create"),
+    }
+    return render(request, "finances/frais_scolaire_update_form.html", context)
 
 
 @login_required
@@ -864,36 +917,31 @@ def taux_change_list(request):
 
 @login_required
 def whatsapp_config(request):
-    """Configuration WhatsApp + journal des envois pour l'école courante."""
+    """Configuration WhatsApp centrale + journal des envois."""
     ecole = get_user_ecole(request)
-    if not _peut_modifier_paiement(request.user):
-        messages.error(request, "Seul un administrateur peut configurer WhatsApp.")
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superutilisateur peut configurer WhatsApp.")
         return redirect("finances:dashboard")
 
-    config, _ = ConfigWhatsApp.objects.get_or_create(
-        ecole=ecole,
-        defaults={
-            "message_modele": ConfigWhatsApp.MESSAGE_DEFAUT,
-            "template_variables": ConfigWhatsApp.TEMPLATE_VARS_DEFAUT,
-        },
-    )
+    config = ConfigWhatsApp.charger_centrale()
 
     if request.method == "POST" and request.POST.get("action") == "save_config":
         form = ConfigWhatsAppForm(request.POST, instance=config)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Configuration WhatsApp enregistrée.")
+            obj = form.save(commit=False)
+            obj.ecole = None
+            obj.save()
+            messages.success(request, "Configuration WhatsApp centrale enregistrée.")
             return redirect("finances:whatsapp_config")
     else:
         form = ConfigWhatsAppForm(instance=config)
 
     from .whatsapp import CLES_CONTEXTE, parser_cles_template
 
-    notifications = (
-        NotificationWhatsApp.objects.filter(ecole=ecole)
-        .select_related("paiement")
-        .order_by("-date_envoi")[:80]
-    )
+    notif_qs = NotificationWhatsApp.objects.select_related("paiement", "ecole")
+    if not request.user.is_superuser and ecole:
+        notif_qs = notif_qs.filter(ecole=ecole)
+    notifications = notif_qs.order_by("-date_envoi")[:80]
     mapping_vars = [
         (f"{{{{{i}}}}}", cle)
         for i, cle in enumerate(parser_cles_template(config), start=1)
@@ -906,6 +954,7 @@ def whatsapp_config(request):
             "config": config,
             "notifications": notifications,
             "ecole": ecole,
+            "journal_multi_ecoles": request.user.is_superuser,
             "placeholders": " ".join("{" + c + "}" for c in CLES_CONTEXTE),
             "mapping_vars": mapping_vars,
             "exemple_template_meta": (
@@ -924,15 +973,15 @@ def whatsapp_config(request):
 def whatsapp_test(request):
     """Envoie un message de test au numéro saisi (ou au téléphone de l'école)."""
     ecole = get_user_ecole(request)
-    if not _peut_modifier_paiement(request.user):
-        messages.error(request, "Action non autorisée.")
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superutilisateur peut tester WhatsApp.")
         return redirect("finances:dashboard")
     if request.method != "POST":
         return redirect("finances:whatsapp_config")
 
-    config = ConfigWhatsApp.objects.filter(ecole=ecole).first()
+    config = ConfigWhatsApp.charger_centrale()
     if not config or not config.actif:
-        messages.error(request, "Activez d'abord WhatsApp et enregistrez la configuration.")
+        messages.error(request, "Activez d'abord WhatsApp et enregistrez la configuration centrale.")
         return redirect("finances:whatsapp_config")
 
     from .whatsapp import (
@@ -944,7 +993,7 @@ def whatsapp_test(request):
     )
 
     tel_brut = (request.POST.get("telephone_test") or "").strip() or (
-        ecole.telephone1 or ""
+        getattr(ecole, "telephone1", None) or ""
     )
     telephone = normaliser_telephone(tel_brut, config.indicatif_pays)
     if not telephone:
@@ -955,8 +1004,9 @@ def whatsapp_test(request):
     if (config.provider or "").upper() == "META" and (config.template_meta or "").strip():
         message = resume_envoi_meta(config, contexte)
     else:
+        nom_ecole = getattr(ecole, "ecole", None) or "Digital School"
         message = (
-            f"Test Digital School — {ecole.ecole}\n"
+            f"Test Digital School — {nom_ecole}\n"
             f"Les notifications de paiement WhatsApp sont opérationnelles."
         )
         # Si texte libre Ultramsg, on peut aussi prévisualiser le modèle
@@ -987,8 +1037,8 @@ def whatsapp_test(request):
 def whatsapp_renvoyer(request, pk):
     """Renvoie la notification WhatsApp pour un paiement."""
     ecole = get_user_ecole(request)
-    if not _peut_modifier_paiement(request.user):
-        messages.error(request, "Action non autorisée.")
+    if not request.user.is_superuser:
+        messages.error(request, "Seul un superutilisateur peut renvoyer un WhatsApp.")
         return redirect("finances:dashboard")
 
     paiement = get_object_or_404(paiements_for_ecole(ecole), pk=pk)
@@ -1059,6 +1109,317 @@ def paiement_list(request):
             "demandes_ouvertes_ids": demandes_ouvertes_ids,
             "nb_demandes_ouvertes": nb_demandes_ouvertes,
             "filtre_perso": filtre_perso,
+        },
+    )
+
+
+def _montant_recu_devise(paiement):
+    """Montant réellement encaissé + code devise (origine si conversion)."""
+    if paiement.montant_origine is not None and paiement.taux_change:
+        code = (
+            paiement.devise_origine.devise
+            if paiement.devise_origine_id
+            else "CDF"
+        )
+        return _decimal(paiement.montant_origine), code
+    code = paiement.devise.devise if paiement.devise_id else "USD"
+    return _decimal(paiement.montant_paye or 0), code
+
+
+def _stats_paiements_journee(paiements):
+    """Agrège les KPI d'une liste de paiements validés."""
+    zero = _decimal("0")
+    stats = {
+        "nb_paiements": 0,
+        "nb_eleves": 0,
+        "total_usd": zero,
+        "total_cdf": zero,
+        "total_especes_usd": zero,
+        "total_especes_cdf": zero,
+        "total_mobile_usd": zero,
+        "total_mobile_cdf": zero,
+        "total_autres_usd": zero,
+        "total_autres_cdf": zero,
+    }
+    eleves = set()
+    for p in paiements:
+        stats["nb_paiements"] += 1
+        eleves.add(p.eleve_id)
+        montant, code = _montant_recu_devise(p)
+        mode = (p.mode_paiement or "").upper()
+        if code == "USD":
+            stats["total_usd"] += montant
+            if mode == "ESPECES":
+                stats["total_especes_usd"] += montant
+            elif mode == "MOBILE_MONEY":
+                stats["total_mobile_usd"] += montant
+            else:
+                stats["total_autres_usd"] += montant
+        else:
+            stats["total_cdf"] += montant
+            if mode == "ESPECES":
+                stats["total_especes_cdf"] += montant
+            elif mode == "MOBILE_MONEY":
+                stats["total_mobile_cdf"] += montant
+            else:
+                stats["total_autres_cdf"] += montant
+    stats["nb_eleves"] = len(eleves)
+    return stats
+
+
+@caissier_required
+def cloture_caisse(request):
+    """Clôture de journée caissier + KPI une fois clôturée."""
+    from datetime import datetime
+
+    ecole = get_user_ecole(request)
+    jour = timezone.localdate()
+    date_param = (request.GET.get("date") or "").strip()
+    if date_param:
+        try:
+            jour = datetime.strptime(date_param, "%Y-%m-%d").date()
+        except ValueError:
+            messages.warning(request, "Date invalide — journée du jour affichée.")
+
+    noms = _identifiants_caissier(request.user)
+    caissier_label = _nom_acteur(request.user)
+
+    paiements = list(
+        paiements_for_ecole(ecole)
+        .filter(
+            statut="VALIDE",
+            caissier__in=noms,
+            date_encodage__date=jour,
+        )
+        .select_related(
+            "eleve",
+            "eleve__eleve",
+            "frais",
+            "frais__type_frais",
+            "devise",
+            "devise_origine",
+        )
+        .order_by("date_encodage")
+    )
+
+    cloture = (
+        ClotureCaisse.objects.filter(
+            ecole=ecole,
+            date_journee=jour,
+            caissier__in=noms,
+        )
+        .order_by("-date_cloture")
+        .first()
+    )
+
+    if request.method == "POST" and request.POST.get("action") == "cloturer":
+        if cloture:
+            messages.info(request, f"La journée du {jour:%d/%m/%Y} est déjà clôturée.")
+            return redirect(
+                f"{reverse('finances:cloture_caisse')}?date={jour.isoformat()}"
+            )
+
+        stats = _stats_paiements_journee(paiements)
+        commentaire = (request.POST.get("commentaire") or "").strip()
+        cloture = ClotureCaisse.objects.create(
+            ecole=ecole,
+            date_journee=jour,
+            caissier=caissier_label,
+            commentaire=commentaire,
+            **stats,
+        )
+        messages.success(
+            request,
+            f"Journée du {jour:%d/%m/%Y} clôturée — {cloture.nb_paiements} paiement(s).",
+        )
+        return redirect(
+            f"{reverse('finances:cloture_caisse')}?date={jour.isoformat()}&just_closed=1"
+        )
+
+    if cloture:
+        kpis = {
+            "nb_paiements": cloture.nb_paiements,
+            "nb_eleves": cloture.nb_eleves,
+            "total_usd": cloture.total_usd,
+            "total_cdf": cloture.total_cdf,
+            "total_especes_usd": cloture.total_especes_usd,
+            "total_especes_cdf": cloture.total_especes_cdf,
+            "total_mobile_usd": cloture.total_mobile_usd,
+            "total_mobile_cdf": cloture.total_mobile_cdf,
+            "total_autres_usd": cloture.total_autres_usd,
+            "total_autres_cdf": cloture.total_autres_cdf,
+        }
+    else:
+        kpis = _stats_paiements_journee(paiements)
+
+    historique = (
+        ClotureCaisse.objects.filter(ecole=ecole, caissier__in=noms)
+        .order_by("-date_journee")[:14]
+    )
+
+    return render(
+        request,
+        "finances/cloture_caisse.html",
+        {
+            "jour": jour,
+            "cloture": cloture,
+            "kpis": kpis,
+            "paiements": paiements,
+            "historique": historique,
+            "ecole": ecole,
+            "just_closed": request.GET.get("just_closed") == "1" and cloture is not None,
+        },
+    )
+
+
+@login_required
+def budget_annuel(request):
+    """Budget annuel complet : toutes rubriques + détail minerval par classe."""
+    ecole = get_user_ecole(request)
+    annees = annees_for_ecole(ecole).order_by("-est_encoure", "-anne_scolaire")
+    annee_id = _parse_optional_int(request.GET.get("annee")) or _parse_optional_int(
+        request.POST.get("annee")
+    )
+    annee = None
+    if annee_id:
+        annee = annees.filter(pk=annee_id).first()
+    if annee is None:
+        annee = annees.filter(est_encoure=True).first() or annees.first()
+
+    budget = None
+    if ecole and annee:
+        budget = (
+            BudgetAnnuel.objects.filter(ecole=ecole, annee=annee)
+            .prefetch_related(
+                "lignes__classe__section",
+                "lignes__devise",
+                "postes__rubrique",
+            )
+            .first()
+        )
+
+    # Affichage : montants figés si budget existant, sinon propositions auto
+    plan = construire_postes_budget(ecole, annee, budget=None)
+    projection = plan["projection_minerval"]
+
+    if request.method == "POST" and request.POST.get("action") == "fixer":
+        if not ecole or not annee:
+            messages.error(request, "Impossible de fixer le budget : école ou année manquante.")
+            return redirect(reverse("finances:budget_annuel"))
+
+        with transaction.atomic():
+            budget, _created = BudgetAnnuel.objects.get_or_create(
+                ecole=ecole,
+                annee=annee,
+                defaults={
+                    "date_fixation": timezone.now(),
+                    "fixe_par": _nom_acteur(request.user),
+                },
+            )
+            budget.date_fixation = timezone.now()
+            budget.fixe_par = _nom_acteur(request.user)
+            budget.commentaire = (request.POST.get("commentaire") or "").strip()
+            budget.capacite_totale = projection["capacite_totale"]
+            budget.total_usd = projection["total_usd"]
+            budget.total_cdf = projection["total_cdf"]
+
+            postes_payload = []
+            total_r_usd = Decimal("0")
+            total_r_cdf = Decimal("0")
+            total_d_usd = Decimal("0")
+            total_d_cdf = Decimal("0")
+
+            for item in plan["postes"]:
+                rub = item["rubrique"]
+                usd = _decimal(request.POST.get(f"usd_{rub.id}", "0") or "0")
+                cdf = _decimal(request.POST.get(f"cdf_{rub.id}", "0") or "0")
+                note = (request.POST.get(f"note_{rub.id}") or "").strip()[:255]
+                postes_payload.append(
+                    PosteBudget(
+                        budget=budget,
+                        rubrique=rub,
+                        montant_usd=usd,
+                        montant_cdf=cdf,
+                        est_auto=bool(rub.calcul_auto),
+                        note=note or item["note"],
+                    )
+                )
+                if rub.nature == "RECETTE":
+                    total_r_usd += usd
+                    total_r_cdf += cdf
+                else:
+                    total_d_usd += usd
+                    total_d_cdf += cdf
+
+            budget.total_recettes_usd = total_r_usd
+            budget.total_recettes_cdf = total_r_cdf
+            budget.total_depenses_usd = total_d_usd
+            budget.total_depenses_cdf = total_d_cdf
+            budget.save()
+
+            budget.postes.all().delete()
+            PosteBudget.objects.bulk_create(postes_payload)
+
+            budget.lignes.all().delete()
+            if projection["lignes"]:
+                LigneBudget.objects.bulk_create(
+                    [
+                        LigneBudget(
+                            budget=budget,
+                            classe=ligne["classe"],
+                            capacite=ligne["capacite"],
+                            montant_unitaire=ligne["montant_unitaire"],
+                            devise=ligne["devise"],
+                            sous_total=ligne["sous_total"],
+                            type_frais_libelle=ligne["type_frais_libelle"],
+                        )
+                        for ligne in projection["lignes"]
+                    ]
+                )
+
+        messages.success(
+            request,
+            f"Budget {annee} fixé — recettes "
+            f"{total_r_usd} USD / {total_r_cdf} CDF, dépenses "
+            f"{total_d_usd} USD / {total_d_cdf} CDF.",
+        )
+        return redirect(f"{reverse('finances:budget_annuel')}?annee={annee.id}")
+
+    # Recharger le plan avec montants figés pour l'affichage
+    if budget:
+        plan = construire_postes_budget(ecole, annee, budget=budget)
+
+    realise = {"usd": Decimal("0"), "cdf": Decimal("0")}
+    if ecole and annee:
+        for row in (
+            minerval_paiements_queryset(ecole, {"annee": annee.id})
+            .values("devise__devise")
+            .annotate(total=Sum("montant_paye"))
+        ):
+            code = (row["devise__devise"] or "").upper()
+            if code == "USD":
+                realise["usd"] = _decimal(row["total"])
+            elif code == "CDF":
+                realise["cdf"] = _decimal(row["total"])
+
+    solde_usd = plan["total_recettes_usd"] - plan["total_depenses_usd"]
+    solde_cdf = plan["total_recettes_cdf"] - plan["total_depenses_cdf"]
+    taux_obj = TauxChange.courant_pour_ecole(ecole)
+
+    return render(
+        request,
+        "finances/budget_annuel.html",
+        {
+            "ecole": ecole,
+            "annees": annees,
+            "annee": annee,
+            "projection": projection,
+            "plan": plan,
+            "budget": budget,
+            "realise": realise,
+            "solde_usd": solde_usd,
+            "solde_cdf": solde_cdf,
+            "taux_courant": taux_obj,
         },
     )
 
@@ -1217,9 +1578,10 @@ def paiement_create(request):
                     request,
                     f"Paiement enregistré — reçu {paiement.numero_recu} pour {paiement.eleve.eleve.prenom} {paiement.eleve.eleve.nom}.",
                 )
+                # 2 exemplaires (école + parent), impression directe, retour à l'encaissement
                 return redirect(
                     reverse("finances:paiement_print", kwargs={"pk": paiement.pk})
-                    + "?autoprint=1"
+                    + "?autoprint=1&copies=2&next=create"
                 )
 
             messages.success(request, "Paiement enregistré en attente de validation.")
@@ -1264,6 +1626,20 @@ def paiement_print(request, pk):
         reste_apres = solde_avant["reste"]
         total_paye = solde_avant["paye"]
 
+    try:
+        copies = int(request.GET.get("copies") or "1")
+    except (TypeError, ValueError):
+        copies = 1
+    copies = 2 if copies >= 2 else 1
+    exemplaires = (
+        ["Exemplaire école", "Exemplaire parent"] if copies == 2 else [None]
+    )
+    next_param = (request.GET.get("next") or "").strip().lower()
+    if next_param == "create":
+        next_url = reverse("finances:paiement_create")
+    else:
+        next_url = reverse("finances:paiement_list")
+
     return render(
         request,
         "finances/paiement_print.html",
@@ -1271,6 +1647,9 @@ def paiement_print(request, pk):
             "paiement": paiement,
             "ecole": ecole,
             "autoprint": request.GET.get("autoprint") == "1",
+            "copies": copies,
+            "exemplaires": exemplaires,
+            "next_url": next_url,
             "solde": {
                 "total": solde_avant["total"],
                 "deja_paye": solde_avant["paye"],
@@ -1619,7 +1998,7 @@ def paiement_update(request, pk):
                 if old_statut != "VALIDE":
                     return redirect(
                         reverse("finances:paiement_print", kwargs={"pk": updated.pk})
-                        + "?autoprint=1"
+                        + "?autoprint=1&copies=2&next=create"
                     )
             else:
                 messages.success(
@@ -1707,6 +2086,13 @@ def hoada_ecritures_list(request):
 
 @login_required
 def hoada_ecritures_create(request):
+    if not _peut_gerer_ecritures(request.user):
+        messages.error(
+            request,
+            "Accès réservé : seuls le trésorier et le comptable peuvent passer ou modifier les écritures.",
+        )
+        return redirect("finances:hoada_ecritures_list")
+
     # Saisie simplifiée : on crée l'en-tête + N lignes via request.POST (fields indexés)
     # Attendu côté template : compte_0, sens_0, montant_0 ... (jusqu'à line_count)
     if request.method == "POST":
@@ -1857,12 +2243,14 @@ def seed_finances(request):
     # Paramètres seed (valeurs simples et stables)
     default_devise_codes = ["USD", "CDF"]
     type_frais_defaults = [
+        {"key": "minerval", "libelle": "Minerval", "description": "Frais scolaire"},
         {"key": "inscription", "libelle": "Frais inscription", "description": "Frais d'inscription"},
         {"key": "scolarite", "libelle": "Frais scolarité", "description": "Frais de scolarité"},
         {"key": "c", "libelle": "C", "description": "Frais C"},
     ]
     # Montants par défaut par type_frais
     montant_map = {
+        "minerval": Decimal("500"),
         "inscription": Decimal("100"),
         "scolarite": Decimal("500"),
         "c": Decimal("200"),

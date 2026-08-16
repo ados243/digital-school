@@ -38,6 +38,7 @@ PAGE_LABELS = {
     'inscription:eleve_update': 'Modifier l\'élève',
     'inscription:eleve_delete': 'Supprimer l\'élève',
     'inscription:tuteur_create': 'Nouveau tuteur',
+    'inscription:quartier_create': 'Nouveau quartier',
     'inscription:inscription_list': 'Inscriptions',
     'inscription:inscription_create': 'Inscrire',
     'inscription:inscription_update': 'Modifier l\'inscription',
@@ -70,11 +71,13 @@ PAGE_LABELS = {
     'finances:paiement_delete': 'Supprimer le paiement',
     'finances:paiement_print': 'Imprimer le reçu',
     'finances:classe_paiements': 'Paiements par classe',
+    'finances:cloture_caisse': 'Clôture de journée',
+    'finances:budget_annuel': 'Budget annuel',
     'finances:demandes_modification_list': 'Demandes de correction',
     'finances:demande_modification_create': 'Demander une correction',
     'finances:demande_modification_rejeter': 'Rejeter la demande',
     'finances:taux_change_list': 'Taux de change',
-    'finances:whatsapp_config': 'WhatsApp paiements',
+    'finances:whatsapp_config': 'WhatsApp central',
     'finances:whatsapp_test': 'Test WhatsApp',
     'finances:whatsapp_renvoyer': 'Renvoyer WhatsApp',
     'finances:salaires_list': 'Payer le personnel',
@@ -96,6 +99,11 @@ PAGE_LABELS = {
     'utilisateur:direction_communication_update': 'Modifier la communication',
     # Portail
     'utilisateur:portail': 'Mon espace',
+    'utilisateur:profil': 'Mon profil',
+    'utilisateur:password_reset': 'Mot de passe oublié',
+    'utilisateur:password_reset_done': 'E-mail envoyé',
+    'utilisateur:password_reset_confirm': 'Nouveau mot de passe',
+    'utilisateur:password_reset_complete': 'Mot de passe mis à jour',
     'utilisateur:parent_enfant': 'Fiche enfant',
     'utilisateur:parent_annonces': 'Annonces',
     'utilisateur:parent_annonce_detail': 'Détail annonce',
@@ -120,6 +128,12 @@ PAGE_LABELS = {
     'utilisateur:cours_eleve_detail': 'Cours',
     'utilisateur:chapitre_eleve_detail': 'Chapitre',
     'utilisateur:lecon_eleve_detail': 'Leçon',
+    'utilisateur:direct_enseignant_list': 'Cours en ligne',
+    'utilisateur:direct_enseignant_create': 'Nouveau cours (visio)',
+    'utilisateur:direct_enseignant_update': 'Modifier le cours',
+    'utilisateur:direct_enseignant_salle': 'Salle de visioconférence',
+    'utilisateur:direct_eleve_list': 'Cours en ligne',
+    'utilisateur:direct_eleve_salle': 'Salle de visioconférence',
     'utilisateur:bulletin_classe': 'Bulletins',
     'utilisateur:evolution_classe': 'Évolution des élèves',
     'utilisateur:bulletin_eleve': 'Bulletin élève',
@@ -170,6 +184,8 @@ PAGE_PARENTS = {
     'finances:paiement_delete': 'finances:paiement_list',
     'finances:paiement_print': 'finances:paiement_list',
     'finances:classe_paiements': 'finances:paiement_list',
+    'finances:cloture_caisse': 'finances:paiement_list',
+    'finances:budget_annuel': 'finances:dashboard',
     'finances:demande_modification_create': 'finances:paiement_list',
     'finances:demande_modification_rejeter': 'finances:demandes_modification_list',
     'finances:whatsapp_test': 'finances:whatsapp_config',
@@ -183,6 +199,10 @@ PAGE_PARENTS = {
     'utilisateur:direction_communication_detail': 'utilisateur:direction_communication_list',
     'utilisateur:direction_communication_update': 'utilisateur:direction_communication_list',
     'utilisateur:parent_enfant': 'utilisateur:portail',
+    'utilisateur:profil': 'utilisateur:portail',
+    'utilisateur:password_reset_done': 'utilisateur:password_reset',
+    'utilisateur:password_reset_confirm': 'utilisateur:password_reset',
+    'utilisateur:password_reset_complete': 'utilisateur:login',
     'utilisateur:parent_annonce_detail': 'utilisateur:parent_annonces',
     'utilisateur:enseignant_classe': 'utilisateur:enseignant_dashboard',
     'utilisateur:travail_create': 'utilisateur:travail_list',
@@ -201,6 +221,10 @@ PAGE_PARENTS = {
     'utilisateur:cours_eleve_detail': 'utilisateur:cours_eleve_list',
     'utilisateur:chapitre_eleve_detail': 'utilisateur:cours_eleve_list',
     'utilisateur:lecon_eleve_detail': 'utilisateur:cours_eleve_list',
+    'utilisateur:direct_enseignant_create': 'utilisateur:direct_enseignant_list',
+    'utilisateur:direct_enseignant_update': 'utilisateur:direct_enseignant_list',
+    'utilisateur:direct_enseignant_salle': 'utilisateur:direct_enseignant_list',
+    'utilisateur:direct_eleve_salle': 'utilisateur:direct_eleve_list',
     'utilisateur:bulletin_classe': 'utilisateur:enseignant_dashboard',
     'utilisateur:bulletin_eleve': 'utilisateur:enseignant_dashboard',
     'utilisateur:evolution_classe': 'utilisateur:enseignant_classe',
@@ -235,11 +259,17 @@ def _home_crumb(user):
         return {'label': 'Accueil', 'url': _safe_reverse('utilisateur:login')}
     if getattr(user, 'is_caissier', False) and not user.is_superuser:
         return {'label': 'Paiements', 'url': _safe_reverse('finances:paiement_list')}
-    if getattr(user, 'is_professeur', False):
+    if getattr(user, 'is_professeur', False) and not user.is_superuser:
         return {'label': 'Mes classes', 'url': _safe_reverse('utilisateur:enseignant_dashboard')}
     if getattr(user, 'is_parent', False) or getattr(user, 'is_eleve', False):
         return {'label': 'Mon espace', 'url': _safe_reverse('utilisateur:portail')}
-    return {'label': 'Accueil', 'url': _safe_reverse('grh:dashboard')}
+    if getattr(user, 'is_directeur_etudes', False) and not user.is_superuser:
+        return {'label': 'Accueil', 'url': _safe_reverse('pedagogie:dashboard')}
+    if getattr(user, 'is_secretaire', False) and not user.is_superuser:
+        return {'label': 'Accueil', 'url': _safe_reverse('inscription:dashboard')}
+    if getattr(user, 'is_prefet', False) and not user.is_superuser:
+        return {'label': 'Accueil', 'url': _safe_reverse('grh:dashboard')}
+    return {'label': 'Accueil', 'url': _safe_reverse('finances:dashboard')}
 
 
 def _label_for(key, url_name):

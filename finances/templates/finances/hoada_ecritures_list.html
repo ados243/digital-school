@@ -7,7 +7,9 @@
 <div class="panel">
   <div class="panel-header">
     <h3>Écritures</h3>
+    {% if request.user.peut_gerer_ecritures %}
     <a href="{% url 'finances:hoada_ecritures_create' %}" class="btn btn-primary btn-sm">+ Nouvelle écriture</a>
+    {% endif %}
   </div>
 
   <div class="panel-body table-responsive" style="padding:0;">

@@ -2,6 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
+from django.urls import reverse
+from django.utils import timezone
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
@@ -412,59 +414,127 @@ def presence_list(request):
         filter_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
         filter_date = today
-        
-    presences = (
+
+    presences = list(
         presences_for_ecole(ecole)
         .filter(date=filter_date)
         .select_related('personnel')
         .order_by('personnel__nom', 'personnel__Post_nom', 'personnel__prenom')
     )
-    # personnel sans pointage pour ce jour
-    pointing_ids = presences.values_list('personnel_id', flat=True)
-    personnel_non_pointes = (
+    pointing_ids = [p.personnel_id for p in presences]
+    personnel_a_arriver = (
         personnel_for_ecole(ecole)
         .exclude(id__in=pointing_ids)
         .order_by('nom', 'Post_nom', 'prenom')
     )
-    
+    presences_a_partir = [p for p in presences if p.en_attente_depart]
+    now_time = timezone.localtime().strftime('%H:%M')
+
     context = {
         'presences': presences,
-        'personnel_non_pointes': personnel_non_pointes,
+        'personnel_a_arriver': personnel_a_arriver,
+        'presences_a_partir': presences_a_partir,
         'filter_date': filter_date,
+        'now_time': now_time,
+        'etape': request.GET.get('etape', 'arrivee'),
     }
     return render(request, 'grh/presence_list.html', context)
+
 
 @login_required
 def presence_record(request):
     ecole = get_user_ecole(request)
-    if request.method == 'POST':
-        personnel_id = request.POST.get('personnel')
-        statut = request.POST.get('statut')
-        date_str = request.POST.get('date')
-        heure_arr = request.POST.get('heure_arrivee') or None
-        heure_dep = request.POST.get('heure_depart') or None
-        
-        personnel = get_object_or_404(Personnel, id=personnel_id, ecole=ecole)
+    if request.method != 'POST':
+        return redirect('grh:presence_list')
+
+    etape = (request.POST.get('etape') or 'arrivee').strip().lower()
+    personnel_id = request.POST.get('personnel')
+    date_str = request.POST.get('date') or str(date.today())
+    redirect_url = f"{reverse('grh:presence_list')}?date={date_str}&etape={etape}"
+
+    try:
         record_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        
-        h_arrivee = None
-        h_depart = None
-        if heure_arr and statut in ['PRESENT', 'RETARD']:
-            h_arrivee = datetime.strptime(heure_arr, "%H:%M").time()
-        if heure_dep and statut in ['PRESENT', 'RETARD']:
-            h_depart = datetime.strptime(heure_dep, "%H:%M").time()
-            
-        Presence.objects.update_or_create(
-            personnel=personnel,
-            date=record_date,
-            defaults={
-                'statut': statut,
-                'heure_arrivee': h_arrivee,
-                'heure_depart': h_depart
-            }
+    except ValueError:
+        messages.error(request, "Date invalide.")
+        return redirect('grh:presence_list')
+
+    personnel = get_object_or_404(Personnel, id=personnel_id, ecole=ecole)
+    presence, _ = Presence.objects.get_or_create(
+        personnel=personnel,
+        date=record_date,
+        defaults={'statut': 'PRESENT'},
+    )
+
+    if etape == 'depart':
+        if presence.statut in ('ABSENT', 'CONGE'):
+            messages.warning(
+                request,
+                f"{personnel.prenom} est marqué {presence.get_statut_display()} — pas de départ à pointer.",
+            )
+            return redirect(f"{reverse('grh:presence_list')}?date={date_str}&etape=depart")
+        if not presence.heure_arrivee:
+            messages.error(
+                request,
+                f"Pointer d'abord l'arrivée de {personnel.prenom} avant le départ.",
+            )
+            return redirect(f"{reverse('grh:presence_list')}?date={date_str}&etape=arrivee")
+
+        heure_dep = (request.POST.get('heure_depart') or '').strip()
+        if not heure_dep:
+            heure_dep = timezone.localtime().strftime('%H:%M')
+        try:
+            presence.heure_depart = datetime.strptime(heure_dep, "%H:%M").time()
+        except ValueError:
+            messages.error(request, "Heure de départ invalide.")
+            return redirect(redirect_url)
+        if presence.heure_arrivee and presence.heure_depart < presence.heure_arrivee:
+            messages.error(request, "L'heure de départ doit être après l'arrivée.")
+            return redirect(redirect_url)
+        presence.save(update_fields=['heure_depart'])
+        messages.success(
+            request,
+            f"Départ enregistré pour {personnel.prenom} à {presence.heure_depart.strftime('%H:%M')}.",
         )
-        messages.success(request, f"Pointage enregistré pour {personnel.prenom} le {record_date}.")
-    return redirect(f"/grh/presences/?date={request.POST.get('date', '')}")
+        return redirect(f"{reverse('grh:presence_list')}?date={date_str}&etape=depart")
+
+    # Étape arrivée
+    statut = request.POST.get('statut') or 'PRESENT'
+    if statut not in dict(Presence.STATUT_CHOICES):
+        statut = 'PRESENT'
+
+    if presence.heure_arrivee and presence.statut in ('PRESENT', 'RETARD'):
+        messages.info(
+            request,
+            f"Arrivée déjà pointée pour {personnel.prenom} ({presence.heure_arrivee.strftime('%H:%M')}).",
+        )
+        return redirect(f"{reverse('grh:presence_list')}?date={date_str}&etape=depart")
+
+    presence.statut = statut
+    if statut in ('ABSENT', 'CONGE'):
+        presence.heure_arrivee = None
+        presence.heure_depart = None
+        presence.save(update_fields=['statut', 'heure_arrivee', 'heure_depart'])
+        messages.success(
+            request,
+            f"{personnel.prenom} marqué {presence.get_statut_display()} le {record_date:%d/%m/%Y}.",
+        )
+        return redirect(f"{reverse('grh:presence_list')}?date={date_str}&etape=arrivee")
+
+    heure_arr = (request.POST.get('heure_arrivee') or '').strip()
+    if not heure_arr:
+        heure_arr = timezone.localtime().strftime('%H:%M')
+    try:
+        presence.heure_arrivee = datetime.strptime(heure_arr, "%H:%M").time()
+    except ValueError:
+        messages.error(request, "Heure d'arrivée invalide.")
+        return redirect(redirect_url)
+    # Ne pas effacer un départ déjà saisi
+    presence.save(update_fields=['statut', 'heure_arrivee'])
+    messages.success(
+        request,
+        f"Arrivée enregistrée pour {personnel.prenom} à {presence.heure_arrivee.strftime('%H:%M')}.",
+    )
+    return redirect(f"{reverse('grh:presence_list')}?date={date_str}&etape=depart")
 
 # --- Paie ---
 @login_required
