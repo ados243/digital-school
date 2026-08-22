@@ -10,9 +10,10 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <a class="skip-link" href="#contenu-principal">Aller au contenu principal</a>
     <div class="auth-page">
-        <aside class="auth-visual">
-            <div class="auth-visual__logo"><img src="{% static 'images/logo-ds.png' %}" alt="Digital School"> Digital School</div>
+        <aside class="auth-visual" aria-hidden="false">
+            <div class="auth-visual__logo"><img src="{% static 'images/logo-ds.png' %}" alt=""> Digital School</div>
             <div>
                 <h1>{% block visual_title %}La gestion scolaire, simplifiée.{% endblock %}</h1>
                 <p>{% block visual_tagline %}Inscriptions, pédagogie, finances et ressources humaines réunis dans une seule plateforme.{% endblock %}</p>
@@ -25,7 +26,14 @@
                 {% endblock %}
             </ul>
         </aside>
-        <main class="auth-panel">
+        <main class="auth-panel" id="contenu-principal">
+            {% if messages %}
+            <div class="messages-container auth-messages" role="status" aria-live="polite">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
             {% block content %}{% endblock %}
         </main>
     </div>

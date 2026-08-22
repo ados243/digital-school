@@ -71,9 +71,33 @@
                         <h3>Validation</h3>
                         <p>Vérifiez les dates et le salaire avant d'enregistrer.</p>
                     </div>
+                    <div class="panel-body">
+                        <ul class="qb-form__recap">
+                            <li><span>Fonction</span><strong id="recap-fonction">—</strong></li>
+                        </ul>
+                    </div>
                 </div>
             </aside>
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const select = document.getElementById('{{ form.personnel.id_for_label }}');
+    const recap = document.getElementById('recap-fonction');
+    if (!select) return;
+
+    function sync() {
+        const opt = select.options[select.selectedIndex];
+        const fn = (opt && opt.getAttribute('data-fonction')) || '';
+        if (recap) recap.textContent = fn || '—';
+    }
+
+    select.addEventListener('change', sync);
+    sync();
+})();
+</script>
 {% endblock %}

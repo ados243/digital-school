@@ -13,65 +13,124 @@
   .tuteur-modal {
     position: fixed;
     inset: 0;
-    z-index: 1200;
+    z-index: 1500;
     display: none;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    padding: .75rem 1rem;
   }
   .tuteur-modal.is-open { display: flex; }
   .tuteur-modal__backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(15, 23, 42, .45);
+    background: rgba(15, 23, 42, .5);
+    backdrop-filter: blur(2px);
   }
   .tuteur-modal__dialog {
     position: relative;
     z-index: 1;
-    width: min(720px, 100%);
-    max-height: min(90vh, 820px);
+    width: min(980px, 100%);
+    max-height: calc(100vh - 1.5rem);
     overflow: hidden;
     display: flex;
     flex-direction: column;
     background: #fff;
-    border-radius: 14px;
+    border-radius: 16px;
     border: 1px solid var(--border);
-    box-shadow: 0 20px 50px rgba(15, 23, 42, .22);
+    box-shadow: 0 24px 60px rgba(15, 23, 42, .28);
+  }
+  .tuteur-modal__dialog > form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
   }
   .tuteur-modal__header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 1rem;
-    padding: 1.1rem 1.25rem;
+    padding: .9rem 1.25rem .85rem;
+    background: linear-gradient(180deg, #f7fbfe 0%, #fff 100%);
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
   }
-  .tuteur-modal__header h3 { margin: 0; font-size: 1.1rem; }
+  .tuteur-modal__eyebrow {
+    margin: 0 0 .15rem;
+    font-size: .7rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--primary);
+  }
+  .tuteur-modal__header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 750;
+    color: var(--text-main);
+  }
+  .tuteur-modal__lead {
+    margin: .25rem 0 0;
+    font-size: .8rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+  }
   .tuteur-modal__close {
-    background: none;
-    border: none;
-    font-size: 1.35rem;
+    background: #f4f5f8;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1.2rem;
     line-height: 1;
     cursor: pointer;
     color: var(--text-muted);
-    padding: .15rem .35rem;
+    width: 2rem;
+    height: 2rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .tuteur-modal__close:hover {
+    background: #eceef2;
+    color: var(--text-main);
   }
   .tuteur-modal__body {
-    padding: 1.1rem 1.25rem;
-    overflow: auto;
+    padding: .9rem 1.25rem 1rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .tuteur-modal__section + .tuteur-modal__section {
+    margin-top: .85rem;
+    padding-top: .85rem;
+    border-top: 1px dashed var(--border);
+  }
+  .tuteur-modal__section h4 {
+    margin: 0 0 .65rem;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
   }
   .tuteur-modal__footer {
     display: flex;
     justify-content: flex-end;
     gap: .75rem;
-    padding: 1rem 1.25rem;
+    padding: .85rem 1.25rem;
     border-top: 1px solid var(--border);
-    background: var(--bg-light, #f6f7f9);
+    background: #fff;
+    box-shadow: 0 -8px 16px rgba(15, 23, 42, .06);
+    flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
   }
   .tuteur-modal__errors {
     display: none;
-    margin-bottom: 1rem;
-    padding: .75rem 1rem;
+    margin-bottom: .75rem;
+    padding: .65rem .9rem;
     border-radius: 8px;
     background: var(--danger-light);
     color: var(--danger);
@@ -79,7 +138,79 @@
     font-size: .9rem;
   }
   .tuteur-modal__errors.is-visible { display: block; }
+  .tuteur-lien-cards {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .5rem;
+    margin-bottom: .75rem;
+  }
+  .tuteur-lien-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    margin: 0;
+    padding: .55rem .45rem;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    cursor: pointer;
+    font-size: .82rem;
+    font-weight: 650;
+    color: var(--text-main);
+    text-align: center;
+  }
+  .tuteur-lien-card:hover { border-color: #b8bcc4; }
+  .tuteur-lien-card:has(input:checked) {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, var(--primary-light) 0%, #fff 80%);
+    color: var(--primary-hover);
+    box-shadow: 0 0 0 3px rgba(0, 119, 197, .1);
+  }
+  .tuteur-lien-card input {
+    accent-color: var(--primary);
+    margin: 0;
+  }
+  .tuteur-modal .form-field { margin-bottom: 0; }
+  .tuteur-modal .form-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .7rem .9rem;
+  }
+  .tuteur-modal .form-grid-2 .form-field--wide {
+    grid-column: 1 / -1;
+  }
+  .tuteur-modal .form-grid-2 .form-field__row {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+  }
+  .tuteur-modal .form-grid-2 .form-field__label,
+  .tuteur-modal .form-field--wide .form-field__label {
+    text-align: left;
+    padding-top: 0;
+    font-size: .78rem;
+    color: var(--text-muted);
+  }
+  .tuteur-modal .form-field--wide .form-field__row {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+  }
   body.modal-open { overflow: hidden; }
+  @media (max-width: 900px) {
+    .tuteur-modal .form-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .tuteur-lien-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tuteur-modal { padding: .4rem; align-items: flex-end; }
+    .tuteur-modal__dialog {
+      max-height: calc(100vh - .8rem);
+      height: calc(100vh - .8rem);
+      border-radius: 12px 12px 0 0;
+    }
+    .tuteur-modal .form-grid-2 { grid-template-columns: 1fr; }
+  }
 </style>
 {% endblock %}
 
@@ -179,28 +310,59 @@
   <div class="tuteur-modal__backdrop" data-close-tuteur-modal></div>
   <div class="tuteur-modal__dialog">
     <div class="tuteur-modal__header">
-      <h3 id="tuteur-modal-title">Nouveau tuteur / parent</h3>
+      <div>
+        <p class="tuteur-modal__eyebrow">Fiche élève</p>
+        <h3 id="tuteur-modal-title">Nouveau tuteur / parent</h3>
+        <p class="tuteur-modal__lead">Le matricule sera attribué à l’enregistrement (TUT-000001). La résidence saisie ici s’applique à l’élève.</p>
+      </div>
       <button type="button" class="tuteur-modal__close" data-close-tuteur-modal aria-label="Fermer">&times;</button>
     </div>
     <form id="tuteur-modal-form" method="post" action="{{ tuteur_create_url }}">
       {% csrf_token %}
       <div class="tuteur-modal__body">
         <div class="tuteur-modal__errors" id="tuteur-modal-errors"></div>
-        <div class="form-grid-2">
-          {% include 'includes/form_field.html' with field=tuteur_form.lien_parente %}
-          {% include 'includes/form_field.html' with field=tuteur_form.nom %}
-          {% include 'includes/form_field.html' with field=tuteur_form.Post_nom %}
-          {% include 'includes/form_field.html' with field=tuteur_form.prenom %}
-          {% include 'includes/form_field.html' with field=tuteur_form.telephone %}
-          {% include 'includes/form_field.html' with field=tuteur_form.telephone2 %}
-          {% include 'includes/form_field.html' with field=tuteur_form.email %}
-          {% include 'includes/form_field.html' with field=tuteur_form.quartier %}
-        </div>
-        {% include 'includes/form_field.html' with field=tuteur_form.adresse full_width=True %}
+
+        <section class="tuteur-modal__section">
+          <h4>Identité</h4>
+          <div class="form-field{% if tuteur_form.lien_parente.errors %} form-field--invalid{% endif %}">
+            <span class="form-field__label" style="display:block; text-align:left; padding-top:0; margin-bottom:.45rem;">{{ tuteur_form.lien_parente.label }}</span>
+            <div class="tuteur-lien-cards">
+              {% for value, label in tuteur_form.lien_parente.field.choices %}
+              {% if value %}
+              <label class="tuteur-lien-card">
+                <input type="radio" name="{{ tuteur_form.lien_parente.html_name }}" value="{{ value }}" class="form-check-input"
+                  {% if tuteur_form.lien_parente.value|default:"PERE"|upper == value %}checked{% endif %}>
+                <span>{{ label }}</span>
+              </label>
+              {% endif %}
+              {% endfor %}
+            </div>
+            {% if tuteur_form.lien_parente.errors %}
+            <p class="form-error" role="alert">{{ tuteur_form.lien_parente.errors|striptags }}</p>
+            {% endif %}
+          </div>
+          <div class="form-grid-2">
+            {% include 'includes/form_field.html' with field=tuteur_form.nom %}
+            {% include 'includes/form_field.html' with field=tuteur_form.Post_nom %}
+            {% include 'includes/form_field.html' with field=tuteur_form.prenom %}
+          </div>
+        </section>
+
+        <section class="tuteur-modal__section">
+          <h4>Coordonnées &amp; résidence</h4>
+          <div class="form-grid-2">
+            {% include 'includes/form_field.html' with field=tuteur_form.telephone %}
+            {% include 'includes/form_field.html' with field=tuteur_form.telephone2 %}
+            {% include 'includes/form_field.html' with field=tuteur_form.email %}
+            {% include 'includes/form_field.html' with field=tuteur_form.quartier %}
+          </div>
+          <p class="form-help" style="margin:.35rem 0 .75rem;">Dans la liste Quartier, choisissez « ➕ Ajouter un quartier » s’il n’existe pas encore.</p>
+          {% include 'includes/form_field.html' with field=tuteur_form.adresse full_width=True %}
+        </section>
       </div>
       <div class="tuteur-modal__footer">
         <button type="button" class="btn btn-secondary" data-close-tuteur-modal>Annuler</button>
-        <button type="submit" class="btn btn-primary" id="tuteur-modal-submit">Valider</button>
+        <button type="submit" class="btn btn-primary" id="tuteur-modal-submit">Enregistrer le tuteur</button>
       </div>
     </form>
   </div>
@@ -379,7 +541,7 @@
             } finally {
                 if (modalSubmit) {
                     modalSubmit.disabled = false;
-                    modalSubmit.textContent = 'Valider';
+                    modalSubmit.textContent = 'Enregistrer le tuteur';
                 }
             }
         });

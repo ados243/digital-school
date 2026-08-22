@@ -45,7 +45,7 @@
     {% endif %}
 
     {% if enfants %}
-    <section class="kpi-grid" style="margin-bottom: 1.5rem;">
+    <section class="kpi-grid" style="margin-bottom: 1.5rem;" aria-label="Situation globale">
         <div class="kpi-card">
             <div>
                 <div class="kpi-title">Enfants</div>
@@ -59,6 +59,20 @@
                 <div class="kpi-value">{{ nb_inscrits }}</div>
             </div>
             <div class="kpi-footer">Année scolaire en cours</div>
+        </div>
+        <div class="kpi-card">
+            <div>
+                <div class="kpi-title">Frais dus</div>
+                <div class="kpi-value">{{ kpi_parent.nb_impayes }}</div>
+            </div>
+            <div class="kpi-footer">Reste cumulé : {{ kpi_parent.total_du }}</div>
+        </div>
+        <div class="kpi-card">
+            <div>
+                <div class="kpi-title">Absences</div>
+                <div class="kpi-value">{{ kpi_parent.nb_absences }}</div>
+            </div>
+            <div class="kpi-footer">Jours d’absence enregistrés</div>
         </div>
     </section>
 
@@ -114,6 +128,7 @@
 {% elif request.user.is_eleve %}
     <div style="margin-bottom:1.25rem;">
         <a href="{% url 'utilisateur:direct_eleve_list' %}" class="btn btn-primary">Rejoindre mes cours en visioconférence</a>
+        <a href="{% url 'utilisateur:ressource_eleve_list' %}" class="btn btn-secondary">Ressources de cours</a>
     </div>
 
     <div class="panel" style="margin-bottom:1.5rem;">

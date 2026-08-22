@@ -2,14 +2,14 @@
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from inscription.models import Annee_Scolaire
-from pedagogie.affectations import peut_gerer_matiere_classe
+from pedagogie.affectations import peut_gerer_matiere_classes
 from pedagogie.forms import ChapitreCoursForm, CoursEnLigneForm, LeconEnLigneForm
-from pedagogie.models import ChapitreCours, CoursEnLigne, LeconEnLigne, Matiere, ProgressionLecon
+from pedagogie.models import ChapitreCours, CoursEnLigne, LeconEnLigne, Matiere, ProgressionLecon, qs_pour_classe
 from utilisateur.travaux_views import (
     _classes_enseignant,
     _matieres_enseignant,
@@ -25,6 +25,7 @@ def _cours_enseignant_qs(personnel):
     base = (
         CoursEnLigne.objects.filter(ecole=personnel.ecole)
         .select_related('classe', 'matiere', 'enseignant', 'annee_scolaire')
+        .prefetch_related('classes')
         .annotate(
             lecons_total=Count('lecons', distinct=True),
             lecons_pub=Count(
@@ -38,7 +39,7 @@ def _cours_enseignant_qs(personnel):
     ids = [
         c.id for c in base
         if c.enseignant_id == personnel.id
-        or peut_gerer_matiere_classe(personnel, c.matiere, c.classe)
+        or peut_gerer_matiere_classes(personnel, c.matiere, c.classes_concernees())
     ]
     return base.filter(id__in=ids).order_by('-updated_at')
 
@@ -48,7 +49,7 @@ def _peut_gerer_cours(personnel, cours):
         return False
     if cours.enseignant_id == personnel.id:
         return True
-    return peut_gerer_matiere_classe(personnel, cours.matiere, cours.classe)
+    return peut_gerer_matiere_classes(personnel, cours.matiere, cours.classes_concernees())
 
 
 @login_required
@@ -63,7 +64,7 @@ def cours_enseignant_list(request):
     statut = request.GET.get('statut')
 
     if classe_id:
-        cours_list = [c for c in cours_list if str(c.classe_id) == classe_id]
+        cours_list = [c for c in cours_list if c.concerne_classe(classe_id)]
     if matiere_id:
         cours_list = [c for c in cours_list if str(c.matiere_id) == matiere_id]
     if statut == 'publie':
@@ -101,17 +102,20 @@ def cours_enseignant_create(request):
             cours = form.save(commit=False)
             cours.ecole = ecole
             cours.enseignant = personnel
-            if not peut_gerer_matiere_classe(personnel, cours.matiere, cours.classe):
+            if not peut_gerer_matiere_classes(
+                personnel, cours.matiere, form.cleaned_data.get('classes')
+            ):
                 messages.error(request, "Vous ne pouvez pas créer un cours pour cette classe / matière.")
             else:
                 cours.save()
+                form.save_m2m()
                 messages.success(request, "Cours créé. Ajoutez des chapitres, puis publiez-le.")
                 return redirect('utilisateur:cours_enseignant_detail', pk=cours.pk)
     else:
         annee = Annee_Scolaire.objects.filter(est_encoure=True).first()
         initial = {'annee_scolaire': annee}
         if request.GET.get('classe'):
-            initial['classe'] = request.GET.get('classe')
+            initial['classes'] = [request.GET.get('classe')]
         if request.GET.get('matiere'):
             initial['matiere'] = request.GET.get('matiere')
         form = CoursEnLigneForm(
@@ -145,10 +149,13 @@ def cours_enseignant_update(request, pk):
         )
         if form.is_valid():
             updated = form.save(commit=False)
-            if not peut_gerer_matiere_classe(personnel, updated.matiere, updated.classe):
+            if not peut_gerer_matiere_classes(
+                personnel, updated.matiere, form.cleaned_data.get('classes')
+            ):
                 messages.error(request, "Classe / matière non autorisée.")
             else:
                 updated.save()
+                form.save_m2m()
                 messages.success(request, "Cours mis à jour.")
                 return redirect('utilisateur:cours_enseignant_detail', pk=cours.pk)
     else:
@@ -171,7 +178,8 @@ def cours_enseignant_detail(request, pk):
         return err
 
     cours = get_object_or_404(
-        CoursEnLigne.objects.select_related('classe', 'matiere', 'enseignant', 'annee_scolaire'),
+        CoursEnLigne.objects.select_related('classe', 'matiere', 'enseignant', 'annee_scolaire')
+        .prefetch_related('classes'),
         pk=pk,
         ecole=personnel.ecole,
     )
@@ -330,7 +338,7 @@ def cours_enseignant_publier(request, pk):
             cours.save(update_fields=['publie', 'date_publication', 'updated_at'])
             messages.success(
                 request,
-                f"Cours publié : les élèves de {cours.classe.classe} peuvent l'étudier en ligne.",
+                f"Cours publié : les élèves de {cours.classes_libelle()} peuvent l'étudier en ligne.",
             )
     return redirect('utilisateur:cours_enseignant_detail', pk=cours.pk)
 
@@ -443,13 +451,16 @@ def _require_eleve(request):
 
 def _cours_publies_eleve(inscription):
     return (
-        CoursEnLigne.objects.filter(
-            publie=True,
-            ecole=inscription.eleve.ecole,
-            classe=inscription.classe,
-            annee_scolaire=inscription.annee_s,
+        qs_pour_classe(
+            CoursEnLigne.objects.filter(
+                publie=True,
+                ecole=inscription.eleve.ecole,
+                annee_scolaire=inscription.annee_s,
+            ),
+            inscription.classe,
         )
         .select_related('matiere', 'enseignant', 'classe')
+        .prefetch_related('classes')
         .annotate(
             lecons_pub=Count(
                 'lecons',
@@ -551,11 +562,14 @@ def cours_eleve_detail(request, pk):
         return err
 
     cours = get_object_or_404(
-        CoursEnLigne.objects.select_related('matiere', 'enseignant', 'classe'),
+        qs_pour_classe(
+            CoursEnLigne.objects.select_related('matiere', 'enseignant', 'classe')
+            .prefetch_related('classes'),
+            inscription.classe,
+        ),
         pk=pk,
         publie=True,
         ecole=eleve.ecole,
-        classe=inscription.classe,
     )
     chapters_rows, lecons_rows, lecons = _build_progress_structure(cours, inscription)
     terminees = sum(1 for r in lecons_rows if r['terminee'])
@@ -585,14 +599,17 @@ def chapitre_eleve_detail(request, pk):
         return err
 
     chapitre = get_object_or_404(
-        ChapitreCours.objects.select_related(
-            'cours', 'cours__matiere', 'cours__enseignant', 'cours__classe'
+        qs_pour_classe(
+            ChapitreCours.objects.select_related(
+                'cours', 'cours__matiere', 'cours__enseignant', 'cours__classe'
+            ).prefetch_related('cours__classes'),
+            inscription.classe,
+            via='cours',
         ),
         pk=pk,
         publie=True,
         cours__publie=True,
         cours__ecole=eleve.ecole,
-        cours__classe=inscription.classe,
     )
     cours = chapitre.cours
     chapters_rows, lecons_rows, lecons = _build_progress_structure(cours, inscription)
@@ -616,15 +633,18 @@ def lecon_eleve_detail(request, pk):
         return err
 
     lecon = get_object_or_404(
-        LeconEnLigne.objects.select_related(
-            'cours', 'chapitre', 'cours__matiere', 'cours__enseignant', 'cours__classe'
+        qs_pour_classe(
+            LeconEnLigne.objects.select_related(
+                'cours', 'chapitre', 'cours__matiere', 'cours__enseignant', 'cours__classe'
+            ).prefetch_related('cours__classes'),
+            inscription.classe,
+            via='cours',
         ),
         pk=pk,
         publie=True,
         chapitre__publie=True,
         cours__publie=True,
         cours__ecole=eleve.ecole,
-        cours__classe=inscription.classe,
     )
     cours = lecon.cours
     chapters_rows, lecons_rows, lecons = _build_progress_structure(cours, inscription)

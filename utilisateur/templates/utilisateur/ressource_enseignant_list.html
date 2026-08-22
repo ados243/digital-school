@@ -1,0 +1,116 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Ressources partagées{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Ressources</h1>
+    <p>Partagez des vidéos, PDF et autres fichiers avec vos classes.</p>
+</div>
+
+<div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:ressource_enseignant_create' %}" class="btn btn-primary">+ Partager un fichier</a>
+</div>
+
+<section class="kpi-grid" style="margin-bottom:1.25rem;">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Ressources</div>
+            <div class="kpi-value">{{ ressources|length }}</div>
+        </div>
+        <div class="kpi-footer">Fichiers visibles ici</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Publiées</div>
+            <div class="kpi-value">{{ nb_publiees }}</div>
+        </div>
+        <div class="kpi-footer">Accessibles aux élèves</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Brouillons</div>
+            <div class="kpi-value">{{ nb_brouillons }}</div>
+        </div>
+        <div class="kpi-footer">Non visibles</div>
+    </div>
+</section>
+
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-body">
+        <form method="get" class="form-grid-2" style="align-items:end;">
+            <div class="form-group">
+                <label class="form-label">Classe</label>
+                <select name="classe" class="form-control" onchange="this.form.submit()">
+                    <option value="">Toutes</option>
+                    {% for c in classes %}
+                    <option value="{{ c.id }}" {% if filtre_classe == c.id|stringformat:"s" %}selected{% endif %}>{{ c.classe }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Type</label>
+                <select name="type" class="form-control" onchange="this.form.submit()">
+                    <option value="">Tous</option>
+                    {% for value, label in types %}
+                    <option value="{{ value }}" {% if filtre_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Ressource</th>
+                    <th>Type</th>
+                    <th>Classes</th>
+                    <th>Matière</th>
+                    <th>Statut</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in ressources %}
+                <tr>
+                    <td>
+                        <strong>{{ r.icone }} {{ r.titre }}</strong>
+                        <span style="display:block;font-size:.85rem;color:var(--text-muted);">
+                            {{ r.taille_affichee }} · {{ r.created_at|date:"d/m/Y" }}
+                        </span>
+                    </td>
+                    <td>{{ r.get_type_fichier_display }}</td>
+                    <td>{{ r.classes_libelle }}</td>
+                    <td>{% if r.matiere %}{{ r.matiere.libelle }}{% else %}—{% endif %}</td>
+                    <td>
+                        {% if r.publie %}
+                        <span class="badge badge-success">Publiée</span>
+                        {% else %}
+                        <span class="badge badge-secondary">Brouillon</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:right; white-space:nowrap;">
+                        {% if r.piece %}
+                        <a href="{{ r.piece.url }}" class="btn btn-secondary btn-sm" target="_blank" rel="noopener">Ouvrir</a>
+                        {% endif %}
+                        <a href="{% url 'utilisateur:ressource_enseignant_update' r.id %}" class="btn btn-secondary btn-sm">Modifier</a>
+                        <a href="{% url 'utilisateur:ressource_enseignant_delete' r.id %}" class="btn btn-secondary btn-sm">Supprimer</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                        Aucune ressource pour le moment.
+                        <a href="{% url 'utilisateur:ressource_enseignant_create' %}">Partager le premier fichier</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

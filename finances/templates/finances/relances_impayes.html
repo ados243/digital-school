@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+
+{% block title %}Relances minerval{% endblock %}
+
+{% block page_title %}Relances minerval{% endblock %}
+{% block page_subtitle %}
+  {% if annee %}Année {{ annee.anne_scolaire }}{% else %}Aucune année en cours{% endif %}
+  — WhatsApp aux tuteurs dont le minerval n’est pas soldé
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:dashboard' %}" class="btn btn-secondary">Retour à la synthèse</a>
+{% if whatsapp_ok and nb_envoyables %}
+<form method="post" action="{% url 'finances:relances_impayes_envoyer' %}" style="display:inline;"
+      onsubmit="return confirm('Envoyer un WhatsApp de relance minerval à {{ nb_envoyables }} parent(s) ?');">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary">Relancer le minerval</button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% if not annee %}
+<div class="alert alert-warning" role="status">
+  Marquez une année scolaire « en cours » pour calculer les soldes.
+</div>
+{% endif %}
+
+{% if not whatsapp_ok %}
+<div class="alert alert-warning" role="status">
+  WhatsApp n’est pas actif pour cet établissement.
+  {% if request.user.is_superuser %}
+  Activez-le dans <a href="{% url 'finances:whatsapp_config' %}">WhatsApp central</a> avant d’envoyer les relances.
+  {% else %}
+  Demandez à un administrateur d’activer WhatsApp.
+  {% endif %}
+</div>
+{% endif %}
+
+<section class="kpi-grid" aria-label="Indicateurs des dettes">
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Minerval non soldé</div>
+            <div class="kpi-value">{{ nb_dettes }}</div>
+        </div>
+        <div class="kpi-footer">Élèves avec un reste de minerval</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Parents joignables</div>
+            <div class="kpi-value">{{ nb_envoyables }}</div>
+        </div>
+        <div class="kpi-footer">Tuteur avec un numéro WhatsApp</div>
+    </div>
+    <div class="kpi-card">
+        <div>
+            <div class="kpi-title">Sans téléphone</div>
+            <div class="kpi-value">{{ nb_sans_tel }}</div>
+        </div>
+        <div class="kpi-footer">Fiches ignorées lors de l’envoi groupé</div>
+    </div>
+</section>
+
+{% if exemple_message %}
+<div class="panel" style="margin-top:1.5rem;">
+    <div class="panel-header"><h3>Aperçu du message envoyé</h3></div>
+    <div class="panel-body">
+        <pre style="white-space:pre-wrap; font-family:inherit; margin:0;">{{ exemple_message }}</pre>
+    </div>
+</div>
+{% endif %}
+
+<div class="panel" style="margin-top:1.5rem;">
+    <div class="panel-header">
+        <h3>Minerval impayé</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Élève</th>
+                    <th>Classe</th>
+                    <th>Tuteur</th>
+                    <th>WhatsApp</th>
+                    <th>Détail minerval</th>
+                    <th>Total minerval dû</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ligne in lignes %}
+                <tr>
+                    <td>
+                        <strong>{{ ligne.eleve.prenom }} {{ ligne.eleve.nom }} {{ ligne.eleve.Post_nom }}</strong>
+                        <span style="display:block; font-size:.8rem; color:var(--text-muted);">{{ ligne.eleve.matricule }}</span>
+                    </td>
+                    <td>{{ ligne.inscription.classe.classe }}</td>
+                    <td>
+                        {% if ligne.tuteur %}
+                        {{ ligne.parent_nom }}
+                        {% else %}
+                        <span style="color:var(--text-muted);">Non rattaché</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if ligne.telephone %}
+                        <span style="font-family:monospace;">+{{ ligne.telephone }}</span>
+                        {% else %}
+                        <span class="badge badge-warning">Numéro manquant</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for d in ligne.dus %}
+                        <div>{{ d.libelle }} : <strong>{{ d.reste }} {{ d.devise }}</strong></div>
+                        {% endfor %}
+                    </td>
+                    <td><strong>{{ ligne.totaux_affiche }}</strong></td>
+                    <td style="text-align:right;">
+                        {% if whatsapp_ok and ligne.peut_envoyer %}
+                        <form method="post" action="{% url 'finances:relances_impayes_envoyer' %}" style="display:inline;"
+                              onsubmit="return confirm('Envoyer la relance minerval à {{ ligne.parent_nom|default:"ce parent" }} ?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="inscription_id" value="{{ ligne.inscription.pk }}">
+                            <button type="submit" class="btn btn-secondary btn-sm">Relancer</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                        Aucun minerval impayé pour l’année en cours.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,7 +1,9 @@
+from collections import OrderedDict
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum, Q
+from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.urls import reverse
 from .models import Eleve, Inscription, Classe, Annee_Scolaire, Quartier
@@ -45,36 +47,130 @@ def _is_ajax(request):
     )
 
 
-def _classe_stats(classe, annee=None):
+def _classe_stats(classe, annee=None, inscrits=None):
     """Retourne inscrits, pourcentage et statut complet pour une classe."""
-    inscrits = classe.inscrits_annee_en_cours(annee)
-    percent = int((inscrits / classe.capacite_max) * 100) if classe.capacite_max > 0 else 0
+    if inscrits is None:
+        inscrits = classe.inscrits_annee_en_cours(annee)
+    capacite = classe.capacite_max or 0
+    percent = int((inscrits / capacite) * 100) if capacite > 0 else 0
+    is_full = capacite > 0 and inscrits >= capacite
+    if is_full:
+        tone, statut = 'full', 'Complète'
+    elif inscrits == 0:
+        tone, statut = 'empty', 'Vide'
+    elif percent >= 80:
+        tone, statut = 'warn', 'Presque pleine'
+    else:
+        tone, statut = 'ok', 'Places libres'
     return {
         'obj': classe,
         'inscrits': inscrits,
         'percent': percent,
-        'is_full': inscrits >= classe.capacite_max,
+        'percent_bar': min(percent, 100),
+        'is_full': is_full,
+        'places': max(capacite - inscrits, 0),
+        'tone': tone,
+        'statut': statut,
     }
 
 
 @login_required
 def dashboard(request):
     ecole = get_user_ecole(request)
+    annee = annees_for_ecole(ecole).filter(est_encoure=True).first()
     eleves_qs = eleves_for_ecole(ecole)
-    inscriptions_qs = inscriptions_for_ecole(ecole)
-    classes_qs = classes_for_ecole(ecole)
+    inscriptions_qs = inscriptions_for_ecole(ecole).select_related(
+        'eleve', 'classe', 'classe__section', 'annee_s'
+    )
+    classes_qs = (
+        classes_for_ecole(ecole)
+        .select_related('section', 'titulaire')
+        .order_by('section__section', 'classe')
+    )
 
-    recent_inscriptions = inscriptions_qs.select_related('eleve', 'classe').order_by('-date', '-id')[:5]
+    inscriptions_annee = (
+        inscriptions_qs.filter(annee_s=annee) if annee else inscriptions_qs.none()
+    )
+
+    effectifs = {
+        row['classe_id']: row['n']
+        for row in inscriptions_annee.values('classe_id').annotate(n=Count('id'))
+    }
+    classes_stats = [
+        _classe_stats(classe, annee, inscrits=effectifs.get(classe.pk, 0))
+        for classe in classes_qs
+    ]
+
+    sections = OrderedDict()
+    for row in classes_stats:
+        section = row['obj'].section
+        bloc = sections.setdefault(section.pk, {
+            'section': section,
+            'classes': [],
+            'inscrits': 0,
+            'capacite': 0,
+        })
+        bloc['classes'].append(row)
+        bloc['inscrits'] += row['inscrits']
+        bloc['capacite'] += row['obj'].capacite_max or 0
+    for bloc in sections.values():
+        cap = bloc['capacite']
+        bloc['percent'] = int((bloc['inscrits'] / cap) * 100) if cap else 0
+        bloc['percent_bar'] = min(bloc['percent'], 100)
+        bloc['places'] = max(cap - bloc['inscrits'], 0)
+
+    total_eleves = eleves_qs.count()
+    total_classes = len(classes_stats)
+    capacite = sum((c['obj'].capacite_max or 0) for c in classes_stats)
+    inscrits = inscriptions_annee.count()
+    places = max(capacite - inscrits, 0)
+    taux = int((inscrits / capacite) * 100) if capacite else 0
+    mix = inscriptions_annee.aggregate(
+        garcons=Count('id', filter=Q(eleve__sexe='Masculin')),
+        filles=Count('id', filter=Q(eleve__sexe='Feminin')),
+        frais_impayes=Count('id', filter=Q(frais_inscription=False)),
+    )
+    garcons = mix['garcons'] or 0
+    filles = mix['filles'] or 0
+    mix_total = garcons + filles
+    types_map = dict(Inscription.type_inscription_choices)
+    types_inscription = [
+        {
+            'code': row['type_iscription'],
+            'label': types_map.get(row['type_iscription'], row['type_iscription']),
+            'n': row['n'],
+            'percent': int((row['n'] / inscrits) * 100) if inscrits else 0,
+        }
+        for row in inscriptions_annee.values('type_iscription').annotate(n=Count('id')).order_by('-n')
+    ]
+    non_inscrits = (
+        eleves_qs.exclude(pk__in=inscriptions_annee.values('eleve_id')).count()
+        if annee else total_eleves
+    )
 
     context = {
-        'total_eleves': eleves_qs.count(),
-        'total_inscriptions': inscriptions_qs.count(),
-        'total_classes': classes_qs.count(),
-        'garcons': eleves_qs.filter(sexe='Masculin').count(),
-        'filles': eleves_qs.filter(sexe='Feminin').count(),
+        'annee_courante': annee,
+        'total_eleves': total_eleves,
+        'total_classes': total_classes,
+        'inscrits_annee': inscrits,
+        'capacite': capacite,
+        'places_libres': places,
+        'taux_global': taux,
+        'taux_bar': min(taux, 100),
+        'classes_completes': sum(1 for c in classes_stats if c['is_full']),
+        'classes_vides': sum(1 for c in classes_stats if c['inscrits'] == 0),
+        'classes_alerte': sum(1 for c in classes_stats if c['tone'] in ('full', 'warn')),
+        'frais_impayes': mix['frais_impayes'] or 0,
+        'non_inscrits': non_inscrits,
+        'garcons': garcons,
+        'filles': filles,
+        'garcons_pct': int((garcons / mix_total) * 100) if mix_total else 0,
+        'filles_pct': int((filles / mix_total) * 100) if mix_total else 0,
+        'types_inscription': types_inscription,
+        'sections_situation': list(sections.values()),
+        'classes_alerte_liste': [c for c in classes_stats if c['tone'] in ('full', 'warn')],
+        'recent_inscriptions': inscriptions_annee.order_by('-date', '-id')[:8],
         'recent_eleves': eleves_qs.order_by('-id')[:5],
-        'recent_inscriptions': recent_inscriptions,
-        'total_capacity': sum(c.capacite_max for c in classes_qs),
     }
     return render(request, 'inscription/dashboard.html', context)
 
@@ -114,6 +210,49 @@ def tuteur_create(request):
         'inscription/tuteur_form.html',
         {
             'form': form,
+            'quartier_form': QuartierForm(prefix='quartier_modal'),
+            'quartier_create_url': reverse('inscription:quartier_create'),
+        },
+    )
+
+
+@login_required
+def tuteur_list(request):
+    ecole = get_user_ecole(request)
+    query = request.GET.get('q', '')
+    tuteurs = tuteurs_for_ecole(ecole).select_related('quartier', 'quartier__commune').order_by('nom', 'prenom')
+    if query:
+        tuteurs = tuteurs.filter(
+            Q(nom__icontains=query)
+            | Q(prenom__icontains=query)
+            | Q(Post_nom__icontains=query)
+            | Q(matricule__icontains=query)
+            | Q(telephone__icontains=query)
+        )
+    return render(request, 'inscription/tuteur_list.html', {
+        'tuteurs': tuteurs,
+        'query': query,
+    })
+
+
+@login_required
+def tuteur_update(request, pk):
+    ecole = get_user_ecole(request)
+    tuteur = get_object_or_404(tuteurs_for_ecole(ecole), pk=pk)
+    if request.method == 'POST':
+        form = TuteurForm(request.POST, instance=tuteur)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Tuteur {tuteur.nom} mis à jour.")
+            return redirect('inscription:tuteur_list')
+    else:
+        form = TuteurForm(instance=tuteur)
+    return render(
+        request,
+        'inscription/tuteur_form.html',
+        {
+            'form': form,
+            'tuteur': tuteur,
             'quartier_form': QuartierForm(prefix='quartier_modal'),
             'quartier_create_url': reverse('inscription:quartier_create'),
         },
@@ -210,6 +349,14 @@ def eleve_update(request, pk):
         form = EleveForm(request.POST, request.FILES, instance=eleve, ecole=ecole)
         if form.is_valid():
             form.save()
+            from utilisateur.security import journaliser
+            journaliser(
+                request,
+                action='MODIFICATION_ELEVE',
+                ressource='eleve',
+                identifiant=eleve.pk,
+                ecole=ecole,
+            )
             messages.success(request, f"Fiche de l'élève {eleve.prenom} mise à jour.")
             return redirect('inscription:eleve_list')
     else:
@@ -437,6 +584,39 @@ def classe_detail(request, pk):
         'taux_classe': taux_classe,
     }
     return render(request, 'inscription/classe_detail.html', context)
+
+
+@login_required
+def classe_export_csv(request, pk):
+    import csv
+    from django.http import HttpResponse
+
+    ecole = get_user_ecole(request)
+    classe = get_object_or_404(Classe, pk=pk, ecole=ecole)
+    annee = annees_for_ecole(ecole).filter(est_encoure=True).first()
+    qs = inscriptions_for_ecole(ecole).filter(classe=classe)
+    if annee:
+        qs = qs.filter(annee_s=annee)
+    qs = qs.select_related('eleve', 'eleve__titeur').order_by('eleve__nom', 'eleve__prenom')
+
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="classe-{classe.classe}.csv"'
+    response.write('\ufeff')
+    writer = csv.writer(response, delimiter=';')
+    writer.writerow(['Matricule', 'Nom', 'Post-nom', 'Prénom', 'Sexe', 'Tuteur', 'Téléphone tuteur'])
+    for ins in qs:
+        el = ins.eleve
+        tut = el.titeur
+        writer.writerow([
+            el.matricule,
+            el.nom,
+            el.Post_nom,
+            el.prenom,
+            el.sexe,
+            f"{tut.prenom} {tut.nom}" if tut else '',
+            (tut.telephone if tut else '') or '',
+        ])
+    return response
 
 
 @login_required

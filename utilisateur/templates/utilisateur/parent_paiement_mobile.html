@@ -1,0 +1,56 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Payer par Mobile Money{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        <a href="{% url 'utilisateur:parent_enfant' eleve.id %}" style="color:var(--secondary); text-decoration:none; font-weight:600;">← Retour</a>
+    </p>
+    <h1>Payer par Mobile Money</h1>
+    <p>{{ eleve.prenom }} {{ eleve.nom }} · {{ inscription.classe.classe }}</p>
+</div>
+
+{% if not dus %}
+<div class="panel">
+    <div class="portal-empty">Aucun frais dû pour le moment.</div>
+</div>
+{% else %}
+<div class="panel">
+    <div class="panel-header"><h3>Initier un paiement</h3></div>
+    <div class="panel-body">
+        <p class="form-help" style="margin-bottom:1rem;">
+            Une référence est créée. Payez via le code USSD de l’opérateur, puis la caisse confirme
+            (ou l’opérateur notifie le webhook si il est configuré).
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-field">
+                <label class="form-field__label" for="id_frais">Frais à régler</label>
+                <select name="frais_id" id="id_frais" class="form-control" required>
+                    {% for d in dus %}
+                    <option value="{{ d.frais.id }}">{{ d.frais.type_frais }} — reste {{ d.reste }} {{ d.frais.devise }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="id_provider">Opérateur</label>
+                <select name="provider" id="id_provider" class="form-control">
+                    {% for code, label in providers %}
+                    <option value="{{ code }}">{{ label }}{% if ussd|default_if_none:None %}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="id_telephone">Numéro Mobile Money</label>
+                <input class="form-control" type="text" name="telephone" id="id_telephone" value="{{ telephone }}" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Créer la demande</button>
+        </form>
+        <p class="form-help" style="margin-top:1rem;">
+            USSD indicatifs : Airtel {{ ussd.AIRTEL|default:"*501#" }} · Orange {{ ussd.ORANGE|default:"*144#" }} · M-Pesa {{ ussd.MPESA|default:"*150#" }}
+        </p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

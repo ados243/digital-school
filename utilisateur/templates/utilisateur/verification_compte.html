@@ -1,0 +1,62 @@
+{% extends 'auth_base.html' %}
+
+{% block title %}{% if mode_reset %}Code de réinitialisation{% else %}Vérification du compte{% endif %}{% endblock %}
+{% block visual_title %}Confirmez votre identité.{% endblock %}
+{% block visual_tagline %}Un code a été envoyé sur le WhatsApp déjà enregistré par votre établissement.{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <div class="auth-card__header">
+        <h2>{% if mode_reset %}Code de réinitialisation{% else %}Code de confirmation{% endif %}</h2>
+        <p>
+            Saisissez le code à 6 chiffres envoyé
+            {% if contact_masque %}au WhatsApp <strong>{{ contact_masque }}</strong>{% else %}sur le WhatsApp de votre fiche{% endif %}.
+            Il expire dans 10 minutes.
+        </p>
+    </div>
+
+    {% if erreur %}
+    <div class="form-errors-banner" role="alert" aria-live="assertive">
+        <div class="form-errors-banner__content"><p>{{ erreur }}</p></div>
+    </div>
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="auth-field">
+            <label for="id_code">Code de vérification</label>
+            <input
+                class="form-control"
+                type="text"
+                name="code"
+                id="id_code"
+                inputmode="numeric"
+                pattern="[0-9]{6}"
+                maxlength="6"
+                autocomplete="one-time-code"
+                required
+                autofocus
+                aria-describedby="help-code"
+            >
+            <p class="form-help" id="help-code">Code à 6 chiffres reçu par WhatsApp.</p>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-form-submit" style="width:100%;">
+            {% if mode_reset %}Valider le code{% else %}Valider et créer mon compte{% endif %}
+        </button>
+    </form>
+
+    <form method="post" style="margin-top:1rem;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="renvoyer">
+        <button type="submit" class="btn btn-secondary" style="width:100%;">Renvoyer le code</button>
+    </form>
+
+    <div class="auth-card__footer">
+        {% if mode_reset %}
+        <a href="{% url 'utilisateur:password_reset' %}">Recommencer</a>
+        {% else %}
+        <a href="{% url 'utilisateur:inscription' %}">Recommencer la création de compte</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

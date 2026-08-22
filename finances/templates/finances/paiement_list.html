@@ -27,6 +27,49 @@
     </a>
 </div>
 
+{% if intentions_mobile %}
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-header">
+        <h3>Demandes Mobile Money en attente</h3>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Référence</th>
+                    <th>Élève</th>
+                    <th>Frais</th>
+                    <th>Montant</th>
+                    <th>Opérateur</th>
+                    <th>Téléphone</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for it in intentions_mobile %}
+                <tr>
+                    <td><span style="font-family:monospace; font-weight:700;">{{ it.reference }}</span></td>
+                    <td>{{ it.inscription.eleve.prenom }} {{ it.inscription.eleve.nom }}</td>
+                    <td>{% if it.frais %}{{ it.frais.type_frais.libelle }}{% else %}—{% endif %}</td>
+                    <td>{{ it.montant }} {{ it.devise }}</td>
+                    <td>{{ it.get_provider_display }}</td>
+                    <td>{{ it.telephone }}</td>
+                    <td style="text-align:right;">
+                        {% if request.user.is_caissier or request.user.is_superuser %}
+                        <form method="post" action="{% url 'finances:caisse_confirmer_mobile' it.pk %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary btn-sm">Confirmer le paiement</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 <div class="panel">
     <div class="panel-header">
         <h3>{% if filtre_perso %}Mes paiements{% else %}Historique des paiements{% endif %}</h3>

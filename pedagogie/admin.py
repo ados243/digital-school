@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Matiere, AffectationEnseignement, DivisionAnnee, PeriodeBulletin, BulletinEleve,
     TravailCote, NoteEleve, PresenceClasse, PresenceEleve, CoursEnLigne, ChapitreCours,
-    LeconEnLigne, ProgressionLecon, CoursEnDirect, QuestionCoursDirect,
+    LeconEnLigne, ProgressionLecon, CoursEnDirect, QuestionCoursDirect, RessourcePartagee,
 )
 
 
@@ -42,12 +42,13 @@ class ChapitreCoursInline(admin.StackedInline):
 @admin.register(CoursEnLigne)
 class CoursEnLigneAdmin(admin.ModelAdmin):
     list_display = (
-        'titre', 'matiere', 'classe', 'niveau', 'enseignant',
+        'titre', 'matiere', 'classes_libelle', 'niveau', 'enseignant',
         'publie', 'annee_scolaire', 'ecole',
     )
     list_filter = ('publie', 'niveau', 'ecole', 'classe', 'matiere')
     search_fields = ('titre', 'sous_titre', 'matiere__libelle', 'classe__classe')
     autocomplete_fields = ('classe', 'matiere', 'enseignant', 'annee_scolaire', 'ecole')
+    filter_horizontal = ('classes',)
     inlines = [ChapitreCoursInline]
 
 
@@ -75,13 +76,27 @@ class ProgressionLeconAdmin(admin.ModelAdmin):
 @admin.register(CoursEnDirect)
 class CoursEnDirectAdmin(admin.ModelAdmin):
     list_display = (
-        'titre', 'classe', 'matiere', 'enseignant',
+        'titre', 'classes_libelle', 'matiere', 'enseignant',
         'date_heure_prevue', 'statut', 'ecole',
     )
     list_filter = ('statut', 'ecole', 'classe', 'matiere')
     search_fields = ('titre', 'matiere__libelle', 'classe__classe')
     autocomplete_fields = ('classe', 'matiere', 'enseignant', 'annee_scolaire', 'ecole')
+    filter_horizontal = ('classes',)
     readonly_fields = ('jitsi_room_id', 'created_at', 'updated_at')
+
+
+@admin.register(RessourcePartagee)
+class RessourcePartageeAdmin(admin.ModelAdmin):
+    list_display = (
+        'titre', 'type_fichier', 'classes_libelle', 'matiere',
+        'enseignant', 'publie', 'ecole',
+    )
+    list_filter = ('type_fichier', 'publie', 'ecole', 'matiere')
+    search_fields = ('titre', 'description', 'enseignant__nom', 'enseignant__prenom')
+    autocomplete_fields = ('matiere', 'enseignant', 'annee_scolaire', 'ecole')
+    filter_horizontal = ('classes',)
+    readonly_fields = ('type_fichier', 'created_at', 'updated_at')
 
 
 @admin.register(QuestionCoursDirect)

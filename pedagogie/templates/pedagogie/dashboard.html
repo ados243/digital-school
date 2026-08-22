@@ -7,6 +7,7 @@
 
 {% block header_actions %}
 <a href="{% url 'pedagogie:periodes_bulletin' %}" class="btn btn-secondary">📅 Calendrier / en cours</a>
+<a href="{% url 'pedagogie:emploi_du_temps' %}" class="btn btn-secondary" style="margin-left: 0.5rem;">🗓️ Emploi du temps</a>
 <a href="{% url 'pedagogie:matiere_create' %}" class="btn btn-primary" style="margin-left: 0.5rem;">➕ Nouvelle Matière</a>
 <a href="{% url 'inscription:classe_create' %}?next={% url 'pedagogie:dashboard' %}" class="btn btn-secondary" style="margin-left: 0.5rem;">🏫 Nouvelle Classe</a>
 {% endblock %}
@@ -19,7 +20,7 @@
             <div class="kpi-title">Total Matières</div>
             <div class="kpi-value">{{ stats.total_matieres }}</div>
         </div>
-        <div class="kpi-footer">📖 Voir la liste des matières →</div>
+        <div class="kpi-footer"><span aria-hidden="true">📖</span> Voir la liste des matières →</div>
     </a>
     
     <div class="kpi-card">
@@ -27,7 +28,7 @@
             <div class="kpi-title">Classes gérées</div>
             <div class="kpi-value">{{ stats.total_classes }}</div>
         </div>
-        <div class="kpi-footer">🏫 Classes d'élèves enregistrées</div>
+        <div class="kpi-footer"><span aria-hidden="true">🏫</span> Classes d'élèves enregistrées</div>
     </div>
     
     <div class="kpi-card">
@@ -35,7 +36,7 @@
             <div class="kpi-title">Sections pédagogiques</div>
             <div class="kpi-value">{{ stats.total_sections }}</div>
         </div>
-        <div class="kpi-footer">🗂️ Cycles et sections actifs</div>
+        <div class="kpi-footer"><span aria-hidden="true">🗂️</span> Cycles et sections actifs</div>
     </div>
 
     <div class="kpi-card">
@@ -45,7 +46,7 @@
         </div>
         <div class="kpi-footer">
             {% if stats.annee_courante %}
-            📅 Année {{ stats.annee_courante.anne_scolaire }}
+            <span aria-hidden="true">📅</span> Année {{ stats.annee_courante.anne_scolaire }}
             {% else %}
             ⚠️ Aucune année scolaire en cours
             {% endif %}
@@ -57,7 +58,7 @@
             <div class="kpi-title">Classes complètes</div>
             <div class="kpi-value">{{ stats.classes_completes }}</div>
         </div>
-        <div class="kpi-footer">🔴 Capacité maximale atteinte</div>
+        <div class="kpi-footer"><span aria-hidden="true">🔴</span> Capacité maximale atteinte</div>
     </div>
 
     <a href="{% url 'pedagogie:periodes_bulletin' %}" class="kpi-card kpi-card--link">
@@ -65,7 +66,7 @@
             <div class="kpi-title">Périodes / divisions en cours</div>
             <div class="kpi-value">{{ calendrier_encours.lignes|length }}</div>
         </div>
-        <div class="kpi-footer">📅 Voir trimestres, semestres et périodes →</div>
+        <div class="kpi-footer"><span aria-hidden="true">📅</span> Voir trimestres, semestres et périodes →</div>
     </a>
 </section>
 

@@ -1,38 +1,385 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}Budget annuel{% endblock %}
-{% block page_title %}Budget annuel{% endblock %}
+{% block title %}Suivi du budget{% if annee %} {{ annee }}{% endif %}{% endblock %}
+{% block page_title %}Suivi du budget{% endblock %}
 {% block page_subtitle %}
-  Toutes les rubriques (recettes &amp; dépenses)
-  {% if annee %}— année {{ annee }}{% endif %}
+  {% if annee %}Année scolaire {{ annee }}{% else %}Prévisions, réalisé et écart{% endif %}
 {% endblock %}
 
 {% block header_actions %}
-<a href="{% url 'finances:frais_scolaire_list' %}" class="btn btn-secondary">Frais scolaires</a>
-<a href="{% url 'finances:dashboard' %}" class="btn btn-secondary">Synthèse</a>
+<div class="budget-top-actions">
+  <a href="{% url 'finances:frais_scolaire_list' %}" class="btn btn-secondary">Frais scolaires</a>
+  <a href="{% url 'finances:dashboard' %}" class="btn btn-secondary">Synthèse</a>
+  {% if annee %}
+  <a href="?annee={{ annee.id }}&export=excel" class="btn btn-primary">Exporter Excel</a>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .budget-page { max-width: 1280px; margin: 0 auto; padding: 0 0 2rem; }
+
+  .budget-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: .85rem 1.15rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-sm);
+  }
+  .budget-toolbar__group { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+  .budget-toolbar label {
+    margin: 0;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .budget-select {
+    min-width: 180px;
+    padding: .45rem .8rem;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-input);
+    background: var(--bg-input);
+  }
+  .budget-select:focus {
+    outline: none;
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px rgba(0, 119, 197, .15);
+  }
+  .budget-rate {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .35rem .75rem;
+    background: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .budget-rate strong { font-variant-numeric: tabular-nums; }
+  .budget-rate small { display: block; color: var(--text-muted); font-size: .72rem; }
+
+  .budget-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: .9rem 1.15rem;
+    border-radius: var(--radius-lg);
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+  }
+  .budget-banner--ok { background: #f0f7fc; border-color: #c5dff3; }
+  .budget-banner--draft { background: var(--warning-light); border-color: #f3d48a; }
+  .budget-banner__text { font-size: .88rem; }
+  .budget-banner__text strong { display: block; margin-bottom: .15rem; }
+  .budget-banner__meta { color: var(--text-muted); font-size: .8rem; }
+
+  .budget-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: .9rem;
+    margin-bottom: 1.15rem;
+  }
+  @media (max-width: 1100px) { .budget-kpis { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .budget-kpis { grid-template-columns: 1fr; } }
+
+  .budget-kpi {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.1rem 1.05rem;
+    box-shadow: var(--shadow-sm);
+    min-height: 132px;
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    border-top: 4px solid var(--border);
+  }
+  .budget-kpi--in { border-top-color: #0d9488; }
+  .budget-kpi--out { border-top-color: #d97706; }
+  .budget-kpi--ok { border-top-color: var(--primary); }
+  .budget-kpi--alert { border-top-color: var(--danger); }
+  .budget-kpi__label {
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .budget-kpi__value {
+    font-size: 1.45rem;
+    font-weight: 800;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+  }
+  .budget-kpi__value span { font-size: .8rem; font-weight: 700; color: var(--text-muted); }
+  .budget-kpi__hint { font-size: .78rem; color: var(--text-muted); margin-top: auto; }
+  .budget-kpi__bar { height: 6px; background: #e8eaed; border-radius: 99px; overflow: hidden; }
+  .budget-kpi__bar > i { display: block; height: 100%; border-radius: 99px; background: var(--primary); }
+  .budget-kpi__bar > i.is-warn { background: var(--warning); }
+  .budget-kpi__bar > i.is-full { background: var(--danger); }
+  .budget-kpi__bar > i.is-ok, .budget-kpi__bar > i.is-empty { background: #0d9488; }
+
+  .budget-tabs {
+    display: flex;
+    gap: .25rem;
+    padding: .3rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 1.1rem;
+    overflow-x: auto;
+  }
+  .budget-tab {
+    flex: 1;
+    min-width: max-content;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: .86rem;
+    padding: .55rem .9rem;
+    border-radius: 9px;
+    cursor: pointer;
+  }
+  .budget-tab:hover { color: var(--primary); background: var(--primary-light); }
+  .budget-tab.is-active { color: #fff; background: var(--primary); }
+
+  .budget-pane { display: none; }
+  .budget-pane.is-active { display: block; animation: budgetFade .18s ease; }
+  @keyframes budgetFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .budget-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.1rem;
+    overflow: hidden;
+  }
+  .budget-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .75rem;
+    flex-wrap: wrap;
+    padding: .95rem 1.15rem;
+    border-bottom: 1px solid var(--border);
+    background: #fafbfc;
+  }
+  .budget-card__head h3 { font-size: 1rem; font-weight: 700; margin: 0; }
+  .budget-card__head p { margin: .2rem 0 0; font-size: .8rem; color: var(--text-muted); }
+  .budget-card__foot {
+    padding: .7rem 1.15rem;
+    font-size: .78rem;
+    color: var(--text-muted);
+    background: var(--bg-light);
+    border-top: 1px solid var(--border);
+  }
+
+  .budget-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  @media (max-width: 860px) { .budget-split { grid-template-columns: 1fr; } }
+
+  .budget-row {
+    display: grid;
+    grid-template-columns: 1fr 140px;
+    gap: .75rem;
+    align-items: center;
+    padding: .7rem 1.15rem;
+    border-bottom: 1px solid #f0f2f4;
+  }
+  .budget-row:last-child { border-bottom: 0; }
+  .budget-row.is-idle { opacity: .45; }
+  .budget-row__name { font-weight: 600; font-size: .88rem; }
+  .budget-row__meta { font-size: .75rem; color: var(--text-muted); }
+  .budget-row__exec { display: flex; align-items: center; gap: .45rem; }
+  .budget-row__pct { min-width: 2.4rem; text-align: right; font-size: .78rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .budget-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  .budget-table th {
+    position: sticky; top: 0; z-index: 1;
+    background: #f4f6f8;
+    padding: .65rem .9rem;
+    text-align: left;
+    font-size: .68rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .budget-table th.is-num, .budget-table td.is-num { text-align: right; }
+  .budget-table td {
+    padding: .75rem .9rem;
+    border-bottom: 1px solid #eef0f3;
+    vertical-align: middle;
+  }
+  .budget-table tbody tr:hover { background: #f8fbfe; }
+  .budget-table tbody tr.is-idle { opacity: .42; }
+  .budget-table tfoot th, .budget-table tfoot td {
+    background: #f4f6f8;
+    font-weight: 700;
+    border-top: 1px solid var(--border);
+    border-bottom: 0;
+  }
+  .budget-table--in tbody td .amt__main { color: #0f766e; }
+  .budget-table--out tbody td .amt__main { color: #b45309; }
+
+  .amt { display: flex; flex-direction: column; align-items: flex-end; gap: .1rem; line-height: 1.2; }
+  .amt__main { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .amt__sub { font-size: .72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .amt--pos .amt__main { color: #0f766e; }
+  .amt--neg .amt__main { color: #b45309; }
+  .amt--over .amt__main { color: var(--danger); }
+
+  .exec { display: flex; align-items: center; gap: .5rem; min-width: 118px; }
+  .exec__track { flex: 1; height: 7px; background: #e6e8eb; border-radius: 99px; overflow: hidden; }
+  .exec__fill { display: block; height: 100%; border-radius: 99px; background: var(--primary); }
+  .exec__fill.is-ok, .exec__fill.is-empty { background: #0d9488; }
+  .exec__fill.is-warn { background: var(--warning); }
+  .exec__fill.is-full { background: var(--danger); }
+  .exec__pct { font-size: .76rem; font-weight: 700; color: var(--text-muted); min-width: 2.5rem; font-variant-numeric: tabular-nums; }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: .12rem .4rem;
+    border-radius: 4px;
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+  }
+  .tag--auto { background: var(--primary-light); color: var(--primary-hover); }
+  .tag--manual { background: #f4f5f8; color: var(--text-muted); border: 1px solid var(--border); }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: .15rem .5rem;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 700;
+  }
+  .pill--ok { background: #dcfce7; color: #166534; }
+  .pill--warn { background: var(--warning-light); color: #92400e; }
+  .pill--bad { background: var(--danger-light); color: var(--danger); }
+  .pill--info { background: var(--primary-light); color: var(--primary-hover); }
+
+  .budget-tools { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
+  .budget-search {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: .3rem .6rem;
+  }
+  .budget-search input {
+    border: 0;
+    outline: none;
+    width: 180px;
+    font-size: .82rem;
+    background: transparent;
+  }
+  .budget-toggle { font-size: .78rem; color: var(--text-muted); display: flex; align-items: center; gap: .35rem; }
+
+  .money {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .money input {
+    border: 0;
+    width: 100%;
+    padding: .5rem .65rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .money input:focus { outline: none; background: var(--primary-light); }
+  .money span {
+    display: flex;
+    align-items: center;
+    padding: 0 .6rem;
+    background: var(--bg-light);
+    color: var(--text-muted);
+    font-size: .72rem;
+    font-weight: 700;
+    border-left: 1px solid var(--border);
+  }
+  .money-locked {
+    padding: .5rem .7rem;
+    background: var(--primary-light);
+    border-radius: 8px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--primary-hover);
+  }
+
+  .budget-save { padding: 1.15rem; }
+  .budget-save textarea { border-radius: 8px; }
+
+  .budget-page.budget-hide-idle .is-idle { display: none; }
+
+  .budget-top-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+  @media (max-width: 720px) {
+    .budget-table th:nth-child(n+4),
+    .budget-table td:nth-child(n+4) { /* keep all, just scroll */ }
+  }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="container" style="padding: 24px;">
+<div class="budget-page">
 
-  <div class="panel" style="margin-bottom: 1rem; {% if not taux_courant %}border-color: #f59e0b;{% endif %}">
-    <div class="panel-body" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem;">
-      <div style="display: flex; align-items: center; gap: 0.75rem;">
-        <span style="font-size: 1.5rem;" aria-hidden="true">💱</span>
+  <div class="budget-toolbar">
+    <form method="get" class="budget-toolbar__group">
+      <div>
+        <label for="annee">Année scolaire</label>
+        <select name="annee" id="annee" class="budget-select" onchange="this.form.submit()">
+          {% for a in annees %}
+          <option value="{{ a.id }}" {% if annee and a.id == annee.id %}selected{% endif %}>
+            {{ a }}{% if a.est_encoure %} — en cours{% endif %}
+          </option>
+          {% empty %}
+          <option value="">Aucune année</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+    <div class="budget-toolbar__group">
+      <div class="budget-rate">
         <div>
-          <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em;">Taux de change</div>
+          <small>Taux USD → CDF</small>
           {% if taux_courant %}
-          <div style="font-size: 1.35rem; font-weight: 700; font-family: monospace;">
-            1 USD = {{ taux_courant.taux }} CDF
-          </div>
-          <div style="font-size: 0.85rem; color: var(--text-muted);">
-            En vigueur depuis le {{ taux_courant.date_effet|date:"d/m/Y" }}
-          </div>
+          <strong>1 USD = {{ taux_courant.taux }} CDF</strong>
+          <small>depuis le {{ taux_courant.date_effet|date:"d/m/Y" }}</small>
           {% else %}
-          <div style="font-size: 1.1rem; font-weight: 600; color: #b45309;">Non défini</div>
-          <div style="font-size: 0.85rem; color: var(--text-muted);">
-            <a href="{% url 'finances:taux_change_list' %}">Saisir un taux</a> pour convertir USD ↔ CDF
-          </div>
+          <strong style="color:#b45309;">Non défini</strong>
           {% endif %}
         </div>
       </div>
@@ -40,247 +387,555 @@
     </div>
   </div>
 
-  <form method="get" class="panel" style="margin-bottom: 1.25rem;">
-    <div class="panel-body" style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: end;">
-      <div>
-        <label for="annee">Année scolaire</label>
-        <select name="annee" id="annee" class="form-control" onchange="this.form.submit()">
-          {% for a in annees %}
-          <option value="{{ a.id }}" {% if annee and a.id == annee.id %}selected{% endif %}>
-            {{ a }}{% if a.est_encoure %} (en cours){% endif %}
-          </option>
-          {% empty %}
-          <option value="">Aucune année</option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
-  </form>
-
   {% if projection.alertes %}
-  <div class="alert alert-warning" style="margin-bottom: 1rem;">
-    {% for alerte in projection.alertes %}
-    <div>{{ alerte }}</div>
-    {% endfor %}
+  <div class="alert alert-warning" style="border-radius:12px; margin-bottom:1rem;">
+    <strong>Paramétrage incomplet</strong>
+    <ul style="margin:.35rem 0 0; padding-left:1.15rem;">
+      {% for alerte in projection.alertes %}
+      <li>{{ alerte }}</li>
+      {% endfor %}
+    </ul>
   </div>
   {% endif %}
-
-  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.25rem;">
-    <div class="panel" style="margin: 0;">
-      <div class="panel-body">
-        <div style="color: var(--text-muted); font-size: 0.85rem;">Capacité</div>
-        <div style="font-size: 1.4rem; font-weight: 700;">{{ projection.capacite_totale }}</div>
-      </div>
-    </div>
-    <div class="panel" style="margin: 0;">
-      <div class="panel-body">
-        <div style="color: var(--text-muted); font-size: 0.85rem;">Recettes USD</div>
-        <div style="font-size: 1.4rem; font-weight: 700;">{{ plan.total_recettes_usd }}</div>
-        <div style="font-size: 0.85rem; color: var(--text-muted);">{{ plan.total_recettes_cdf }} CDF</div>
-      </div>
-    </div>
-    <div class="panel" style="margin: 0;">
-      <div class="panel-body">
-        <div style="color: var(--text-muted); font-size: 0.85rem;">Dépenses USD</div>
-        <div style="font-size: 1.4rem; font-weight: 700;">{{ plan.total_depenses_usd }}</div>
-        <div style="font-size: 0.85rem; color: var(--text-muted);">{{ plan.total_depenses_cdf }} CDF</div>
-      </div>
-    </div>
-    <div class="panel" style="margin: 0;">
-      <div class="panel-body">
-        <div style="color: var(--text-muted); font-size: 0.85rem;">Solde budgétaire</div>
-        <div style="font-size: 1.4rem; font-weight: 700;">{{ solde_usd }} USD</div>
-        <div style="font-size: 0.85rem; color: var(--text-muted);">{{ solde_cdf }} CDF</div>
-      </div>
-    </div>
-    <div class="panel" style="margin: 0;">
-      <div class="panel-body">
-        <div style="color: var(--text-muted); font-size: 0.85rem;">Minerval réalisé</div>
-        <div style="font-size: 1.1rem; font-weight: 700;">{{ realise.usd }} USD</div>
-        <div style="font-size: 0.95rem;">{{ realise.cdf }} CDF</div>
-      </div>
-    </div>
-  </div>
 
   {% if budget %}
-  <div class="alert alert-success" style="margin-bottom: 1rem;">
-    Budget fixé le {{ budget.date_fixation|date:"d/m/Y H:i" }}
-    {% if budget.fixe_par %}par {{ budget.fixe_par }}{% endif %}.
-    {% if budget.commentaire %}<div style="margin-top: 0.35rem;">{{ budget.commentaire }}</div>{% endif %}
+  <div class="budget-banner budget-banner--ok">
+    <div class="budget-banner__text">
+      <strong>Budget fixé</strong>
+      <div class="budget-banner__meta">
+        Le {{ budget.date_fixation|date:"d/m/Y à H:i" }}
+        {% if budget.fixe_par %}par {{ budget.fixe_par }}{% endif %}
+        {% if budget.commentaire %} — {{ budget.commentaire }}{% endif %}
+      </div>
+    </div>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="showTab('saisie')">Modifier</button>
+  </div>
+  {% else %}
+  <div class="budget-banner budget-banner--draft">
+    <div class="budget-banner__text">
+      <strong>Prévisions automatiques — budget non encore fixé</strong>
+      <div class="budget-banner__meta">
+        Recettes = capacité × barème. Salaires = contrats actifs × 12 mois.
+      </div>
+    </div>
+    <button type="button" class="btn btn-primary btn-sm" onclick="showTab('saisie')">Fixer le budget</button>
   </div>
   {% endif %}
 
-  {% if annee %}
-  <form method="post">
-    {% csrf_token %}
-    <input type="hidden" name="annee" value="{{ annee.id }}">
-    <input type="hidden" name="action" value="fixer">
+  <div class="budget-kpis">
+    <article class="budget-kpi budget-kpi--in">
+      <div class="budget-kpi__label">Recettes réalisées</div>
+      <div class="budget-kpi__value">{{ plan.realise_recettes_usd }} <span>USD</span></div>
+      <div class="budget-kpi__hint">Objectif {{ plan.total_recettes_usd }} USD · {{ plan.realise_recettes_cdf }} CDF</div>
+      <div class="budget-kpi__bar"><i class="is-{{ plan.etat_recettes }}" style="width: {{ plan.barre_recettes_usd }}%;"></i></div>
+      {% if plan.pct_recettes_usd is not None %}
+      <span class="pill {% if plan.pct_recettes_usd >= 90 %}pill--ok{% elif plan.pct_recettes_usd >= 50 %}pill--warn{% else %}pill--bad{% endif %}">{{ plan.pct_recettes_usd }} %</span>
+      {% endif %}
+    </article>
+    <article class="budget-kpi budget-kpi--out">
+      <div class="budget-kpi__label">Dépenses réalisées</div>
+      <div class="budget-kpi__value">{{ plan.realise_depenses_usd }} <span>USD</span></div>
+      <div class="budget-kpi__hint">Plafond {{ plan.total_depenses_usd }} USD · {{ plan.realise_depenses_cdf }} CDF</div>
+      <div class="budget-kpi__bar"><i class="is-{{ plan.etat_depenses }}" style="width: {{ plan.barre_depenses_usd }}%;"></i></div>
+      {% if plan.pct_depenses_usd is not None %}
+      <span class="pill {% if plan.pct_depenses_usd > 100 %}pill--bad{% else %}pill--warn{% endif %}">{{ plan.pct_depenses_usd }} %</span>
+      {% endif %}
+    </article>
+    <article class="budget-kpi {% if solde_usd >= 0 %}budget-kpi--ok{% else %}budget-kpi--alert{% endif %}">
+      <div class="budget-kpi__label">Solde prévu</div>
+      <div class="budget-kpi__value">{{ solde_usd }} <span>USD</span></div>
+      <div class="budget-kpi__hint">{{ solde_cdf }} CDF · {{ projection.capacite_totale }} places · {{ projection.lignes|length }} classes</div>
+      <span class="pill {% if solde_usd >= 0 %}pill--ok{% else %}pill--bad{% endif %}">{% if solde_usd >= 0 %}Excédent prévu{% else %}Déficit prévu{% endif %}</span>
+    </article>
+    <article class="budget-kpi {% if plan.solde_realise_usd >= 0 %}budget-kpi--ok{% else %}budget-kpi--alert{% endif %}">
+      <div class="budget-kpi__label">Solde réalisé</div>
+      <div class="budget-kpi__value">{{ plan.solde_realise_usd }} <span>USD</span></div>
+      <div class="budget-kpi__hint">{{ plan.solde_realise_cdf }} CDF encaissés nets</div>
+      <span class="pill {% if plan.solde_realise_usd >= 0 %}pill--info{% else %}pill--bad{% endif %}">{% if plan.solde_realise_usd >= 0 %}Positif{% else %}Négatif{% endif %}</span>
+    </article>
+  </div>
 
-    <div class="panel" style="margin-bottom: 1.25rem;">
-      <div class="panel-header">
-        <h3 style="margin: 0;">Recettes</h3>
+  {% if annee %}
+  <nav class="budget-tabs" role="tablist">
+    <button type="button" class="budget-tab is-active" id="tab-btn-apercu" onclick="showTab('apercu')">Aperçu</button>
+    <button type="button" class="budget-tab" id="tab-btn-recettes" onclick="showTab('recettes')">Suivi des recettes</button>
+    <button type="button" class="budget-tab" id="tab-btn-depenses" onclick="showTab('depenses')">Dépenses</button>
+    <button type="button" class="budget-tab" id="tab-btn-minerval" onclick="showTab('minerval')">Minerval</button>
+    <button type="button" class="budget-tab" id="tab-btn-saisie" onclick="showTab('saisie')">{% if budget %}Modifier{% else %}Fixer{% endif %}</button>
+  </nav>
+
+  {# ── Aperçu ── #}
+  <div class="budget-pane is-active" id="pane-apercu">
+    <div class="budget-card">
+      <div class="budget-card__head">
+        <div>
+          <h3>Budgété vs réalisé</h3>
+          <p>USD en premier, CDF en dessous. L’écart est réalisé − budgété. Les frais et charges ajoutés après la fixation sont inclus.</p>
+        </div>
       </div>
-      <div class="panel-body table-responsive" style="padding: 0;">
-        <table class="custom-table">
+      <div class="table-responsive">
+        <table class="budget-table">
+          <thead>
+            <tr>
+              <th>Flux</th>
+              <th class="is-num">Budgété</th>
+              <th class="is-num">Réalisé</th>
+              <th class="is-num">Écart</th>
+              <th>Exécution</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Recettes</strong></td>
+              <td class="is-num"><div class="amt"><span class="amt__main">{{ plan.total_recettes_usd }} USD</span><span class="amt__sub">{{ plan.total_recettes_cdf }} CDF</span></div></td>
+              <td class="is-num"><div class="amt amt--pos"><span class="amt__main">{{ plan.realise_recettes_usd }} USD</span><span class="amt__sub">{{ plan.realise_recettes_cdf }} CDF</span></div></td>
+              <td class="is-num"><div class="amt {% if plan.ecart_recettes_usd >= 0 %}amt--pos{% else %}amt--neg{% endif %}"><span class="amt__main">{% if plan.ecart_recettes_usd > 0 %}+{% endif %}{{ plan.ecart_recettes_usd }} USD</span><span class="amt__sub">{% if plan.ecart_recettes_cdf > 0 %}+{% endif %}{{ plan.ecart_recettes_cdf }} CDF</span></div></td>
+              <td>
+                <div class="exec">
+                  <div class="exec__track"><i class="exec__fill is-{{ plan.etat_recettes }}" style="width: {{ plan.barre_recettes_usd }}%;"></i></div>
+                  <span class="exec__pct">{% if plan.pct_recettes_usd is not None %}{{ plan.pct_recettes_usd }} %{% else %}—{% endif %}</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Dépenses</strong></td>
+              <td class="is-num"><div class="amt"><span class="amt__main">{{ plan.total_depenses_usd }} USD</span><span class="amt__sub">{{ plan.total_depenses_cdf }} CDF</span></div></td>
+              <td class="is-num"><div class="amt amt--neg"><span class="amt__main">{{ plan.realise_depenses_usd }} USD</span><span class="amt__sub">{{ plan.realise_depenses_cdf }} CDF</span></div></td>
+              <td class="is-num"><div class="amt {% if plan.ecart_depenses_usd > 0 %}amt--over{% else %}amt--pos{% endif %}"><span class="amt__main">{% if plan.ecart_depenses_usd > 0 %}+{% endif %}{{ plan.ecart_depenses_usd }} USD</span><span class="amt__sub">{% if plan.ecart_depenses_cdf > 0 %}+{% endif %}{{ plan.ecart_depenses_cdf }} CDF</span></div></td>
+              <td>
+                <div class="exec">
+                  <div class="exec__track"><i class="exec__fill is-{{ plan.etat_depenses }}" style="width: {{ plan.barre_depenses_usd }}%;"></i></div>
+                  <span class="exec__pct">{% if plan.pct_depenses_usd is not None %}{{ plan.pct_depenses_usd }} %{% else %}—{% endif %}</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <th>Solde</th>
+              <th class="is-num"><div class="amt"><span class="amt__main">{{ solde_usd }} USD</span><span class="amt__sub">{{ solde_cdf }} CDF</span></div></th>
+              <th class="is-num"><div class="amt"><span class="amt__main">{{ plan.solde_realise_usd }} USD</span><span class="amt__sub">{{ plan.solde_realise_cdf }} CDF</span></div></th>
+              <th class="is-num">—</th>
+              <th><span class="pill {% if plan.solde_realise_usd >= 0 %}pill--ok{% else %}pill--bad{% endif %}">{% if plan.solde_realise_usd >= 0 %}Surplus{% else %}Déficit{% endif %}</span></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="budget-card__foot">
+        Recettes = paiements élèves validés. Dépenses = salaires payés sur l’année {{ annee }}.
+      </div>
+    </div>
+
+    <div class="budget-split">
+      <div class="budget-card">
+        <div class="budget-card__head">
+          <div>
+            <h3>Recouvrement des recettes</h3>
+            <p>Réalisé / budgété en USD</p>
+          </div>
+        </div>
+        {% for poste in plan.recettes %}
+        <div class="budget-row {% if poste.inactif %}is-idle{% endif %}">
+          <div>
+            <div class="budget-row__name">{{ poste.rubrique.libelle }} {% if poste.rubrique.calcul_auto %}<span class="tag tag--auto">Auto</span>{% endif %}</div>
+            <div class="budget-row__meta">{{ poste.realise_usd }} / {{ poste.montant_usd }} USD</div>
+          </div>
+          <div class="budget-row__exec">
+            <div class="exec__track"><i class="exec__fill is-{{ poste.etat_usd }}" style="width: {{ poste.barre_usd }}%;"></i></div>
+            <span class="budget-row__pct">{% if poste.pct_usd is not None %}{{ poste.pct_usd }} %{% else %}—{% endif %}</span>
+          </div>
+        </div>
+        {% empty %}
+        <div class="budget-row"><span class="budget-row__meta">Aucune rubrique recette.</span></div>
+        {% endfor %}
+      </div>
+      <div class="budget-card">
+        <div class="budget-card__head">
+          <div>
+            <h3>Engagement des dépenses</h3>
+            <p>Réalisé / plafond en USD</p>
+          </div>
+        </div>
+        {% for poste in plan.depenses %}
+        <div class="budget-row {% if poste.inactif %}is-idle{% endif %}">
+          <div>
+            <div class="budget-row__name">{{ poste.rubrique.libelle }} {% if poste.rubrique.calcul_auto %}<span class="tag tag--auto">Auto</span>{% endif %}</div>
+            <div class="budget-row__meta">{{ poste.realise_usd }} / {{ poste.montant_usd }} USD</div>
+          </div>
+          <div class="budget-row__exec">
+            <div class="exec__track"><i class="exec__fill is-{{ poste.etat_usd }}" style="width: {{ poste.barre_usd }}%;"></i></div>
+            <span class="budget-row__pct">{% if poste.pct_usd is not None %}{{ poste.pct_usd }} %{% else %}—{% endif %}</span>
+          </div>
+        </div>
+        {% empty %}
+        <div class="budget-row"><span class="budget-row__meta">Aucune rubrique dépense.</span></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Recettes ── #}
+  <div class="budget-pane" id="pane-recettes">
+    <div class="budget-card">
+      <div class="budget-card__head">
+        <div>
+          <h3>Suivi des recettes</h3>
+          <p>Chaque poste : budgété, encaissé, écart</p>
+        </div>
+        <div class="budget-tools">
+          <label class="budget-toggle"><input type="checkbox" checked onchange="toggleIdle(this)"> Masquer les postes à 0</label>
+          <div class="budget-search">
+            <input type="search" placeholder="Filtrer…" onkeyup="filterTable(this, 'table-recettes')">
+          </div>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="budget-table budget-table--in" id="table-recettes">
           <thead>
             <tr>
               <th>Rubrique</th>
-              <th style="width: 140px;">USD</th>
-              <th style="width: 160px;">CDF</th>
-              <th>Note</th>
+              <th class="is-num">Budgété</th>
+              <th class="is-num">Réalisé</th>
+              <th class="is-num">Écart</th>
+              <th>Exécution</th>
             </tr>
           </thead>
           <tbody>
             {% for poste in plan.recettes %}
-            <tr>
+            <tr class="{% if poste.inactif %}is-idle{% endif %}">
               <td>
                 <strong>{{ poste.rubrique.libelle }}</strong>
-                {% if poste.rubrique.calcul_auto %}
-                <span class="badge badge-success" style="margin-left: 0.35rem;">Auto</span>
-                {% endif %}
-                {% if poste.rubrique.description %}
-                <div style="font-size: 0.8rem; color: var(--text-muted);">{{ poste.rubrique.description }}</div>
-                {% endif %}
+                <div style="margin-top:.2rem; display:flex; gap:.35rem; flex-wrap:wrap; align-items:center;">
+                  {% if poste.rubrique.calcul_auto %}<span class="tag tag--auto">Auto</span>{% else %}<span class="tag tag--manual">Manuel</span>{% endif %}
+                  {% if poste.note %}<span class="budget-row__meta">{{ poste.note }}</span>{% endif %}
+                </div>
               </td>
+              <td class="is-num"><div class="amt"><span class="amt__main">{{ poste.montant_usd }} USD</span><span class="amt__sub">{{ poste.montant_cdf }} CDF</span></div></td>
+              <td class="is-num"><div class="amt amt--pos"><span class="amt__main">{{ poste.realise_usd }} USD</span><span class="amt__sub">{{ poste.realise_cdf }} CDF</span></div></td>
+              <td class="is-num"><div class="amt {% if poste.ecart_usd >= 0 %}amt--pos{% else %}amt--neg{% endif %}"><span class="amt__main">{% if poste.ecart_usd > 0 %}+{% endif %}{{ poste.ecart_usd }}</span><span class="amt__sub">{% if poste.ecart_cdf > 0 %}+{% endif %}{{ poste.ecart_cdf }} CDF</span></div></td>
               <td>
-                <input type="number" step="0.01" min="0" class="form-control"
-                       name="usd_{{ poste.rubrique.id }}" value="{{ poste.montant_usd }}">
-              </td>
-              <td>
-                <input type="number" step="0.01" min="0" class="form-control"
-                       name="cdf_{{ poste.rubrique.id }}" value="{{ poste.montant_cdf }}">
-              </td>
-              <td>
-                <input type="text" class="form-control" name="note_{{ poste.rubrique.id }}"
-                       value="{{ poste.note }}" placeholder="—">
+                <div class="exec">
+                  <div class="exec__track"><i class="exec__fill is-{{ poste.etat_usd }}" style="width: {{ poste.barre_usd }}%;"></i></div>
+                  <span class="exec__pct">{% if poste.pct_usd is not None %}{{ poste.pct_usd }} %{% else %}—{% endif %}</span>
+                </div>
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--text-muted);">Aucune rubrique recette.</td></tr>
+            <tr><td colspan="5" style="text-align:center; padding:2rem; color:var(--text-muted);">Aucune rubrique recette.</td></tr>
             {% endfor %}
           </tbody>
           <tfoot>
             <tr>
-              <th>Total recettes</th>
-              <th>{{ plan.total_recettes_usd }}</th>
-              <th>{{ plan.total_recettes_cdf }}</th>
-              <th></th>
+              <th>Total</th>
+              <th class="is-num"><div class="amt"><span class="amt__main">{{ plan.total_recettes_usd }} USD</span><span class="amt__sub">{{ plan.total_recettes_cdf }} CDF</span></div></th>
+              <th class="is-num"><div class="amt"><span class="amt__main">{{ plan.realise_recettes_usd }} USD</span><span class="amt__sub">{{ plan.realise_recettes_cdf }} CDF</span></div></th>
+              <th class="is-num"><div class="amt"><span class="amt__main">{% if plan.ecart_recettes_usd > 0 %}+{% endif %}{{ plan.ecart_recettes_usd }}</span></div></th>
+              <th>{% if plan.pct_recettes_usd is not None %}{{ plan.pct_recettes_usd }} %{% else %}—{% endif %}</th>
             </tr>
           </tfoot>
         </table>
       </div>
     </div>
+  </div>
 
-    <div class="panel" style="margin-bottom: 1.25rem;">
-      <div class="panel-header">
-        <h3 style="margin: 0;">Dépenses</h3>
+  {# ── Dépenses ── #}
+  <div class="budget-pane" id="pane-depenses">
+    <div class="budget-card">
+      <div class="budget-card__head">
+        <div>
+          <h3>Suivi des dépenses</h3>
+          <p>Salaires calculés automatiquement · les autres postes se saisissent à la fixation</p>
+        </div>
+        <div class="budget-tools">
+          <label class="budget-toggle"><input type="checkbox" checked onchange="toggleIdle(this)"> Masquer les postes à 0</label>
+          <div class="budget-search">
+            <input type="search" placeholder="Filtrer…" onkeyup="filterTable(this, 'table-depenses')">
+          </div>
+        </div>
       </div>
-      <div class="panel-body table-responsive" style="padding: 0;">
-        <table class="custom-table">
+      <div class="table-responsive">
+        <table class="budget-table budget-table--out" id="table-depenses">
           <thead>
             <tr>
               <th>Rubrique</th>
-              <th style="width: 140px;">USD</th>
-              <th style="width: 160px;">CDF</th>
-              <th>Note</th>
+              <th class="is-num">Budgété</th>
+              <th class="is-num">Réalisé</th>
+              <th class="is-num">Écart</th>
+              <th>Engagement</th>
             </tr>
           </thead>
           <tbody>
             {% for poste in plan.depenses %}
-            <tr>
+            <tr class="{% if poste.inactif %}is-idle{% endif %}">
               <td>
                 <strong>{{ poste.rubrique.libelle }}</strong>
-                {% if poste.rubrique.calcul_auto %}
-                <span class="badge badge-success" style="margin-left: 0.35rem;">Auto</span>
-                {% endif %}
-                {% if poste.rubrique.description %}
-                <div style="font-size: 0.8rem; color: var(--text-muted);">{{ poste.rubrique.description }}</div>
-                {% endif %}
+                <div style="margin-top:.2rem; display:flex; gap:.35rem; flex-wrap:wrap; align-items:center;">
+                  {% if poste.rubrique.calcul_auto %}<span class="tag tag--auto">Auto</span>{% else %}<span class="tag tag--manual">Manuel</span>{% endif %}
+                  {% if poste.note %}<span class="budget-row__meta">{{ poste.note }}</span>{% endif %}
+                </div>
               </td>
+              <td class="is-num"><div class="amt"><span class="amt__main">{{ poste.montant_usd }} USD</span><span class="amt__sub">{{ poste.montant_cdf }} CDF</span></div></td>
+              <td class="is-num"><div class="amt amt--neg"><span class="amt__main">{{ poste.realise_usd }} USD</span><span class="amt__sub">{{ poste.realise_cdf }} CDF</span></div></td>
+              <td class="is-num"><div class="amt {% if poste.ecart_usd > 0 %}amt--over{% else %}amt--pos{% endif %}"><span class="amt__main">{% if poste.ecart_usd > 0 %}+{% endif %}{{ poste.ecart_usd }}</span><span class="amt__sub">{% if poste.ecart_cdf > 0 %}+{% endif %}{{ poste.ecart_cdf }} CDF</span></div></td>
               <td>
-                <input type="number" step="0.01" min="0" class="form-control"
-                       name="usd_{{ poste.rubrique.id }}" value="{{ poste.montant_usd }}">
-              </td>
-              <td>
-                <input type="number" step="0.01" min="0" class="form-control"
-                       name="cdf_{{ poste.rubrique.id }}" value="{{ poste.montant_cdf }}">
-              </td>
-              <td>
-                <input type="text" class="form-control" name="note_{{ poste.rubrique.id }}"
-                       value="{{ poste.note }}" placeholder="—">
+                <div class="exec">
+                  <div class="exec__track"><i class="exec__fill is-{{ poste.etat_usd }}" style="width: {{ poste.barre_usd }}%;"></i></div>
+                  <span class="exec__pct">{% if poste.pct_usd is not None %}{{ poste.pct_usd }} %{% else %}—{% endif %}</span>
+                </div>
               </td>
             </tr>
             {% empty %}
-            <tr><td colspan="4" style="text-align:center; padding: 1.5rem; color: var(--text-muted);">Aucune rubrique dépense.</td></tr>
+            <tr><td colspan="5" style="text-align:center; padding:2rem; color:var(--text-muted);">Aucune rubrique dépense.</td></tr>
             {% endfor %}
           </tbody>
           <tfoot>
             <tr>
-              <th>Total dépenses</th>
-              <th>{{ plan.total_depenses_usd }}</th>
-              <th>{{ plan.total_depenses_cdf }}</th>
-              <th></th>
+              <th>Total</th>
+              <th class="is-num"><div class="amt"><span class="amt__main">{{ plan.total_depenses_usd }} USD</span><span class="amt__sub">{{ plan.total_depenses_cdf }} CDF</span></div></th>
+              <th class="is-num"><div class="amt"><span class="amt__main">{{ plan.realise_depenses_usd }} USD</span><span class="amt__sub">{{ plan.realise_depenses_cdf }} CDF</span></div></th>
+              <th class="is-num"><div class="amt"><span class="amt__main">{% if plan.ecart_depenses_usd > 0 %}+{% endif %}{{ plan.ecart_depenses_usd }}</span></div></th>
+              <th>{% if plan.pct_depenses_usd is not None %}{{ plan.pct_depenses_usd }} %{% else %}—{% endif %}</th>
             </tr>
           </tfoot>
         </table>
       </div>
     </div>
+  </div>
 
-    <div class="panel" style="margin-bottom: 1.25rem;">
-      <div class="panel-header">
-        <h3 style="margin: 0;">Détail minerval par classe</h3>
+  {# ── Minerval ── #}
+  <div class="budget-pane" id="pane-minerval">
+    <div class="budget-card">
+      <div class="budget-card__head">
+        <div>
+          <h3>Minerval par classe</h3>
+          <p>Capacité × barème de la section</p>
+        </div>
+        <div class="budget-tools">
+          <span class="pill pill--info">{{ projection.capacite_totale }} places</span>
+          <span class="pill pill--ok">{{ projection.total_usd }} USD · {{ projection.total_cdf }} CDF</span>
+        </div>
       </div>
-      <div class="panel-body table-responsive" style="padding: 0;">
-        <table class="custom-table">
+      <div class="table-responsive">
+        <table class="budget-table">
           <thead>
             <tr>
               <th>Section</th>
               <th>Classe</th>
-              <th>Capacité</th>
-              <th>Minerval / élève</th>
-              <th>Devise</th>
-              <th>Sous-total</th>
+              <th class="is-num">Capacité</th>
+              <th class="is-num">Minerval / élève</th>
+              <th class="is-num">Sous-total</th>
             </tr>
           </thead>
           <tbody>
             {% for ligne in projection.lignes %}
-            <tr {% if ligne.sans_minerval %}style="opacity: 0.65;"{% endif %}>
+            <tr {% if ligne.sans_minerval %}class="is-idle"{% endif %}>
               <td>{{ ligne.classe.section }}</td>
-              <td>{{ ligne.classe.classe }}</td>
-              <td>{{ ligne.capacite }}</td>
-              <td>{{ ligne.montant_unitaire }}</td>
-              <td>{% if ligne.devise %}{{ ligne.devise }}{% else %}—{% endif %}</td>
-              <td><strong>{{ ligne.sous_total }}</strong></td>
+              <td><strong>{{ ligne.classe.classe }}</strong></td>
+              <td class="is-num">{{ ligne.capacite }}</td>
+              <td class="is-num">
+                {% if ligne.sans_minerval %}
+                <span class="budget-row__meta">Non configuré</span>
+                {% else %}
+                {{ ligne.montant_unitaire }} {% if ligne.devise %}{{ ligne.devise }}{% endif %}
+                {% endif %}
+              </td>
+              <td class="is-num"><strong>{{ ligne.sous_total }}</strong></td>
             </tr>
             {% empty %}
-            <tr>
-              <td colspan="6" style="text-align:center; color: var(--text-muted); padding: 1.5rem;">
-                Aucune classe.
-              </td>
-            </tr>
+            <tr><td colspan="5" style="text-align:center; padding:2rem; color:var(--text-muted);">Aucune classe.</td></tr>
             {% endfor %}
           </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="2">Total</th>
+              <th class="is-num">{{ projection.capacite_totale }}</th>
+              <th></th>
+              <th class="is-num">{{ projection.total_usd }} USD · {{ projection.total_cdf }} CDF</th>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
+  </div>
 
-    <div class="panel">
-      <div class="panel-header">
-        <h3 style="margin: 0;">{% if budget %}Mettre à jour le budget{% else %}Fixer le budget{% endif %}</h3>
-      </div>
-      <div class="panel-body">
-        <label for="commentaire">Commentaire (optionnel)</label>
-        <textarea name="commentaire" id="commentaire" class="form-control" rows="2"
-          placeholder="Ex. Budget initial 2025-2026">{% if budget %}{{ budget.commentaire }}{% endif %}</textarea>
-        <div style="margin-top: 1rem;">
-          <button type="submit" class="btn btn-primary">
-            {% if budget %}Enregistrer le budget{% else %}Fixer le budget de l’année{% endif %}
-          </button>
+  {# ── Saisie ── #}
+  <div class="budget-pane" id="pane-saisie">
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="annee" value="{{ annee.id }}">
+      <input type="hidden" name="action" value="fixer">
+
+      <div class="budget-card">
+        <div class="budget-card__head" style="background:#f0f7fc;">
+          <div>
+            <h3>Objectifs de recettes</h3>
+            <p>Les lignes « Auto » se recalculent. Les autres frais scolaires (labo, examen…) sont proposés depuis le barème actuel.</p>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="budget-table">
+            <thead>
+              <tr>
+                <th>Rubrique</th>
+                <th>USD</th>
+                <th>CDF</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for poste in plan.recettes %}
+              <tr>
+                <td>
+                  <strong>{{ poste.rubrique.libelle }}</strong>
+                  {% if poste.rubrique.calcul_auto %}
+                  <div class="budget-row__meta" style="margin-top:.2rem;">Calcul automatique</div>
+                  {% elif poste.rubrique.description %}
+                  <div class="budget-row__meta" style="margin-top:.2rem;">{{ poste.rubrique.description }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if poste.rubrique.calcul_auto %}
+                  <input type="hidden" name="usd_{{ poste.rubrique.id }}" value="{{ poste.montant_usd }}">
+                  <div class="money-locked">{{ poste.montant_usd }} USD</div>
+                  {% else %}
+                  <div class="money"><input type="number" step="0.01" min="0" name="usd_{{ poste.rubrique.id }}" value="{{ poste.montant_usd }}"><span>USD</span></div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if poste.rubrique.calcul_auto %}
+                  <input type="hidden" name="cdf_{{ poste.rubrique.id }}" value="{{ poste.montant_cdf }}">
+                  <div class="money-locked">{{ poste.montant_cdf }} CDF</div>
+                  {% else %}
+                  <div class="money"><input type="number" step="0.01" min="0" name="cdf_{{ poste.rubrique.id }}" value="{{ poste.montant_cdf }}"><span>CDF</span></div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if poste.rubrique.calcul_auto %}
+                  <input type="hidden" name="note_{{ poste.rubrique.id }}" value="{{ poste.note }}">
+                  <span class="budget-row__meta">{{ poste.note|default:"—" }}</span>
+                  {% else %}
+                  <input type="text" class="form-control" name="note_{{ poste.rubrique.id }}" value="{{ poste.note }}" placeholder="Optionnel">
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Aucune recette.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
-    </div>
-  </form>
-  {% endif %}
 
+      <div class="budget-card">
+        <div class="budget-card__head" style="background:#fffbeb;">
+          <div>
+            <h3>Plafonds de dépenses</h3>
+            <p>Les salaires se calculent depuis les contrats GRH</p>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="budget-table">
+            <thead>
+              <tr>
+                <th>Rubrique</th>
+                <th>USD</th>
+                <th>CDF</th>
+                <th>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for poste in plan.depenses %}
+              <tr>
+                <td>
+                  <strong>{{ poste.rubrique.libelle }}</strong>
+                  {% if poste.rubrique.calcul_auto %}
+                  <div class="budget-row__meta" style="margin-top:.2rem;">{{ poste.note }}</div>
+                  {% elif poste.rubrique.description %}
+                  <div class="budget-row__meta" style="margin-top:.2rem;">{{ poste.rubrique.description }}</div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if poste.rubrique.calcul_auto %}
+                  <input type="hidden" name="usd_{{ poste.rubrique.id }}" value="{{ poste.montant_usd }}">
+                  <div class="money-locked">{{ poste.montant_usd }} USD</div>
+                  {% else %}
+                  <div class="money"><input type="number" step="0.01" min="0" name="usd_{{ poste.rubrique.id }}" value="{{ poste.montant_usd }}"><span>USD</span></div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if poste.rubrique.calcul_auto %}
+                  <input type="hidden" name="cdf_{{ poste.rubrique.id }}" value="{{ poste.montant_cdf }}">
+                  <div class="money-locked">{{ poste.montant_cdf }} CDF</div>
+                  {% else %}
+                  <div class="money"><input type="number" step="0.01" min="0" name="cdf_{{ poste.rubrique.id }}" value="{{ poste.montant_cdf }}"><span>CDF</span></div>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if poste.rubrique.calcul_auto %}
+                  <input type="hidden" name="note_{{ poste.rubrique.id }}" value="{{ poste.note }}">
+                  <span class="budget-row__meta">Auto</span>
+                  {% else %}
+                  <input type="text" class="form-control" name="note_{{ poste.rubrique.id }}" value="{{ poste.note }}" placeholder="Optionnel">
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Aucune dépense.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="budget-card">
+        <div class="budget-save">
+          <label for="commentaire">Commentaire (optionnel)</label>
+          <textarea name="commentaire" id="commentaire" class="form-control" rows="2" placeholder="Ex. Budget voté en conseil…">{% if budget %}{{ budget.commentaire }}{% endif %}</textarea>
+          <div style="margin-top:1rem; display:flex; flex-wrap:wrap; gap:.75rem; align-items:center;">
+            <button type="submit" class="btn btn-primary">
+              {% if budget %}Enregistrer le budget{% else %}Fixer le budget {{ annee }}{% endif %}
+            </button>
+            <span class="budget-row__meta">Les lignes automatiques (minerval, inscription, salaires) restent recalculées.</span>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function showTab(name) {
+    document.querySelectorAll('.budget-pane').forEach(function (p) { p.classList.remove('is-active'); });
+    document.querySelectorAll('.budget-tab').forEach(function (b) { b.classList.remove('is-active'); });
+    var pane = document.getElementById('pane-' + name);
+    var btn = document.getElementById('tab-btn-' + name);
+    if (pane) pane.classList.add('is-active');
+    if (btn) btn.classList.add('is-active');
+    try { history.replaceState(null, '', '#tab-' + name); } catch (e) {}
+  }
+
+  function filterTable(input, tableId) {
+    var filter = (input.value || '').toLowerCase();
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var rows = table.querySelectorAll('tbody tr');
+    for (var i = 0; i < rows.length; i++) {
+      var text = (rows[i].textContent || '').toLowerCase();
+      rows[i].style.display = text.indexOf(filter) > -1 ? '' : 'none';
+    }
+  }
+
+  function toggleIdle(checkbox) {
+    document.querySelector('.budget-page').classList.toggle('budget-hide-idle', checkbox.checked);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelector('.budget-page').classList.add('budget-hide-idle');
+    var hash = window.location.hash || '';
+    if (hash.indexOf('#tab-') === 0) showTab(hash.replace('#tab-', ''));
+  });
+</script>
 {% endblock %}

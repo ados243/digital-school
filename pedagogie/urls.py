@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 
 from . import views
+from . import edt_views
 
 app_name = 'pedagogie'
 
@@ -24,6 +25,9 @@ urlpatterns = [
         name='periode_toggle_encours',
     ),
     path('classe/<int:pk>/enseignants/', views.affectations_classe, name='affectations_classe'),
+    path('emploi-du-temps/', edt_views.emploi_du_temps, name='emploi_du_temps'),
+    path('emploi-du-temps/classe/<int:classe_id>/', edt_views.emploi_du_temps, name='emploi_du_temps_classe'),
+    path('emploi-du-temps/creneau/<int:pk>/supprimer/', edt_views.creneau_delete, name='creneau_delete'),
 
     # Anciennes URLs travaux → espace enseignant
     path('travaux/', RedirectView.as_view(pattern_name='utilisateur:travail_list', permanent=False)),

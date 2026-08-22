@@ -1,0 +1,40 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>{{ title }}</h1>
+    <p>Déposez une vidéo, un PDF ou un autre fichier. Les élèves des classes cochées pourront le consulter.</p>
+</div>
+
+<div style="margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:ressource_enseignant_list' %}" class="btn btn-secondary">Annuler</a>
+</div>
+
+<div class="qb-form">
+    <form method="post" enctype="multipart/form-data" class="form-horizontal">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+        <div class="qb-form__layout qb-form__layout--single">
+            <div class="qb-form__document">
+                <div class="qb-form__section-head">Fichier à partager</div>
+                <div class="qb-form__body">
+                    <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.titre %}
+                        {% include 'includes/form_field.html' with field=form.annee_scolaire %}
+                        {% include 'includes/form_field.html' with field=form.matiere %}
+                        {% include 'includes/form_field.html' with field=form.piece %}
+                    </div>
+                    {% include 'utilisateur/includes/classes_checkboxes.html' with field=form.classes %}
+                    {% include 'includes/form_field.html' with field=form.description full_width=True %}
+                    {% include 'includes/form_field.html' with field=form.publie full_width=True %}
+                </div>
+            </div>
+        </div>
+        <div style="margin-top:1rem;">
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

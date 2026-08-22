@@ -1,0 +1,71 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Ressources de cours{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Ressources</h1>
+    <p>Fichiers partagés par vos enseignants pour la classe {{ inscription.classe }}.</p>
+</div>
+
+<div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
+    <a href="{% url 'utilisateur:cours_eleve_list' %}" class="btn btn-secondary">Cours en ligne</a>
+    <a href="{% url 'utilisateur:direct_eleve_list' %}" class="btn btn-secondary">Cours visio</a>
+</div>
+
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-body">
+        <form method="get">
+            <div class="form-group" style="max-width:260px;">
+                <label class="form-label">Type</label>
+                <select name="type" class="form-control" onchange="this.form.submit()">
+                    <option value="">Tous</option>
+                    {% for value, label in types %}
+                    <option value="{{ value }}" {% if filtre_type == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Ressource</th>
+                    <th>Type</th>
+                    <th>Matière</th>
+                    <th>Enseignant</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in ressources %}
+                <tr>
+                    <td>
+                        <strong>{{ r.icone }} {{ r.titre }}</strong>
+                        {% if r.description %}
+                        <span style="display:block;font-size:.85rem;color:var(--text-muted);">{{ r.description|truncatechars:90 }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ r.get_type_fichier_display }} · {{ r.taille_affichee }}</td>
+                    <td>{% if r.matiere %}{{ r.matiere.libelle }}{% else %}—{% endif %}</td>
+                    <td>{{ r.enseignant.prenom }} {{ r.enseignant.nom }}</td>
+                    <td>
+                        <a href="{% url 'utilisateur:ressource_eleve_detail' r.id %}" class="btn btn-primary btn-sm">Ouvrir</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                        Aucune ressource partagée pour votre classe pour le moment.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

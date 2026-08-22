@@ -24,6 +24,12 @@
                 <span class="ds-taskbar-app__label">Cours</span>
             </span>
         </a>
+        <a class="ds-taskbar-app {% if 'ressource' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'utilisateur:ressource_enseignant_list' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">📁</span>
+                <span class="ds-taskbar-app__label">Ressources</span>
+            </span>
+        </a>
         <a class="ds-taskbar-app {% if 'messagerie' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'utilisateur:messagerie_inbox' %}">
             <span class="ds-taskbar-app__btn">
                 <span class="ds-taskbar-app__glyph" aria-hidden="true">💬</span>
@@ -76,6 +82,12 @@
             <span class="ds-taskbar-app__btn">
                 <span class="ds-taskbar-app__glyph" aria-hidden="true">📡</span>
                 <span class="ds-taskbar-app__label">Cours</span>
+            </span>
+        </a>
+        <a class="ds-taskbar-app {% if 'ressource_eleve' in request.resolver_match.url_name %}is-active{% endif %}" href="{% url 'utilisateur:ressource_eleve_list' %}">
+            <span class="ds-taskbar-app__btn">
+                <span class="ds-taskbar-app__glyph" aria-hidden="true">📁</span>
+                <span class="ds-taskbar-app__label">Ressources</span>
             </span>
         </a>
         {% endif %}

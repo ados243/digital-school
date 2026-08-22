@@ -4,7 +4,19 @@ mysqlclient>=2.1
 Pillow>=10.0
 gunicorn>=21.2
 whitenoise>=6.6
+requests>=2.31
+PyJWT>=2.13
+cryptography>=46.0
+
+# Hachage mots de passe (Argon2 si installé ; sinon PBKDF2 reste actif)
+argon2-cffi>=21.3
+
+# Observabilité (optionnel — activé si SENTRY_DSN est défini)
+sentry-sdk>=1.40
 
 # Stockage vidéos de cours (S3-compatible : Cloudflare R2, B2, Wasabi…)
 django-storages>=1.14
 boto3>=1.34
+
+# Export Excel (paiements par classe, suivi du budget)
+openpyxl>=3.1

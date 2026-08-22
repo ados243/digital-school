@@ -65,11 +65,43 @@ ALLOWED_HOSTS = [
 # Cookies / en-têtes — toujours (dev + prod)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
+# Fermeture après 2 h d'inactivité (cookie + sessions de connexion).
+SESSION_IDLE_SECONDS = int(os.environ.get("SESSION_IDLE_SECONDS", "7200"))
+SESSION_COOKIE_AGE = SESSION_IDLE_SECONDS
+SESSION_SAVE_EVERY_REQUEST = True
+CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = "Lax"
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+
+# Mot de passe : Argon2 si disponible, sinon PBKDF2 (comptes existants inchangés).
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+    "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+]
+try:
+    import argon2  # noqa: F401
+    PASSWORD_HASHERS.insert(0, "django.contrib.auth.hashers.Argon2PasswordHasher")
+except ImportError:
+    pass
+
+# Lien de réinitialisation : 60 minutes (jeton à usage unique côté Django).
+PASSWORD_RESET_TIMEOUT = int(os.environ.get("PASSWORD_RESET_TIMEOUT", "3600"))
+
+# Verrouillage connexion / codes OTP
+LOGIN_LOCKOUT_LIMIT = int(os.environ.get("LOGIN_LOCKOUT_LIMIT", "5"))
+LOGIN_LOCKOUT_MINUTES = int(os.environ.get("LOGIN_LOCKOUT_MINUTES", "15"))
+OTP_TTL_MINUTES = int(os.environ.get("OTP_TTL_MINUTES", "10"))
+OTP_MAX_ATTEMPTS = int(os.environ.get("OTP_MAX_ATTEMPTS", "5"))
+# 2FA WhatsApp à la connexion. Désactivé temporairement (remettre 1 pour réactiver).
+MFA_WHATSAPP_ACTIF = _env_flag("MFA_WHATSAPP", "0")
+# Code WhatsApp à l'inscription. Désactivé temporairement (remettre 1 pour réactiver).
+INSCRIPTION_WHATSAPP_ACTIF = _env_flag("INSCRIPTION_WHATSAPP", "0")
+AUDIT_VOLUME_SEUIL = int(os.environ.get("AUDIT_VOLUME_SEUIL", "40"))
+AUDIT_VOLUME_MINUTES = int(os.environ.get("AUDIT_VOLUME_MINUTES", "10"))
 
 # HTTPS / cookies Secure / HSTS — production uniquement (OVH derrière reverse proxy)
 if not DEBUG:
@@ -131,7 +163,9 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'utilisateur.middleware.SessionConnexionMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'utilisateur.middleware.SecurityHeadersMiddleware',
     'utilisateur.middleware.RestrictionPortailMiddleware',
 ]
 
@@ -268,6 +302,7 @@ PRIVATE_MEDIA_ROOT = Path(
 # ---------------------------------------------------------------------------
 COURS_VIDEO_MAX_MB = int(os.environ.get('COURS_VIDEO_MAX_MB', '70'))
 COURS_VIDEO_LOCATION = os.environ.get('COURS_VIDEO_LOCATION', 'cours_videos')
+RESSOURCE_FICHIER_MAX_MB = int(os.environ.get('RESSOURCE_FICHIER_MAX_MB', '25'))
 # Limite upload HTTP (alignée sur la taille max vidéo + marge)
 DATA_UPLOAD_MAX_MEMORY_SIZE = int(
     os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', str(COURS_VIDEO_MAX_MB * 1024 * 1024))
@@ -293,35 +328,108 @@ AWS_S3_OBJECT_PARAMETERS = {
 # Domaine CDN optionnel (ex. vidéos.votredomaine.com sur R2)
 AWS_S3_CUSTOM_DOMAIN = os.environ.get('AWS_S3_CUSTOM_DOMAIN', '') or None
 
-# WhatsApp — notifications de paiement (valeurs par défaut ; config par école en BDD)
+# WhatsApp — notifications (valeurs par défaut ; config centrale en BDD)
 WHATSAPP_TIMEOUT = int(os.environ.get('WHATSAPP_TIMEOUT', '20'))
 WHATSAPP_META_API_VERSION = os.environ.get('WHATSAPP_META_API_VERSION', 'v19.0')
+# Noms des modèles Meta approuvés (surchargeables en BDD)
+WHATSAPP_META_TEMPLATE_PAIEMENT = (
+    os.environ.get("WHATSAPP_META_TEMPLATE_PAIEMENT", "recu_paiement").strip()
+    or "recu_paiement"
+)
+WHATSAPP_META_TEMPLATE_RELANCE = (
+    os.environ.get("WHATSAPP_META_TEMPLATE_RELANCE", "relance_minerval").strip()
+    or "relance_minerval"
+)
+WHATSAPP_META_TEMPLATE_ANNONCE = (
+    os.environ.get("WHATSAPP_META_TEMPLATE_ANNONCE", "annonce_ecole").strip()
+    or "annonce_ecole"
+)
+WHATSAPP_META_TEMPLATE_OTP = (
+    os.environ.get("WHATSAPP_META_TEMPLATE_OTP", "code_verification").strip()
+    or "code_verification"
+)
+WHATSAPP_META_LANGUAGE = (
+    os.environ.get("WHATSAPP_META_LANGUAGE", "fr_FR").strip() or "fr_FR"
+)
 
-# Visioconférence Jitsi Meet (cours en direct)
-JITSI_DOMAIN = os.environ.get('JITSI_DOMAIN', 'meet.jit.si')
+# Visioconférence Jitsi / JaaS (cours en direct)
+JITSI_PROVIDER = os.environ.get('JITSI_PROVIDER', 'public').strip().lower()
+JITSI_DOMAIN = os.environ.get(
+    'JITSI_DOMAIN',
+    '8x8.vc' if JITSI_PROVIDER == 'jaas' else 'meet.jit.si',
+)
 JITSI_ROOM_PREFIX = os.environ.get('JITSI_ROOM_PREFIX', 'ds')
+JITSI_JAAS_APP_ID = os.environ.get('JITSI_JAAS_APP_ID', '').strip()
+JITSI_JAAS_API_KEY = os.environ.get('JITSI_JAAS_API_KEY', '').strip()
+JITSI_JAAS_PRIVATE_KEY = os.environ.get('JITSI_JAAS_PRIVATE_KEY', '').strip()
+JITSI_JAAS_JWT_TTL_SECONDS = int(os.environ.get('JITSI_JAAS_JWT_TTL_SECONDS', '3600'))
 
-# E-mail (récupération de mot de passe)
-# Dev : console. Production : SMTP (même si .env contient encore console).
-_EMAIL_CONSOLE = 'django.core.mail.backends.console.EmailBackend'
-_EMAIL_SMTP = 'django.core.mail.backends.smtp.EmailBackend'
+# E-mail (optionnel, hors authentification).
 EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = _env_flag('EMAIL_USE_TLS', '1')
 DEFAULT_FROM_EMAIL = os.environ.get(
-    'DEFAULT_FROM_EMAIL',
-    'Digital School <noreply@digitalschool.local>',
+    "DEFAULT_FROM_EMAIL",
+    "Digital School <noreply@digitalschool.local>",
 )
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
-if DEBUG:
-    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', _EMAIL_CONSOLE)
+
+# Proxys de confiance (X-Forwarded-For uniquement si REMOTE_ADDR est dans cette liste).
+TRUSTED_PROXIES = tuple(
+    p.strip()
+    for p in os.environ.get("TRUSTED_PROXIES", "127.0.0.1,::1").split(",")
+    if p.strip()
+)
+
+# Mobile Money — webhook opérateur (laisser vide = webhook refusé).
+MOBILE_MONEY_WEBHOOK_TOKEN = os.environ.get("MOBILE_MONEY_WEBHOOK_TOKEN", "").strip()
+MOBILE_MONEY_USSD = {
+    "AIRTEL": os.environ.get("MOBILE_MONEY_USSD_AIRTEL", "*501#"),
+    "ORANGE": os.environ.get("MOBILE_MONEY_USSD_ORANGE", "*144#"),
+    "MPESA": os.environ.get("MOBILE_MONEY_USSD_MPESA", "*150#"),
+}
+
+# Sentry (optionnel)
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            send_default_pii=False,
+            environment="development" if DEBUG else "production",
+        )
+    except ImportError:
+        pass
+
+# Bird (WhatsApp : OTP + reçus de paiement). Clé dans BIRD_API_KEY, jamais dans le code.
+BIRD_API_KEY = os.environ.get("BIRD_API_KEY", "").strip()
+BIRD_FROM_EMAIL = os.environ.get("BIRD_FROM_EMAIL", "") or DEFAULT_FROM_EMAIL
+BIRD_WHATSAPP_TEMPLATE = os.environ.get("BIRD_WHATSAPP_TEMPLATE", "bird_otp").strip() or "bird_otp"
+BIRD_WHATSAPP_PAIEMENT_TEMPLATE = os.environ.get(
+    "BIRD_WHATSAPP_PAIEMENT_TEMPLATE", "bird_delivery_update"
+).strip() or "bird_delivery_update"
+BIRD_WHATSAPP_LANGUAGE = os.environ.get("BIRD_WHATSAPP_LANGUAGE", "en").strip() or "en"
+
+_EMAIL_CONSOLE = "django.core.mail.backends.console.EmailBackend"
+_EMAIL_SMTP = "django.core.mail.backends.smtp.EmailBackend"
+_EMAIL_BIRD = "ds.bird.BirdEmailBackend"
+_email_env = os.environ.get("EMAIL_BACKEND", "")
+if _email_env:
+    EMAIL_BACKEND = _email_env
+elif BIRD_API_KEY and not DEBUG:
+    EMAIL_BACKEND = _EMAIL_BIRD
+elif DEBUG:
+    EMAIL_BACKEND = _EMAIL_CONSOLE
 else:
-    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', _EMAIL_SMTP)
-    if 'console' in EMAIL_BACKEND or 'dummy' in EMAIL_BACKEND:
-        EMAIL_BACKEND = _EMAIL_SMTP
+    EMAIL_BACKEND = _EMAIL_SMTP
     if not EMAIL_HOST:
         raise ImproperlyConfigured(
-            "EMAIL_HOST doit être défini en production (SMTP, ex. smtp-relay.brevo.com)."
+            "EMAIL_HOST ou BIRD_API_KEY doit être défini en production."
         )

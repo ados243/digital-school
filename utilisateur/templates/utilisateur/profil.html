@@ -71,4 +71,75 @@
         </form>
     </div>
 </div>
+
+<div class="qb-form" style="margin-top:1.25rem;">
+    <div class="qb-form__layout qb-form__layout--single">
+        <div class="qb-form__document">
+            <div class="qb-form__section-head">Sessions de connexion</div>
+            <div class="qb-form__body">
+                <p style="color:var(--text-muted);font-size:.9rem;margin-top:0;">
+                    Chaque connexion ouvre une session. Elle se ferme seule après 2 heures
+                    sans activité. Vous pouvez aussi fermer les sessions ouvertes sur d’autres appareils.
+                </p>
+                {% if autres_sessions_actives %}
+                <form method="post" style="margin-bottom:1rem;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="revoquer_autres">
+                    <button type="submit" class="btn btn-outline">Fermer les autres sessions</button>
+                </form>
+                {% endif %}
+                {% if sessions_connexion %}
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Appareil</th>
+                                <th>Adresse IP</th>
+                                <th>Connexion</th>
+                                <th>Dernière activité</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for session in sessions_connexion %}
+                            <tr>
+                                <td>
+                                    {{ session.libelle }}
+                                    {% if session.pk == session_courante_id %}
+                                    <span class="badge">Cette session</span>
+                                    {% endif %}
+                                    {% if session.mfa %}
+                                    <span class="badge">WhatsApp</span>
+                                    {% endif %}
+                                    {% if session.revoquee %}
+                                    <span class="badge">Révoquée</span>
+                                    {% elif session.ended_at %}
+                                    <span class="badge">Fermée</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ session.ip|default:"—" }}</td>
+                                <td>{{ session.created_at|date:"d/m/Y H:i" }}</td>
+                                <td>{{ session.last_seen|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    {% if session.est_active and session.pk != session_courante_id %}
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="revoquer_session">
+                                        <input type="hidden" name="session_id" value="{{ session.pk }}">
+                                        <button type="submit" class="btn btn-outline">Fermer</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p style="color:var(--text-muted);margin-bottom:0;">Aucune session enregistrée pour le moment.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

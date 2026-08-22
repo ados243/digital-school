@@ -10,12 +10,14 @@ Calendrier national MINEDU-NC — année partagée par toutes les écoles
 {% endblock %}
 
 {% block header_actions %}
+{% if peut_editer_calendrier %}
 <form method="post" style="display:inline; margin-right:0.5rem;">
     {% csrf_token %}
     <input type="hidden" name="action" value="sync">
-    <button type="submit" class="btn btn-primary">⟳ Sync. en cours</button>
+    <button type="submit" class="btn btn-primary">Sync. en cours</button>
 </form>
-<a href="{% url 'pedagogie:dashboard' %}" class="btn btn-secondary">← Pédagogie</a>
+{% endif %}
+<a href="{% url 'pedagogie:dashboard' %}" class="btn btn-secondary">Pédagogie</a>
 {% endblock %}
 
 {% block content %}
@@ -100,15 +102,17 @@ Calendrier national MINEDU-NC — année partagée par toutes les écoles
                             {{ div.obj.date_debut|date:"d/m/Y" }} → {{ div.obj.date_fin|date:"d/m/Y" }}
                         </span>
                     </div>
+                    {% if peut_editer_calendrier %}
                     <form method="post" action="{% url 'pedagogie:division_toggle_encours' div.obj.id %}">
                         {% csrf_token %}
                         <input type="hidden" name="next" value="{% url 'pedagogie:periodes_bulletin' %}">
                         <button type="submit"
                                 class="btn {% if div.obj.est_encours %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
                                 {% if not div.obj.est_encours and div.obj.date_fin < aujourdhui %}disabled title="Date de fin dépassée"{% endif %}>
-                            {% if div.obj.est_encours %}● En cours{% else %}○ Marquer en cours{% endif %}
+                            {% if div.obj.est_encours %}En cours{% else %}Marquer en cours{% endif %}
                         </button>
                     </form>
+                    {% endif %}
                 </div>
                 <div class="table-responsive" style="padding:0;">
                     <table class="custom-table">
@@ -134,14 +138,17 @@ Calendrier national MINEDU-NC — année partagée par toutes les écoles
                                 <td>{{ p.date_debut|date:"d/m/Y" }}</td>
                                 <td>{{ p.date_fin|date:"d/m/Y" }}</td>
                                 <td style="text-align:right; padding-right:1rem;">
+                                    {% if peut_editer_calendrier %}
                                     <form method="post" action="{% url 'pedagogie:periode_toggle_encours' p.id %}" style="display:inline;">
                                         {% csrf_token %}
                                         <input type="hidden" name="next" value="{% url 'pedagogie:periodes_bulletin' %}">
                                         <button type="submit"
                                                 class="btn {% if p.est_encours %}btn-primary{% else %}btn-secondary{% endif %} btn-sm"
                                                 {% if not p.est_encours and p.date_fin < aujourdhui %}disabled title="Date de fin dépassée"{% endif %}>
-                                            {% if p.est_encours %}● En cours{% else %}○ En cours{% endif %}
+                                            {% if p.est_encours %}En cours{% else %}Marquer en cours{% endif %}
                                         </button>
+                                    </form>
+                                    {% endif %}
                                     </form>
                                 </td>
                             </tr>

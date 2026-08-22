@@ -97,6 +97,14 @@ def bulletin_eleve(request, inscription_pk):
         return redirect('utilisateur:enseignant_dashboard')
 
     bulletin_obj, data = actualiser_bulletin(inscription)
+    from utilisateur.security import journaliser
+    journaliser(
+        request,
+        action='BULLETIN',
+        ressource='inscription',
+        identifiant=inscription.pk,
+        ecole=inscription.classe.ecole,
+    )
     return render(request, 'utilisateur/bulletin_eleve.html', {
         'bulletin': data,
         'bulletin_obj': bulletin_obj,

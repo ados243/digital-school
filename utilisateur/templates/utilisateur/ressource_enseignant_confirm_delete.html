@@ -1,0 +1,21 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}Supprimer la ressource{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <h1>Supprimer la ressource</h1>
+    <p>Le fichier ne sera plus accessible aux élèves.</p>
+</div>
+
+<div class="panel">
+    <div class="panel-body">
+        <p>Confirmer la suppression de « <strong>{{ ressource.titre }}</strong> » ({{ ressource.get_type_fichier_display }} — {{ ressource.classes_libelle }}) ?</p>
+        <form method="post" style="display:flex; gap:.5rem; margin-top:1rem;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger" style="background:var(--danger); border-color:var(--danger);">Supprimer</button>
+            <a href="{% url 'utilisateur:ressource_enseignant_list' %}" class="btn btn-secondary">Annuler</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

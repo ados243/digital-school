@@ -21,7 +21,7 @@
         {% elif c.description %}
         <p class="ll-card__subtitle">{{ c.description|truncatechars:100 }}</p>
         {% else %}
-        <p class="ll-card__subtitle">Cours de {{ c.matiere.libelle }} — {{ c.classe.classe }}</p>
+        <p class="ll-card__subtitle">Cours de {{ c.matiere.libelle }} — {{ c.classes_libelle }}</p>
         {% endif %}
         <div class="ll-card__author">
             <span class="ll-avatar">{{ c.enseignant.prenom|slice:":1"|upper }}{{ c.enseignant.nom|slice:":1"|upper }}</span>

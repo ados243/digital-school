@@ -9,7 +9,7 @@
     <section class="ll-hero-band">
         <div class="ll-hero-band__inner">
             <a href="{% url 'utilisateur:cours_eleve_list' %}" class="ll-back">← Bibliothèque de cours</a>
-            <p class="ll-eyebrow">{{ cours.matiere.libelle }} · {{ cours.classe.classe }}</p>
+            <p class="ll-eyebrow">{{ cours.matiere.libelle }} · {{ cours.classes_libelle }}</p>
             <h1>{{ cours.titre }}</h1>
             <p class="ll-hero-band__tagline">
                 {% if cours.sous_titre %}{{ cours.sous_titre }}
@@ -73,7 +73,7 @@
                     <div class="ll-prose">
                         <p>
                             Ce cours en ligne de <strong>{{ cours.matiere.libelle }}</strong> est destiné
-                            {% if cours.public_cible %}à {{ cours.public_cible }}{% else %}aux élèves de {{ cours.classe.classe }}{% endif %}.
+                            {% if cours.public_cible %}à {{ cours.public_cible }}{% else %}aux élèves de {{ cours.classes_libelle }}{% endif %}.
                             Il est animé par <strong>{{ cours.enseignant.prenom }} {{ cours.enseignant.nom }}</strong>
                             et se compose de <strong>{{ lecons|length }} leçon{{ lecons|length|pluralize }}</strong>
                             pour une durée estimée de <strong>{{ cours.duree_affichee }}</strong>.
@@ -98,7 +98,7 @@
                         {% else %}
                             <span>{{ cours.matiere.libelle }}</span>
                             <span>{{ cours.get_niveau_display }}</span>
-                            <span>{{ cours.classe.classe }}</span>
+                            <span>{{ cours.classes_libelle }}</span>
                         {% endif %}
                     </div>
                 </section>
@@ -150,7 +150,7 @@
                     <span class="ll-avatar ll-avatar--xl">{{ cours.enseignant.prenom|slice:":1"|upper }}{{ cours.enseignant.nom|slice:":1"|upper }}</span>
                     <div>
                         <h2>{{ cours.enseignant.prenom }} {{ cours.enseignant.nom }} {{ cours.enseignant.Post_nom }}</h2>
-                        <p class="ll-muted">Enseignant · {{ cours.matiere.libelle }} · {{ cours.classe.classe }}</p>
+                        <p class="ll-muted">Enseignant · {{ cours.matiere.libelle }} · {{ cours.classes_libelle }}</p>
                         <p>
                             Ce formateur a conçu et publié ce parcours e-learning pour votre classe.
                             Suivez ses leçons, ressources et vidéos pour progresser étape par étape.
@@ -182,7 +182,7 @@
                     <li><strong>{{ nb_chapitres }}</strong> chapitre{{ nb_chapitres|pluralize }}</li>
                     <li><strong>{{ lecons|length }}</strong> sous-chapitre{{ lecons|length|pluralize }}</li>
                     <li>Niveau <strong>{{ cours.get_niveau_display }}</strong></li>
-                    <li>Accès pour la classe <strong>{{ cours.classe.classe }}</strong></li>
+                    <li>Accès pour la classe <strong>{{ cours.classes_libelle }}</strong></li>
                     <li>Suivi de progression inclus</li>
                     {% if cours.public_cible %}<li>{{ cours.public_cible }}</li>{% endif %}
                 </ul>

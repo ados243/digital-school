@@ -2,39 +2,98 @@
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block extra_css %}
+<style>
+  .live-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);
+    gap: 1rem;
+    align-items: start;
+  }
+  @media (max-width: 980px) {
+    .live-form-grid { grid-template-columns: 1fr; }
+  }
+  .live-form-side {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .live-form-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+  }
+  .live-form-card h2 {
+    margin: 0 0 .45rem;
+    font-size: 1rem;
+  }
+  .live-form-card p,
+  .live-form-card li {
+    color: var(--text-muted);
+  }
+  .live-form-card ul {
+    margin: .75rem 0 0;
+    padding-left: 1rem;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="portal-hero">
     <h1>{{ title }}</h1>
-    <p>Ce cours se déroule en visioconférence. Les élèves rejoignent la salle lorsque vous démarrez la séance.</p>
+    <p>Préparez une séance claire et interactive. Les élèves rejoignent la salle lorsque vous la démarrez.</p>
 </div>
 
 <div style="margin-bottom:1.25rem;">
     <a href="{% url 'utilisateur:direct_enseignant_list' %}" class="btn btn-secondary">Annuler</a>
 </div>
 
-<div class="qb-form">
-    <form method="post" class="form-horizontal">
-        {% csrf_token %}
-        {% include 'includes/form_errors.html' %}
-        <div class="qb-form__layout qb-form__layout--single">
-            <div class="qb-form__document">
-                <div class="qb-form__section-head">Séance de visioconférence</div>
-                <div class="qb-form__body">
-                    <div class="form-grid-2">
-                        {% include 'includes/form_field.html' with field=form.titre %}
-                        {% include 'includes/form_field.html' with field=form.annee_scolaire %}
-                        {% include 'includes/form_field.html' with field=form.classe %}
-                        {% include 'includes/form_field.html' with field=form.matiere %}
-                        {% include 'includes/form_field.html' with field=form.date_heure_prevue %}
-                        {% include 'includes/form_field.html' with field=form.duree_minutes %}
+<div class="live-form-grid">
+    <div class="qb-form">
+        <form method="post" class="form-horizontal">
+            {% csrf_token %}
+            {% include 'includes/form_errors.html' %}
+            <div class="qb-form__layout qb-form__layout--single">
+                <div class="qb-form__document">
+                    <div class="qb-form__section-head">Séance de visioconférence</div>
+                    <div class="qb-form__body">
+                        <div class="form-grid-2">
+                            {% include 'includes/form_field.html' with field=form.titre %}
+                            {% include 'includes/form_field.html' with field=form.annee_scolaire %}
+                            {% include 'includes/form_field.html' with field=form.matiere %}
+                            {% include 'includes/form_field.html' with field=form.date_heure_prevue %}
+                            {% include 'includes/form_field.html' with field=form.duree_minutes %}
+                        </div>
+                        {% include 'utilisateur/includes/classes_checkboxes.html' with field=form.classes %}
+                        {% include 'includes/form_field.html' with field=form.description full_width=True %}
                     </div>
-                    {% include 'includes/form_field.html' with field=form.description full_width=True %}
                 </div>
             </div>
-        </div>
-        <div style="margin-top:1rem;">
-            <button type="submit" class="btn btn-primary">Enregistrer</button>
-        </div>
-    </form>
+            <div style="margin-top:1rem;">
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </div>
+        </form>
+    </div>
+
+    <aside class="live-form-side">
+        <section class="live-form-card">
+            <h2>Pour une meilleure qualité</h2>
+            <ul>
+                <li>Prévoyez un titre précis et une courte description pour guider la classe.</li>
+                <li>Évitez les séances trop longues sans pause; 45 à 60 minutes restent plus confortables.</li>
+                <li>Demandez aux élèves de rejoindre avec casque ou écouteurs si possible.</li>
+            </ul>
+        </section>
+        <section class="live-form-card">
+            <h2>Rendre le cours plus interactif</h2>
+            <ul>
+                <li>Annoncez un objectif clair dès le début de la séance.</li>
+                <li>Invitez les élèves à utiliser les questions et signaux rapides pendant le cours.</li>
+                <li>Réservez quelques minutes pour traiter les questions épinglées avant la fin.</li>
+            </ul>
+        </section>
+    </aside>
 </div>
 {% endblock %}

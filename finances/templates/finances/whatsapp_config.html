@@ -1,8 +1,8 @@
-{% extends 'base.html' %}
+﻿{% extends 'base.html' %}
 
 {% block title %}WhatsApp central{% endblock %}
 {% block page_title %}WhatsApp central{% endblock %}
-{% block page_subtitle %}Un seul compte WhatsApp pour toutes les écoles. À chaque paiement validé, le tuteur reçoit le reçu.{% endblock %}
+{% block page_subtitle %}Notifications WhatsApp (reçus, relances, annonces école–parents, codes OTP) pour toutes les écoles.{% endblock %}
 
 {% block header_actions %}
 <a href="{% url 'finances:dashboard' %}" class="btn btn-secondary">Retour</a>
@@ -35,17 +35,18 @@
     </div>
     <div class="panel-body">
       <div class="form-help" style="margin-bottom:1.25rem; padding:1rem 1.1rem; background:var(--primary-light); border-radius:12px; color:var(--text-main);">
-        <strong>Configuration centrale — toutes les écoles</strong>
+        <strong>Meta Cloud API — WhatsApp Business</strong>
         <ol style="margin:.55rem 0 0 1.15rem; padding:0; display:grid; gap:.4rem;">
-          <li>Créez un compte sur <a href="https://ultramsg.com" target="_blank" rel="noopener">ultramsg.com</a> (le plus simple pour démarrer).</li>
-          <li>Créez une instance, puis scannez le QR code avec le WhatsApp de la plateforme.</li>
-          <li>Copiez l’<em>Instance ID</em> et le <em>Token</em> dans le formulaire ci-dessous.</li>
-          <li>Cochez « Activer », indiquez l’indicatif <strong>243</strong>, enregistrez, puis envoyez un test.</li>
+          <li>Fournisseur <strong>Meta</strong>, cocher « Activer », indicatif <strong>243</strong>.</li>
+          <li>Renseigner le <strong>Phone Number ID</strong> et le <strong>jeton permanent</strong>.</li>
+          <li>Templates approuvés :
+            <code>recu_paiement</code>,
+            <code>relance_minerval</code>,
+            <code>annonce_ecole</code>,
+            <code>code_verification</code>
+            — langue <code>fr</code>.</li>
+          <li>Enregistrer, puis envoyer un test (reçu). Les annonces partent depuis Communications direction ; les OTP à la connexion / mot de passe oublié.</li>
         </ol>
-        <p style="margin:.7rem 0 0;">
-          Alternative officielle : fournisseur <strong>Meta Cloud API</strong>
-          (compte Business + modèle de message approuvé). Plus long à valider.
-        </p>
       </div>
 
       <form method="post" class="form-horizontal" id="whatsapp-config-form">
@@ -54,40 +55,58 @@
         {% include 'includes/form_errors.html' %}
         {% include 'includes/form_field.html' with field=form.actif %}
         {% include 'includes/form_field.html' with field=form.provider %}
+        <div class="wa-fields-credentials">
         {% include 'includes/form_field.html' with field=form.api_token %}
         {% include 'includes/form_field.html' with field=form.instance_id %}
         {% include 'includes/form_field.html' with field=form.api_url %}
+        </div>
         {% include 'includes/form_field.html' with field=form.indicatif_pays %}
         <div class="wa-fields-meta">
         {% include 'includes/form_field.html' with field=form.template_meta %}
+        {% include 'includes/form_field.html' with field=form.template_relance %}
+        {% include 'includes/form_field.html' with field=form.template_annonce %}
+        {% include 'includes/form_field.html' with field=form.template_otp %}
         {% include 'includes/form_field.html' with field=form.template_langue %}
+        <div class="wa-fields-meta-vars">
         {% include 'includes/form_field.html' with field=form.template_variables full_width=True %}
+        </div>
         </div>
         <div class="wa-fields-text">
         {% include 'includes/form_field.html' with field=form.message_modele full_width=True %}
         </div>
 
+        <div class="wa-help-bird form-help" style="margin-top:.75rem; padding:.75rem; background:rgba(37,99,235,.05); border-radius:8px;">
+          <strong>Template Bird de paiement</strong>
+          <p style="margin:.4rem 0 0;">Le modèle système <code>bird_delivery_update</code> attend :</p>
+          <ul style="margin:.4rem 0 0 1.1rem; padding:0;">
+            <li><code>ref</code> → numéro de reçu</li>
+            <li><code>date</code> → date et heure du paiement</li>
+          </ul>
+          <p style="margin:.75rem 0 0;">Exemple de corps :</p>
+          <pre style="white-space:pre-wrap; font-size:.85em; margin:.35rem 0 0;">{{ exemple_template_bird }}</pre>
+        </div>
+
         {% if mapping_vars %}
-        <div class="form-help" style="margin-top:.75rem; padding:.75rem; background:rgba(37,99,235,.05); border-radius:8px;">
-          <strong>Correspondance actuelle Meta</strong>
+        <div class="wa-help-meta form-help" style="margin-top:.75rem; padding:.75rem; background:rgba(37,99,235,.05); border-radius:8px;">
+          <strong>Correspondance actuelle Meta (reçu)</strong>
           <ul style="margin:.4rem 0 0 1.1rem; padding:0;">
             {% for label, cle in mapping_vars %}
             <li><code>{{ label }}</code> → <code>{{ cle }}</code></li>
             {% endfor %}
           </ul>
-          <p style="margin:.75rem 0 0;">Exemple de corps de modèle à créer dans Meta Business :</p>
+          <p style="margin:.75rem 0 0;">Exemple de corps de modèle :</p>
           <pre style="white-space:pre-wrap; font-size:.85em; margin:.35rem 0 0;">{{ exemple_template_meta }}</pre>
         </div>
         {% endif %}
 
-        <p class="form-help" style="margin-top:.75rem;">
+        <p class="form-help wa-fields-text" style="margin-top:.75rem;">
           Clés disponibles :
           <code style="font-size:.85em;">{{ placeholders }}</code>
         </p>
         <p class="form-help">
-          <strong>Meta (recommandé en production)</strong> : créez un modèle <em>Utility</em> approuvé
-          avec autant de variables (<code>&#123;&#123;1&#125;&#125;</code>, <code>&#123;&#123;2&#125;&#125;</code>…)
-          que dans le champ « Variables du modèle », puis renseignez le nom exact du modèle.<br>
+          <strong>Meta (recommandé)</strong> : modèles Utility / Authentification approuvés
+          (<code>recu_paiement</code>, <code>relance_minerval</code>, <code>annonce_ecole</code>, <code>code_verification</code>).<br>
+          <strong>Bird</strong> : clé dans <code>.env</code>, secours OTP si Meta échoue.<br>
           <strong>Ultramsg</strong> : texte libre via « Texte du message ».<br>
           <strong>Mode test</strong> : journal uniquement, sans envoi réel.
         </p>
@@ -113,7 +132,7 @@
           </div>
           <p class="form-help">
             Laisser vide pour utiliser le téléphone 1 de l'école.
-            Avec Meta + modèle : envoie le template avec des données d'exemple.
+            Meta envoie le template de reçu avec des données d'exemple.
           </p>
         </div>
         <button type="submit" class="btn btn-secondary" {% if not config.actif %}disabled{% endif %}>
@@ -149,7 +168,7 @@
               {% if n.paiement %}
                 {{ n.paiement.numero_recu }}
               {% else %}
-                <span style="color:var(--text-muted);">Test</span>
+                <span style="color:var(--text-muted);">Test / autre</span>
               {% endif %}
             </td>
             <td>
@@ -191,12 +210,26 @@
   if (!form) return;
   var provider = form.querySelector('#id_provider');
   var meta = form.querySelector('.wa-fields-meta');
-  var text = form.querySelector('.wa-fields-text');
+  var vars = form.querySelector('.wa-fields-meta-vars');
+  var textBlocks = form.querySelectorAll('.wa-fields-text');
+  var credentials = form.querySelector('.wa-fields-credentials');
+  var helpBird = form.querySelector('.wa-help-bird');
+  var helpMeta = form.querySelector('.wa-help-meta');
   var instance = form.querySelector('#id_instance_id');
+  function show(el, on) {
+    if (!el) return;
+    el.style.display = on ? '' : 'none';
+  }
   function sync() {
-    var v = (provider && provider.value) || 'ULTRAMSG';
-    if (meta) meta.style.display = v === 'META' ? '' : 'none';
-    if (text) text.style.display = v === 'META' ? 'none' : '';
+    var v = (provider && provider.value) || 'META';
+    show(credentials, v === 'META' || v === 'ULTRAMSG');
+    show(meta, v === 'META' || v === 'BIRD');
+    show(vars, v === 'META');
+    for (var i = 0; i < textBlocks.length; i++) {
+      show(textBlocks[i], v === 'ULTRAMSG' || v === 'LOG');
+    }
+    show(helpBird, v === 'BIRD');
+    show(helpMeta, v === 'META');
     if (instance) {
       instance.placeholder = v === 'META' ? 'Phone Number ID Meta' : 'ex. instance12345';
     }

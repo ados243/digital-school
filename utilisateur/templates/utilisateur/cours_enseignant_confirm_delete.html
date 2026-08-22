@@ -10,7 +10,7 @@
 
 <div class="panel">
     <div class="panel-body">
-        <p>Confirmer la suppression de « <strong>{{ cours.titre }}</strong> » ({{ cours.matiere.libelle }} — {{ cours.classe.classe }}) ?</p>
+        <p>Confirmer la suppression de « <strong>{{ cours.titre }}</strong> » ({{ cours.matiere.libelle }} — {{ cours.classes_libelle }}) ?</p>
         <form method="post" style="display:flex; gap:.5rem; margin-top:1rem;">
             {% csrf_token %}
             <button type="submit" class="btn btn-danger" style="background:var(--danger); border-color:var(--danger);">Supprimer</button>

@@ -97,7 +97,7 @@ RUBRIQUES_BUDGET_SYSTEME = (
         "nature": "DEPENSE",
         "ordre": 10,
         "calcul_auto": "SALAIRES",
-        "description": "Somme des salaires de base des contrats actifs × 12 mois",
+        "description": "Somme des salaires de base des contrats actifs (en vigueur sur l'année) × 12 mois",
     },
     {
         "code": "D_CHARGES_SOC",

@@ -1,0 +1,12 @@
+{
+  "name": "ntt-site",
+  "compatibility_date": "2026-08-17",
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./public"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

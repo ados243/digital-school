@@ -67,14 +67,68 @@ class Frais_Scolaire(models.Model):
 
     type_frais = models.ForeignKey(TypeFrais, on_delete=models.CASCADE)
     annee = models.ForeignKey(Annee_Scolaire, on_delete=models.CASCADE)
-    section = models.ForeignKey(Section, on_delete=models.CASCADE)
+    section = models.ForeignKey(
+        Section,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Barème pour toute la section. Laisser vide si le frais vise des classes précises.",
+    )
+    classes = models.ManyToManyField(
+        Classe,
+        through="FraisClasse",
+        related_name="frais_scolaires",
+        blank=True,
+    )
     montant = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
     devise = models.ForeignKey(Devise, on_delete=models.CASCADE)
     echeance = models.DateField()
     est_obligatoire = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.type_frais} - {self.section} ({self.annee})"
+        if self.section_id:
+            return f"{self.type_frais} - {self.section} ({self.annee})"
+        return f"{self.type_frais} — classes ciblées ({self.annee})"
+
+    def est_specifique(self):
+        cache = getattr(self, "_prefetched_objects_cache", None)
+        if cache is not None and "classes" in cache:
+            return bool(self.classes.all())
+        return self.classes.exists()
+
+    def portee_libelle(self):
+        if self.est_specifique():
+            noms = [str(c.classe) for c in self.classes.all()]
+            return ", ".join(noms) if noms else "Classes ciblées"
+        return str(self.section) if self.section_id else "—"
+
+
+class FraisClasse(models.Model):
+    """Affectation d'un frais à une classe (frais spécifique, une ou plusieurs classes)."""
+
+    frais = models.ForeignKey(
+        Frais_Scolaire,
+        on_delete=models.CASCADE,
+        related_name="affectations_classe",
+    )
+    classe = models.ForeignKey(
+        Classe,
+        on_delete=models.CASCADE,
+        related_name="affectations_frais",
+    )
+
+    class Meta:
+        verbose_name = "Frais par classe"
+        verbose_name_plural = "Frais par classe"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["frais", "classe"],
+                name="uniq_frais_classe",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.frais.type_frais} → {self.classe}"
 
 
 class Paiement(models.Model):
@@ -336,6 +390,7 @@ class ConfigWhatsApp(models.Model):
     """Configuration WhatsApp centrale (une instance pour toute la plateforme)."""
 
     PROVIDER_CHOICES = [
+        ("BIRD", "Bird (WhatsApp)"),
         ("ULTRAMSG", "Ultramsg"),
         ("META", "Meta Cloud API (WhatsApp Business)"),
         ("LOG", "Mode test (journal uniquement)"),
@@ -362,16 +417,16 @@ class ConfigWhatsApp(models.Model):
     )
     actif = models.BooleanField(default=False)
     provider = models.CharField(
-        max_length=20, choices=PROVIDER_CHOICES, default="ULTRAMSG"
+        max_length=20, choices=PROVIDER_CHOICES, default="BIRD"
     )
     api_token = models.TextField(
         blank=True,
-        help_text="Token Ultramsg / Access token Meta (jeton permanent, souvent > 255 caractères)",
+        help_text="Token Ultramsg / Access token Meta (inutile avec Bird : la clé est dans .env)",
     )
     instance_id = models.CharField(
         max_length=80,
         blank=True,
-        help_text="Instance ID Ultramsg ou Phone Number ID Meta",
+        help_text="Instance ID Ultramsg ou Phone Number ID Meta (inutile avec Bird)",
     )
     api_url = models.CharField(
         max_length=255,
@@ -386,13 +441,31 @@ class ConfigWhatsApp(models.Model):
     template_meta = models.CharField(
         max_length=100,
         blank=True,
-        help_text="Nom du modèle Meta approuvé (ex. recu_paiement_ecole)",
+        help_text="Modèle Meta reçu de paiement (ex. recu_paiement) ou slug Bird",
+    )
+    template_relance = models.CharField(
+        max_length=100,
+        blank=True,
+        default="relance_minerval",
+        help_text="Modèle Meta relance minerval (ex. relance_minerval)",
+    )
+    template_annonce = models.CharField(
+        max_length=100,
+        blank=True,
+        default="annonce_ecole",
+        help_text="Modèle Meta communication école → parents (ex. annonce_ecole)",
+    )
+    template_otp = models.CharField(
+        max_length=100,
+        blank=True,
+        default="code_verification",
+        help_text="Modèle Meta code OTP (ex. code_verification)",
     )
     template_langue = models.CharField(
         max_length=10,
-        default="fr",
+        default="fr_FR",
         blank=True,
-        help_text="Code langue du modèle Meta (ex. fr, fr_FR, en)",
+        help_text="Code langue Meta exact (souvent fr_FR, pas fr)",
     )
     # Ordre des variables {{1}}, {{2}}, … du corps du template Meta
     TEMPLATE_VARS_DEFAUT = "eleve,montant_affiche,numero_recu,frais,classe,date"
@@ -425,6 +498,15 @@ class ConfigWhatsApp(models.Model):
         return f"WhatsApp central ({etat})"
 
     @classmethod
+    def charger_pour_ecole(cls, ecole):
+        """Config de l'école si elle existe et est active, sinon la config centrale."""
+        if ecole is not None:
+            locale = cls.objects.filter(ecole=ecole).order_by("pk").first()
+            if locale and locale.actif:
+                return locale
+        return cls.charger_centrale()
+
+    @classmethod
     def charger_centrale(cls):
         """Retourne (et crée si besoin) la configuration unique de la plateforme."""
         obj = cls.objects.filter(ecole__isnull=True).order_by("pk").first()
@@ -432,6 +514,12 @@ class ConfigWhatsApp(models.Model):
             return obj
         return cls.objects.create(
             ecole=None,
+            provider="META",
+            template_meta="recu_paiement",
+            template_relance="relance_minerval",
+            template_annonce="annonce_ecole",
+            template_otp="code_verification",
+            template_langue="fr",
             message_modele=cls.MESSAGE_DEFAUT,
             template_variables=cls.TEMPLATE_VARS_DEFAUT,
         )
@@ -632,5 +720,70 @@ def sync_frais_inscription_on_delete(sender, instance, **kwargs):
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Error syncing frais_inscription on delete: {e}", exc_info=True)
+
+
+class IntentionPaiementMobile(models.Model):
+    """Demande de paiement Mobile Money initiée par le parent (ou la caisse)."""
+
+    PROVIDER_CHOICES = [
+        ("AIRTEL", "Airtel Money"),
+        ("ORANGE", "Orange Money"),
+        ("MPESA", "M-Pesa"),
+        ("FLEXPAIE", "FlexPaie"),
+        ("AUTRE", "Autre"),
+    ]
+    STATUT_CHOICES = [
+        ("INITIEE", "Initiée"),
+        ("EN_ATTENTE", "En attente opérateur"),
+        ("PAYEE", "Payée"),
+        ("ECHEC", "Échec"),
+        ("EXPIREE", "Expirée"),
+    ]
+
+    ecole = models.ForeignKey(Ecole, on_delete=models.CASCADE, related_name="intentions_mobile")
+    inscription = models.ForeignKey(
+        Inscription,
+        on_delete=models.CASCADE,
+        related_name="intentions_mobile",
+    )
+    frais = models.ForeignKey(
+        Frais_Scolaire,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="intentions_mobile",
+    )
+    montant = models.DecimalField(max_digits=20, decimal_places=2)
+    devise = models.ForeignKey(Devise, on_delete=models.PROTECT)
+    telephone = models.CharField(max_length=20)
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES, default="AIRTEL")
+    statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default="INITIEE")
+    reference = models.CharField(max_length=40, unique=True)
+    reference_operateur = models.CharField(max_length=80, blank=True)
+    paiement = models.ForeignKey(
+        Paiement,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="intentions_mobile",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Intention de paiement mobile"
+        verbose_name_plural = "Intentions de paiement mobile"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reference} — {self.montant} ({self.statut})"
+
+    def save(self, *args, **kwargs):
+        if not self.reference:
+            from django.utils.crypto import get_random_string
+
+            self.reference = "MM-" + get_random_string(12).upper()
+        super().save(*args, **kwargs)
+
 
 

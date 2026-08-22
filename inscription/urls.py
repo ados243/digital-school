@@ -13,7 +13,9 @@ urlpatterns = [
     path('eleves/<int:pk>/supprimer/', views.eleve_delete, name='eleve_delete'),
     
     # Tuteurs
+    path('tuteurs/', views.tuteur_list, name='tuteur_list'),
     path('tuteurs/nouveau/', views.tuteur_create, name='tuteur_create'),
+    path('tuteurs/<int:pk>/modifier/', views.tuteur_update, name='tuteur_update'),
     path('quartiers/nouveau/', views.quartier_create, name='quartier_create'),
     
     # Inscriptions
@@ -25,6 +27,7 @@ urlpatterns = [
     path('classes/', views.classe_list, name='classe_list'),
     path('classes/nouvelle/', views.classe_create, name='classe_create'),
     path('classes/<int:pk>/', views.classe_detail, name='classe_detail'),
+    path('classes/<int:pk>/export.csv', views.classe_export_csv, name='classe_export_csv'),
     path('classes/<int:pk>/modifier/', views.classe_update, name='classe_update'),
     path('classes/<int:pk>/supprimer/', views.classe_delete, name='classe_delete'),
 ]

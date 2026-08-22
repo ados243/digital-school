@@ -2,65 +2,151 @@
 
 {% block title %}Cours en ligne{% endblock %}
 
+{% block extra_css %}
+<style>
+  .live-student-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  @media (max-width: 980px) {
+    .live-student-grid { grid-template-columns: 1fr; }
+  }
+  .live-student-card,
+  .live-class-card,
+  .live-student-session {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+  }
+  .live-student-card,
+  .live-class-card {
+    padding: 1rem 1.1rem;
+  }
+  .live-class-card h2,
+  .live-student-card h2 {
+    margin: 0 0 .35rem;
+    font-size: 1.03rem;
+  }
+  .live-class-card p,
+  .live-student-card p {
+    margin: 0;
+    color: var(--text-muted);
+  }
+  .live-student-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .55rem;
+    margin-top: .8rem;
+  }
+  .live-student-list {
+    display: grid;
+    gap: 1rem;
+  }
+  .live-student-session {
+    padding: 1rem 1.1rem;
+  }
+  .live-student-session__top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .85rem;
+  }
+  .live-student-session__title {
+    margin: 0 0 .25rem;
+    font-size: 1.08rem;
+  }
+  .live-student-session__meta,
+  .live-student-session__desc {
+    margin: 0;
+    color: var(--text-muted);
+  }
+  .live-student-session__desc {
+    margin-top: .45rem;
+    font-size: .92rem;
+  }
+  .live-student-session__facts,
+  .live-student-session__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+    margin-top: .8rem;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="portal-hero">
     <h1>Cours en ligne</h1>
-    <p>Rejoignez vos cours en visioconférence pour la classe {{ inscription.classe }}.</p>
+    <p>Retrouvez vos classes virtuelles, rejoignez rapidement la salle et utilisez les signaux rapides pour rester actif pendant le cours.</p>
 </div>
 
 <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
-    <a href="{% url 'utilisateur:cours_eleve_list' %}" class="btn btn-secondary">Ressources de cours (hors visio)</a>
+    <a href="{% url 'utilisateur:cours_eleve_list' %}" class="btn btn-secondary">Cours enregistrés</a>
+    <a href="{% url 'utilisateur:ressource_eleve_list' %}" class="btn btn-secondary">Fichiers partagés</a>
 </div>
 
-<div class="panel">
-    <div class="panel-body table-responsive" style="padding:0;">
-        <table class="custom-table">
-            <thead>
-                <tr>
-                    <th>Séance</th>
-                    <th>Matière</th>
-                    <th>Enseignant</th>
-                    <th>Date / heure</th>
-                    <th>Statut</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in seances %}
-                <tr>
-                    <td>
-                        <strong>{{ s.titre }}</strong>
-                        {% if s.description %}
-                        <span style="display:block;font-size:.85rem;color:var(--text-muted);">{{ s.description|truncatechars:90 }}</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ s.matiere }}</td>
-                    <td>{{ s.enseignant }}</td>
-                    <td>{{ s.date_heure_prevue|date:"d/m/Y H:i" }} · {{ s.duree_minutes }} min</td>
-                    <td>
-                        {% if s.statut == 'EN_COURS' %}
-                        <span class="badge badge-success">En cours</span>
-                        {% else %}
-                        <span class="badge badge-info">Planifié</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if s.peut_rejoindre %}
-                        <a href="{% url 'utilisateur:direct_eleve_salle' s.id %}" class="btn btn-primary btn-sm">Rejoindre</a>
-                        {% else %}
-                        <span style="font-size:.85rem;color:var(--text-muted);">Bientôt disponible</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" style="text-align:center;padding:2rem;">
-                        Aucun cours en direct pour le moment.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<section class="live-student-grid">
+    <article class="live-student-card">
+        <h2>Disponibilité</h2>
+        <p>Les cours démarrés par l’enseignant restent accessibles ici. Une séance planifiée devient aussi joignable un peu avant l’horaire prévu.</p>
+        <div class="live-student-summary">
+            <span class="badge badge-success">{{ nb_accessibles }} accessible{{ nb_accessibles|pluralize }}</span>
+            <span class="badge badge-info">{{ seances|length }} séance{{ seances|length|pluralize }} visible{{ seances|length|pluralize }}</span>
+            {% if prochaine_seance %}
+            <span class="badge badge-secondary">Prochaine : {{ prochaine_seance.date_heure_prevue|date:"d/m à H:i" }}</span>
+            {% endif %}
+        </div>
+    </article>
+    <article class="live-class-card">
+        <h2>Classe actuelle</h2>
+        <p>{{ inscription.classe }}</p>
+        <div class="live-student-summary">
+            <span class="badge badge-secondary">Préparez casque, cahier et connexion stable</span>
+        </div>
+    </article>
+</section>
+
+<section class="live-student-list">
+    {% for s in seances %}
+    <article class="live-student-session">
+        <div class="live-student-session__top">
+            <div>
+                <h2 class="live-student-session__title">{{ s.titre }}</h2>
+                <p class="live-student-session__meta">{{ s.matiere }} · {{ s.enseignant }}</p>
+                {% if s.description %}
+                <p class="live-student-session__desc">{{ s.description|truncatechars:180 }}</p>
+                {% endif %}
+                <div class="live-student-session__facts">
+                    <span class="badge badge-secondary">{{ s.date_heure_prevue|date:"d/m/Y H:i" }}</span>
+                    <span class="badge badge-secondary">{{ s.duree_minutes }} min</span>
+                    {% if s.statut == 'EN_COURS' %}
+                    <span class="badge badge-success">En cours</span>
+                    {% elif s.est_imminente %}
+                    <span class="badge badge-warning">Bientôt disponible</span>
+                    {% else %}
+                    <span class="badge badge-info">Planifié</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="live-student-session__actions">
+                {% if s.peut_rejoindre %}
+                <a href="{% url 'utilisateur:direct_eleve_salle' s.id %}" class="btn btn-primary btn-sm">Rejoindre la salle</a>
+                {% else %}
+                <span class="badge badge-secondary">Ouverture proche de l’horaire</span>
+                {% endif %}
+            </div>
+        </div>
+    </article>
+    {% empty %}
+    <div class="panel">
+        <div class="panel-body" style="text-align:center;padding:2rem;">
+            Aucun cours en direct pour le moment.
+        </div>
     </div>
-</div>
+    {% endfor %}
+</section>
 {% endblock %}

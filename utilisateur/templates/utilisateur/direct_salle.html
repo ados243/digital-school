@@ -4,21 +4,133 @@
 
 {% block extra_css %}
 <style>
+  .portal-main.live-full { max-width: none; }
   .live-shell {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
-    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1.3fr) minmax(300px, 390px);
+    gap: 1rem;
     min-height: calc(100vh - 8rem);
-    align-items: stretch;
+    align-items: start;
   }
-  @media (max-width: 960px) {
+  @media (max-width: 1080px) {
     .live-shell { grid-template-columns: 1fr; }
   }
-  .live-main {
+  .live-main,
+  .live-side {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1rem;
     min-width: 0;
+  }
+  .live-hero {
+    background: linear-gradient(135deg, #0b5fa5 0%, #0f172a 100%);
+    color: #fff;
+    border-radius: 18px;
+    padding: 1.15rem 1.25rem;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+  }
+  .live-hero__top,
+  .live-hero__bottom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+  }
+  .live-hero__title {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .live-hero__title h1 {
+    margin: 0;
+    font-size: 1.35rem;
+  }
+  .live-hero__title p,
+  .live-hero__meta {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 0.95rem;
+  }
+  .live-chip-row,
+  .live-toolbar__actions,
+  .live-quick-list,
+  .live-filter-row,
+  .qa-item__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  .live-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.38rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    font-size: 0.84rem;
+    font-weight: 700;
+  }
+  .live-chip--light {
+    background: #eef6ff;
+    color: #0b5fa5;
+    border-color: #cbe2fb;
+  }
+  .live-chip--warn {
+    background: #fff5db;
+    color: #9a6700;
+    border-color: #f6d99c;
+  }
+  .live-chip--ghost {
+    background: #f8fafc;
+    color: var(--text-main);
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+  }
+  .live-chip--ghost.is-active {
+    background: #0b5fa5;
+    border-color: #0b5fa5;
+    color: #fff;
+  }
+  .live-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  @media (max-width: 920px) {
+    .live-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    .live-metrics { grid-template-columns: 1fr; }
+  }
+  .live-metric {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  }
+  .live-metric__label {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    margin-bottom: 0.25rem;
+  }
+  .live-metric__value {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .live-frame-card,
+  .live-card,
+  .live-qa {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+  }
+  .live-frame-card {
+    padding: 0.9rem;
   }
   .live-toolbar {
     display: flex;
@@ -26,31 +138,50 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
+    margin-bottom: 0.8rem;
   }
-  .live-toolbar__meta {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
+  .live-toolbar__label {
+    font-size: 0.92rem;
+    color: var(--text-muted);
   }
-  .live-toolbar__meta strong { font-size: 1.05rem; }
-  .live-toolbar__meta span { color: var(--text-muted); font-size: 0.9rem; }
-  .live-frame-wrap {
-    flex: 1;
-    min-height: 60vh;
-    border-radius: 12px;
+  .live-progress {
+    height: 0.55rem;
+    border-radius: 999px;
+    background: #e2e8f0;
     overflow: hidden;
-    border: 1px solid #e5e7eb;
+    margin-top: 0.65rem;
+  }
+  .live-progress__bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #0077c5 0%, #36a2eb 100%);
+    transition: width .4s ease;
+  }
+  .live-frame-wrap {
+    min-height: 64vh;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid #dbe4ef;
     background: #0f172a;
     position: relative;
   }
   .live-frame-wrap iframe {
     width: 100%;
     height: 100%;
-    min-height: 60vh;
+    min-height: 64vh;
+    border: 0;
+    background: #0f172a;
+  }
+  .live-meeting-host {
+    width: 100%;
+    height: 100%;
+    min-height: 64vh;
+    background: #0f172a;
+  }
+  .live-meeting-host iframe {
+    width: 100%;
+    height: 100%;
+    min-height: 64vh;
     border: 0;
   }
   .live-fallback {
@@ -60,135 +191,207 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
+    gap: 0.9rem;
     padding: 2rem;
     text-align: center;
     color: #e2e8f0;
-    background: linear-gradient(160deg, #0f172a, #1e293b);
+    background:
+      radial-gradient(circle at top, rgba(54, 162, 235, 0.22), transparent 35%),
+      linear-gradient(160deg, #0f172a, #172554);
     z-index: 1;
+    transition: opacity .25s ease, visibility .25s ease;
   }
-  .live-fallback p { margin: 0; max-width: 28rem; color: #cbd5e1; }
-  .portal-main.live-full { max-width: none; }
-
-  .live-qa {
-    display: flex;
-    flex-direction: column;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    min-height: 60vh;
-    max-height: calc(100vh - 8rem);
-    overflow: hidden;
+  .live-fallback.is-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
   }
-  .live-qa__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.85rem 1rem;
-    border-bottom: 1px solid #e5e7eb;
+  .live-fallback p {
+    margin: 0;
+    max-width: 34rem;
+    color: #cbd5e1;
   }
+  .live-card {
+    padding: 1rem;
+  }
+  .live-card h2,
   .live-qa__head h2 {
     margin: 0;
     font-size: 1rem;
+  }
+  .live-card p {
+    margin: 0.35rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+  }
+  .live-card ul {
+    margin: 0.75rem 0 0;
+    padding-left: 1rem;
+    color: var(--text-main);
+  }
+  .live-card li + li {
+    margin-top: 0.45rem;
+  }
+  .live-quick-list {
+    margin-top: 0.8rem;
+  }
+  .live-quick-btn {
+    border: 1px solid #dbeafe;
+    background: #eff6ff;
+    color: #0b5fa5;
+    border-radius: 999px;
+    padding: 0.45rem 0.8rem;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .live-quick-btn:hover { background: #dbeafe; }
+  .live-qa {
+    display: flex;
+    flex-direction: column;
+    min-height: 64vh;
+    overflow: hidden;
+  }
+  .live-qa__head,
+  .live-qa__body,
+  .live-qa__foot {
+    padding: 0.9rem 1rem;
+  }
+  .live-qa__head {
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .live-qa__head-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
   }
   .live-qa__badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 1.4rem;
-    height: 1.4rem;
-    padding: 0 0.35rem;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.45rem;
     border-radius: 999px;
     background: #0077c5;
     color: #fff;
-    font-size: 0.75rem;
+    font-size: 0.78rem;
     font-weight: 700;
   }
-  .live-qa__list {
+  .live-qa__body {
     flex: 1;
+    background: #f8fafc;
     overflow: auto;
-    padding: 0.75rem;
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
-    background: #f8fafc;
+    gap: 0.7rem;
   }
   .live-qa__empty {
     margin: auto;
     text-align: center;
     color: var(--text-muted);
-    font-size: 0.9rem;
-    padding: 1.5rem;
+    font-size: 0.92rem;
+    max-width: 18rem;
   }
   .qa-item {
     background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 0.7rem 0.8rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 0.8rem 0.9rem;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
   }
   .qa-item.is-pinned {
-    border-color: #0077c5;
-    box-shadow: inset 3px 0 0 #0077c5;
+    border-color: #93c5fd;
+    box-shadow: inset 4px 0 0 #0b5fa5, 0 8px 24px rgba(15, 23, 42, 0.05);
   }
   .qa-item.is-answered {
-    opacity: 0.85;
+    background: #f8fafc;
+  }
+  .qa-item.is-hidden {
+    display: none;
+  }
+  .qa-item.is-new {
+    animation: livePulse 1.2s ease;
+  }
+  @keyframes livePulse {
+    0% { transform: scale(0.995); box-shadow: 0 0 0 rgba(11, 95, 165, 0); }
+    50% { transform: scale(1); box-shadow: 0 0 0 6px rgba(11, 95, 165, 0.12); }
+    100% { transform: scale(1); box-shadow: 0 0 0 rgba(11, 95, 165, 0); }
   }
   .qa-item__meta {
     display: flex;
     justify-content: space-between;
-    gap: 0.5rem;
-    font-size: 0.75rem;
+    gap: 0.75rem;
+    font-size: 0.77rem;
     color: var(--text-muted);
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.4rem;
   }
-  .qa-item__text {
+  .qa-item__text,
+  .qa-item__answer {
     margin: 0;
-    font-size: 0.92rem;
     white-space: pre-wrap;
     word-break: break-word;
   }
+  .qa-item__text { font-size: 0.94rem; }
   .qa-item__answer {
-    margin: 0.55rem 0 0;
-    padding: 0.55rem 0.65rem;
-    border-radius: 8px;
+    margin-top: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 10px;
     background: #eff6ff;
     color: #1e3a5f;
     font-size: 0.88rem;
-    white-space: pre-wrap;
-    word-break: break-word;
   }
   .qa-item__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: 0.55rem;
+    margin-top: 0.65rem;
   }
-  .qa-item__actions .btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
-  .live-qa__form {
-    border-top: 1px solid #e5e7eb;
-    padding: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+  .qa-item__actions .btn {
+    font-size: 0.76rem;
+    padding: 0.32rem 0.58rem;
   }
-  .live-qa__form textarea {
-    min-height: 72px;
-    resize: vertical;
-  }
-  .live-qa__error {
-    display: none;
-    color: #b91c1c;
-    font-size: 0.85rem;
-  }
-  .live-qa__error.is-visible { display: block; }
   .qa-reply-box {
     display: none;
-    margin-top: 0.5rem;
-    gap: 0.4rem;
+    margin-top: 0.6rem;
+    gap: 0.45rem;
     flex-direction: column;
   }
   .qa-reply-box.is-open { display: flex; }
+  .live-qa__foot {
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .live-qa__form textarea {
+    min-height: 86px;
+    resize: vertical;
+  }
+  .live-qa__error,
+  .live-inline-info {
+    display: none;
+    border-radius: 10px;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.86rem;
+  }
+  .live-qa__error {
+    background: #fef2f2;
+    color: #b91c1c;
+  }
+  .live-inline-info {
+    background: #ecfeff;
+    color: #155e75;
+  }
+  .live-qa__error.is-visible,
+  .live-inline-info.is-visible {
+    display: block;
+  }
+  .live-copy-status {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+  }
 </style>
 {% endblock %}
 
@@ -199,61 +402,162 @@
      data-role="{{ role }}"
      data-questions-url="{{ questions_url }}"
      data-question-create-url="{{ question_create_url }}"
-     data-csrf="{{ csrf_token }}">
+     data-csrf="{{ csrf_token }}"
+     data-start="{{ debut_iso }}"
+     data-end="{{ fin_iso }}"
+     data-room-url="{{ jitsi_url }}"
+     data-share-url="{{ share_url }}"
+     data-jitsi-mode="{% if jitsi_is_jaas %}jaas{% else %}iframe{% endif %}"
+     data-jitsi-domain="{{ jitsi_domain }}"
+     data-jitsi-room="{{ jitsi_room_name }}"
+     data-jitsi-jwt="{{ jitsi_jwt }}"
+     data-jitsi-display-name="{{ jitsi_display_name|default:''|escapejs }}"
+     data-jitsi-email="{{ jitsi_email|default:''|escapejs }}">
     <div class="live-main">
-        <div class="live-toolbar">
-            <div class="live-toolbar__meta">
-                <strong>{{ seance.titre }}</strong>
-                <span>{{ seance.matiere }} · {{ seance.classe }} · {{ seance.date_heure_prevue|date:"d/m/Y H:i" }}</span>
+        <section class="live-hero">
+            <div class="live-hero__top">
+                <div class="live-hero__title">
+                    <h1>{{ seance.titre }}</h1>
+                    <p>{{ seance.matiere }} · {{ seance.classes_libelle }}</p>
+                </div>
+                <div class="live-chip-row">
+                    <span class="live-chip">{{ role_label }}</span>
+                    <span class="live-chip">{% if seance.statut == 'EN_COURS' %}Séance en cours{% else %}Séance planifiée{% endif %}</span>
+                </div>
             </div>
-            <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-                <a href="{{ jitsi_url }}" class="btn btn-primary btn-sm" target="_blank" rel="noopener">Ouvrir la visio</a>
-                {% if role == 'enseignant' and seance.statut == 'EN_COURS' %}
-                <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' seance.id 'terminer' %}">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-secondary btn-sm">Terminer la séance</button>
-                </form>
+            <div class="live-hero__bottom" style="margin-top:.9rem;">
+                <p class="live-hero__meta">
+                    Début {{ seance.date_heure_prevue|date:"d/m/Y à H:i" }} · durée prévue {{ seance.duree_minutes }} min
+                </p>
+                <div class="live-toolbar__actions">
+                    <a href="{{ share_url }}" class="btn btn-primary btn-sm" target="_blank" rel="noopener">Ouvrir cette page dans un nouvel onglet</a>
+                    {% if role == 'enseignant' and seance.statut == 'EN_COURS' %}
+                    <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' seance.id 'terminer' %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-secondary btn-sm">Terminer la séance</button>
+                    </form>
+                    {% endif %}
+                    <a href="{% url retour_url %}" class="btn btn-secondary btn-sm">Quitter</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="live-metrics" aria-label="Informations de séance">
+            <article class="live-metric">
+                <div class="live-metric__label">Classes concernées</div>
+                <div class="live-metric__value">{{ seance.classes_libelle }}</div>
+            </article>
+            <article class="live-metric">
+                <div class="live-metric__label">Statut</div>
+                <div class="live-metric__value">{{ seance.get_statut_display }}</div>
+            </article>
+            <article class="live-metric">
+                <div class="live-metric__label">Compte à rebours</div>
+                <div class="live-metric__value" id="live-countdown">Calcul en cours…</div>
+            </article>
+            <article class="live-metric">
+                <div class="live-metric__label">Progression</div>
+                <div class="live-metric__value" id="live-progress-label">En attente…</div>
+            </article>
+        </section>
+
+        <section class="live-frame-card">
+            <div class="live-toolbar">
+                <div>
+                    <strong>Classe virtuelle</strong>
+                    <div class="live-toolbar__label">La salle intégrée reste ici pendant que les questions arrivent en direct.</div>
+                </div>
+                <div class="live-toolbar__actions">
+                    <button type="button" class="btn btn-secondary btn-sm" id="live-fullscreen">Plein écran</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="live-copy-link">Copier le lien</button>
+                </div>
+            </div>
+            <div class="live-copy-status" id="live-copy-status" aria-live="polite"></div>
+            <div class="live-progress" aria-hidden="true">
+                <div class="live-progress__bar" id="live-progress-bar"></div>
+            </div>
+            <div class="live-frame-wrap" id="live-frame-wrap">
+                <div class="live-fallback" id="live-fallback">
+                    <strong style="font-size:1.2rem;">Connexion à la salle en cours</strong>
+                    <p>
+                        Autorisez le micro et la caméra si besoin. Si la salle tarde à charger,
+                        ouvrez-la dans un nouvel onglet pour une meilleure stabilité.
+                    </p>
+                    <a href="{{ share_url }}" class="btn btn-primary" target="_blank" rel="noopener">Ouvrir cette page</a>
+                </div>
+                {% if jitsi_is_jaas %}
+                <div id="jaas-container" class="live-meeting-host" aria-label="Salle de visioconférence {{ seance.titre }}"></div>
+                {% else %}
+                <iframe
+                    id="live-iframe"
+                    src="{{ jitsi_url }}"
+                    allow="camera; microphone; fullscreen; display-capture; autoplay"
+                    allowfullscreen
+                    title="Salle de visioconférence {{ seance.titre }}">
+                </iframe>
                 {% endif %}
-                <a href="{% url retour_url %}" class="btn btn-secondary btn-sm">Quitter</a>
             </div>
-        </div>
-        <div class="live-frame-wrap">
-            <div class="live-fallback" id="live-fallback">
-                <strong style="font-size:1.2rem;">Salle de visioconférence</strong>
-                <p>Autorisez la caméra et le micro. Posez vos questions dans le panneau à droite.</p>
-                <a href="{{ jitsi_url }}" class="btn btn-primary" target="_blank" rel="noopener">Entrer dans la salle</a>
-            </div>
-            <iframe
-                id="live-iframe"
-                src="{{ jitsi_url }}"
-                allow="camera; microphone; fullscreen; display-capture; autoplay"
-                allowfullscreen
-                title="Salle de visioconférence {{ seance.titre }}"
-                style="position:relative;z-index:2;">
-            </iframe>
-        </div>
+        </section>
     </div>
 
-    <aside class="live-qa" aria-label="Questions du cours">
-        <div class="live-qa__head">
-            <h2>Questions</h2>
-            <span class="live-qa__badge" id="qa-ouvertes" title="Questions ouvertes">0</span>
-        </div>
-        <div class="live-qa__list" id="qa-list">
-            <div class="live-qa__empty" id="qa-empty">Aucune question pour le moment.</div>
-        </div>
-        <form class="live-qa__form" id="qa-form">
-            <div class="live-qa__error" id="qa-error"></div>
-            <textarea id="qa-texte" class="form-control" maxlength="1000"
-                      placeholder="{% if role == 'enseignant' %}Ajouter une question pour la classe…{% else %}Posez votre question à l’enseignant…{% endif %}"
-                      required></textarea>
-            <button type="submit" class="btn btn-primary" id="qa-submit">Envoyer la question</button>
-        </form>
+    <aside class="live-side">
+        <section class="live-qa" aria-label="Questions du cours">
+            <div class="live-qa__head">
+                <div class="live-qa__head-top">
+                    <h2>Interactions & questions</h2>
+                    <span class="live-qa__badge" id="qa-ouvertes" title="Questions ouvertes">0</span>
+                </div>
+                <div class="live-filter-row" role="tablist" aria-label="Filtrer les questions">
+                    <button type="button" class="live-chip live-chip--ghost is-active" data-filter="all">Toutes</button>
+                    <button type="button" class="live-chip live-chip--ghost" data-filter="open">Ouvertes</button>
+                    <button type="button" class="live-chip live-chip--ghost" data-filter="pinned">Épinglées</button>
+                    <button type="button" class="live-chip live-chip--ghost" data-filter="answered">Répondues</button>
+                </div>
+            </div>
+            <div class="live-qa__body" id="qa-list">
+                <div class="live-qa__empty" id="qa-empty">
+                    Aucune question pour le moment. Utilisez le formulaire ci-dessous pour lancer l’échange.
+                </div>
+            </div>
+            <div class="live-qa__foot">
+                <div class="live-inline-info" id="qa-info"></div>
+                <form class="live-qa__form" id="qa-form">
+                    <div class="live-qa__error" id="qa-error"></div>
+                    <textarea id="qa-texte" class="form-control" maxlength="1000"
+                              placeholder="{% if role == 'enseignant' %}Ajoutez une consigne, une question ou un point à clarifier…{% else %}Posez votre question à l’enseignant…{% endif %}"
+                              required></textarea>
+                    <button type="submit" class="btn btn-primary" id="qa-submit">Envoyer le message</button>
+                </form>
+                {% if signaux_rapides %}
+                <div>
+                    <strong style="font-size:.92rem;">Signaux rapides</strong>
+                    <div class="live-quick-list">
+                        {% for signal in signaux_rapides %}
+                        <button type="button" class="live-quick-btn" data-quick-message="{{ signal }}">{{ signal }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <section class="live-card">
+            <h2>Conseils qualité</h2>
+            <p>Quelques réflexes pour une visio plus fluide et plus agréable.</p>
+            <ul>
+                {% for tip in salle_tips %}
+                <li>{{ tip }}</li>
+                {% endfor %}
+            </ul>
+        </section>
     </aside>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+{% if jitsi_is_jaas %}
+<script src="{{ jitsi_script_url }}"></script>
+{% endif %}
 <script>
 (function () {
     const shell = document.querySelector('.live-shell');
@@ -263,15 +567,38 @@
     const questionsUrl = shell.dataset.questionsUrl;
     const createUrl = shell.dataset.questionCreateUrl;
     const csrf = shell.dataset.csrf;
+    const shareUrl = shell.dataset.shareUrl;
+    const startIso = shell.dataset.start;
+    const endIso = shell.dataset.end;
+    const jitsiMode = shell.dataset.jitsiMode;
+    const jitsiDomain = shell.dataset.jitsiDomain;
+    const jitsiRoom = shell.dataset.jitsiRoom;
+    const jitsiJwt = shell.dataset.jitsiJwt;
+    const jitsiDisplayName = shell.dataset.jitsiDisplayName;
+    const jitsiEmail = shell.dataset.jitsiEmail;
+
     const listEl = document.getElementById('qa-list');
     const emptyEl = document.getElementById('qa-empty');
     const badgeEl = document.getElementById('qa-ouvertes');
     const form = document.getElementById('qa-form');
     const texteEl = document.getElementById('qa-texte');
     const errorEl = document.getElementById('qa-error');
+    const infoEl = document.getElementById('qa-info');
     const submitBtn = document.getElementById('qa-submit');
+    const iframe = document.getElementById('live-iframe');
+    const jaasContainer = document.getElementById('jaas-container');
+    const fallback = document.getElementById('live-fallback');
+    const fullscreenBtn = document.getElementById('live-fullscreen');
+    const copyBtn = document.getElementById('live-copy-link');
+    const copyStatus = document.getElementById('live-copy-status');
+    const countdownEl = document.getElementById('live-countdown');
+    const progressLabelEl = document.getElementById('live-progress-label');
+    const progressBarEl = document.getElementById('live-progress-bar');
 
     const known = new Map();
+    let currentFilter = 'all';
+    let lastMaxQuestionId = 0;
+    let meetingApi = null;
 
     function esc(s) {
         return String(s || '')
@@ -279,6 +606,25 @@
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
+    }
+
+    function showInfo(message) {
+        if (!infoEl) return;
+        infoEl.textContent = message;
+        infoEl.classList.add('is-visible');
+        window.setTimeout(() => infoEl.classList.remove('is-visible'), 2600);
+    }
+
+    function showError(message) {
+        if (!errorEl) return;
+        errorEl.textContent = message;
+        errorEl.classList.add('is-visible');
+    }
+
+    function clearError() {
+        if (!errorEl) return;
+        errorEl.classList.remove('is-visible');
+        errorEl.textContent = '';
     }
 
     function timeLabel(iso) {
@@ -291,23 +637,123 @@
         }
     }
 
+    function relTime(target) {
+        const now = new Date();
+        const diffMs = target.getTime() - now.getTime();
+        const absMinutes = Math.round(Math.abs(diffMs) / 60000);
+        if (absMinutes < 1) {
+            return diffMs >= 0 ? 'dans moins d’une minute' : 'il y a moins d’une minute';
+        }
+        if (absMinutes < 60) {
+            return diffMs >= 0 ? `dans ${absMinutes} min` : `depuis ${absMinutes} min`;
+        }
+        const hours = Math.floor(absMinutes / 60);
+        const minutes = absMinutes % 60;
+        const label = minutes ? `${hours} h ${minutes}` : `${hours} h`;
+        return diffMs >= 0 ? `dans ${label}` : `depuis ${label}`;
+    }
+
+    function updateTiming() {
+        if (!startIso || !endIso) return;
+        const start = new Date(startIso);
+        const end = new Date(endIso);
+        const now = new Date();
+        const total = Math.max(end.getTime() - start.getTime(), 1);
+        const elapsed = now.getTime() - start.getTime();
+        const ratio = Math.min(Math.max(elapsed / total, 0), 1);
+
+        if (now < start) {
+            countdownEl.textContent = relTime(start);
+            progressLabelEl.textContent = 'La séance commence bientôt';
+        } else if (now <= end) {
+            countdownEl.textContent = `Fin ${relTime(end)}`;
+            progressLabelEl.textContent = `${Math.round(ratio * 100)} % du temps prévu`;
+        } else {
+            countdownEl.textContent = `Finie ${relTime(end)}`;
+            progressLabelEl.textContent = 'Temps prévu écoulé';
+        }
+        progressBarEl.style.width = `${Math.round(ratio * 100)}%`;
+    }
+
     function actionUrl(questionId, action) {
         return `/mon-espace/direct/{{ seance.id }}/questions/${questionId}/${action}/`;
     }
 
+    function initJaasMeeting() {
+        if (jitsiMode !== 'jaas' || !jaasContainer) return;
+        if (typeof window.JitsiMeetExternalAPI !== 'function') {
+            window.setTimeout(initJaasMeeting, 250);
+            return;
+        }
+        if (meetingApi) return;
+
+        try {
+            const userInfo = {};
+            if (jitsiDisplayName) userInfo.displayName = jitsiDisplayName;
+            if (jitsiEmail) userInfo.email = jitsiEmail;
+
+            meetingApi = new window.JitsiMeetExternalAPI(jitsiDomain, {
+                roomName: jitsiRoom,
+                parentNode: jaasContainer,
+                jwt: jitsiJwt || undefined,
+                userInfo: Object.keys(userInfo).length ? userInfo : undefined,
+                configOverwrite: {
+                    prejoinConfig: { enabled: false },
+                    startWithAudioMuted: false,
+                    startWithVideoMuted: role !== 'enseignant',
+                    disableDeepLinking: true,
+                    enableNoisyMicDetection: true,
+                    resolution: 720,
+                },
+            });
+
+            meetingApi.addListener('videoConferenceJoined', () => {
+                fallback.classList.add('is-hidden');
+                showInfo('Vous êtes connecté à la salle.');
+            });
+            meetingApi.addListener('readyToClose', () => {
+                fallback.classList.remove('is-hidden');
+            });
+            showInfo('Connexion à la salle JaaS…');
+        } catch (e) {
+            showError('Impossible d’initialiser la réunion JaaS.');
+        }
+    }
+
+    function applyFilter() {
+        let visible = 0;
+        Array.from(known.values()).forEach((el) => {
+            const pinned = el.dataset.pinned === '1';
+            const answered = el.dataset.answered === '1';
+            let show = true;
+            if (currentFilter === 'open') show = !answered;
+            if (currentFilter === 'answered') show = answered;
+            if (currentFilter === 'pinned') show = pinned;
+            el.classList.toggle('is-hidden', !show);
+            if (show) visible += 1;
+        });
+        if (emptyEl) emptyEl.style.display = visible ? 'none' : 'block';
+    }
+
     function renderQuestion(q) {
         let el = known.get(q.id);
+        const isNew = q.id > lastMaxQuestionId;
         if (!el) {
             el = document.createElement('article');
             el.className = 'qa-item';
             el.dataset.id = String(q.id);
             known.set(q.id, el);
-            if (emptyEl) emptyEl.style.display = 'none';
             listEl.appendChild(el);
         }
 
+        el.dataset.pinned = q.epinglee ? '1' : '0';
+        el.dataset.answered = q.statut === 'REPONDUE' ? '1' : '0';
         el.classList.toggle('is-pinned', !!q.epinglee);
         el.classList.toggle('is-answered', q.statut === 'REPONDUE');
+        el.classList.toggle('is-new', isNew);
+        if (isNew) {
+            window.setTimeout(() => el.classList.remove('is-new'), 1400);
+        }
 
         let actions = '';
         if (role === 'enseignant') {
@@ -329,7 +775,7 @@
             <span>${esc(timeLabel(q.created_at))}${q.statut === 'REPONDUE' ? ' · répondue' : ''}</span>
           </div>
           <p class="qa-item__text">${esc(q.texte)}</p>
-          ${q.reponse ? `<div class="qa-item__answer"><strong>Réponse :</strong> ${esc(q.reponse)}</div>` : ''}
+          ${q.reponse ? `<p class="qa-item__answer"><strong>Réponse :</strong> ${esc(q.reponse)}</p>` : ''}
           ${actions}
         `;
     }
@@ -337,13 +783,13 @@
     function sortList() {
         const items = Array.from(known.values());
         items.sort((a, b) => {
-            const qa = a.classList.contains('is-pinned') ? 1 : 0;
-            const qb = b.classList.contains('is-pinned') ? 1 : 0;
+            const qa = a.dataset.pinned === '1' ? 1 : 0;
+            const qb = b.dataset.pinned === '1' ? 1 : 0;
             if (qa !== qb) return qb - qa;
-            return Number(a.dataset.id) - Number(b.dataset.id);
+            return Number(b.dataset.id) - Number(a.dataset.id);
         });
-        items.forEach(el => listEl.appendChild(el));
-        if (!items.length && emptyEl) emptyEl.style.display = 'block';
+        items.forEach((el) => listEl.appendChild(el));
+        applyFilter();
     }
 
     async function refresh() {
@@ -354,9 +800,13 @@
             const data = await resp.json();
             if (!resp.ok || !data.ok) return;
             (data.questions || []).forEach(renderQuestion);
+            const ids = (data.questions || []).map((q) => Number(q.id) || 0);
+            if (ids.length) lastMaxQuestionId = Math.max(lastMaxQuestionId, ...ids);
             sortList();
             if (badgeEl) badgeEl.textContent = String(data.count_ouvertes || 0);
-        } catch (e) { /* ignore poll errors */ }
+        } catch (e) {
+            /* ignore poll errors */
+        }
     }
 
     async function postAction(url, body) {
@@ -372,51 +822,47 @@
         return resp.json();
     }
 
+    async function sendQuestion(text) {
+        clearError();
+        const texte = (text || '').trim();
+        if (texte.length < 3) {
+            showError('Posez une question d’au moins 3 caractères.');
+            return false;
+        }
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Envoi…';
+        }
+        try {
+            const fd = new FormData();
+            fd.append('texte', texte);
+            const data = await postAction(createUrl, fd);
+            if (!data.ok) {
+                showError(data.error || 'Impossible d’envoyer le message.');
+                return false;
+            }
+            renderQuestion(data.question);
+            lastMaxQuestionId = Math.max(lastMaxQuestionId, Number(data.question.id) || 0);
+            sortList();
+            await refresh();
+            showInfo('Message envoyé dans le panneau d’interactions.');
+            return true;
+        } catch (e) {
+            showError('Erreur réseau. Réessayez.');
+            return false;
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Envoyer le message';
+            }
+        }
+    }
+
     if (form) {
         form.addEventListener('submit', async (ev) => {
             ev.preventDefault();
-            if (errorEl) {
-                errorEl.classList.remove('is-visible');
-                errorEl.textContent = '';
-            }
-            const texte = (texteEl.value || '').trim();
-            if (texte.length < 3) {
-                if (errorEl) {
-                    errorEl.textContent = 'Posez une question d’au moins 3 caractères.';
-                    errorEl.classList.add('is-visible');
-                }
-                return;
-            }
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Envoi…';
-            }
-            try {
-                const fd = new FormData();
-                fd.append('texte', texte);
-                const data = await postAction(createUrl, fd);
-                if (!data.ok) {
-                    if (errorEl) {
-                        errorEl.textContent = data.error || 'Impossible d’envoyer la question.';
-                        errorEl.classList.add('is-visible');
-                    }
-                    return;
-                }
-                texteEl.value = '';
-                renderQuestion(data.question);
-                sortList();
-                refresh();
-            } catch (e) {
-                if (errorEl) {
-                    errorEl.textContent = 'Erreur réseau. Réessayez.';
-                    errorEl.classList.add('is-visible');
-                }
-            } finally {
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Envoyer la question';
-                }
-            }
+            const ok = await sendQuestion(texteEl.value || '');
+            if (ok) texteEl.value = '';
         });
     }
 
@@ -424,7 +870,11 @@
         const replyBtn = ev.target.closest('[data-reply]');
         if (replyBtn) {
             const box = document.getElementById('reply-' + replyBtn.dataset.reply);
-            if (box) box.classList.toggle('is-open');
+            if (box) {
+                box.classList.toggle('is-open');
+                const ta = box.querySelector('textarea');
+                if (box.classList.contains('is-open') && ta) ta.focus();
+            }
             return;
         }
         const sendBtn = ev.target.closest('[data-send-reply]');
@@ -439,6 +889,9 @@
                 renderQuestion(data.question);
                 sortList();
                 refresh();
+                showInfo('Réponse publiée.');
+            } else if (data.error) {
+                showError(data.error);
             }
             return;
         }
@@ -449,6 +902,7 @@
                 renderQuestion(data.question);
                 sortList();
                 refresh();
+                showInfo('Question marquée comme traitée.');
             }
             return;
         }
@@ -459,12 +913,79 @@
                 renderQuestion(data.question);
                 sortList();
                 refresh();
+                showInfo(data.question.epinglee ? 'Question épinglée.' : 'Question désépinglée.');
             }
         }
     });
 
+    document.querySelectorAll('[data-filter]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            currentFilter = btn.dataset.filter || 'all';
+            document.querySelectorAll('[data-filter]').forEach((el) => el.classList.remove('is-active'));
+            btn.classList.add('is-active');
+            applyFilter();
+        });
+    });
+
+    document.querySelectorAll('[data-quick-message]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const ok = await sendQuestion(btn.dataset.quickMessage || '');
+            if (ok && texteEl) texteEl.value = '';
+        });
+    });
+
+    if (jitsiMode === 'jaas') {
+        initJaasMeeting();
+        window.setTimeout(() => {
+            if (!meetingApi && fallback && !fallback.classList.contains('is-hidden')) {
+                fallback.querySelector('p').textContent =
+                    'Le chargement JaaS prend plus de temps que prévu. Vérifiez la connexion et les autorisations micro/caméra.';
+            }
+        }, 7000);
+    } else if (iframe && fallback) {
+        iframe.addEventListener('load', () => fallback.classList.add('is-hidden'));
+        window.setTimeout(() => {
+            if (!fallback.classList.contains('is-hidden')) {
+                fallback.querySelector('p').textContent =
+                    'Si la salle reste noire ou lente, ouvrez-la dans un nouvel onglet puis vérifiez les autorisations caméra et micro.';
+            }
+        }, 7000);
+    }
+
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', async () => {
+            const target = document.getElementById('live-frame-wrap');
+            if (!target || !target.requestFullscreen) return;
+            try {
+                await target.requestFullscreen();
+            } catch (e) {
+                showInfo('Le plein écran n’est pas disponible sur ce navigateur.');
+            }
+        });
+    }
+
+    if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+            if (!navigator.clipboard || !shareUrl) {
+                showInfo('Copie non disponible ici.');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                if (copyStatus) copyStatus.textContent = 'Lien de la page copié.';
+                window.setTimeout(() => {
+                    if (copyStatus) copyStatus.textContent = '';
+                }, 2500);
+            } catch (e) {
+                showInfo('Impossible de copier le lien automatiquement.');
+            }
+        });
+    }
+
+    updateTiming();
     refresh();
-    setInterval(refresh, 4000);
+    window.setInterval(refresh, 4000);
+    window.setInterval(updateTiming, 30000);
 })();
 </script>
 {% endblock %}

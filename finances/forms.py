@@ -19,15 +19,24 @@ from .models import (
     EcritureLigne,
 )
 from inscription.models import Inscription
-from inscription.tenant import inscriptions_for_ecole, annees_for_ecole, sections_for_ecole
+from inscription.tenant import inscriptions_for_ecole, annees_for_ecole, sections_for_ecole, classes_for_ecole
 from .tenant import frais_for_ecole
 from .paiement_utils import (
     frais_disponibles_pour_inscription,
+    frais_concerne_inscription,
     paiements_valides_par_frais,
     solde_frais,
     convertir_montant,
     _decimal,
 )
+
+
+class _InputOnlyRadioSelect(forms.RadioSelect):
+    option_template_name = "django/forms/widgets/input.html"
+
+
+class _InputOnlyCheckboxSelect(forms.CheckboxSelectMultiple):
+    option_template_name = "django/forms/widgets/input.html"
 
 
 def _inscription_label(ins):
@@ -49,13 +58,27 @@ class TypeFraisForm(FormControlMixin, forms.ModelForm):
 
 
 class FraisScolaireForm(FormControlMixin, forms.ModelForm):
+    PORTEE_SECTION = "section"
+    PORTEE_CLASSES = "classes"
+    PORTEE_CHOICES = [
+        (PORTEE_SECTION, "Toute une section"),
+        (PORTEE_CLASSES, "Une ou plusieurs classes"),
+    ]
+    portee = forms.ChoiceField(
+        choices=PORTEE_CHOICES,
+        widget=_InputOnlyRadioSelect,
+        initial=PORTEE_SECTION,
+        label="Portée du frais",
+    )
+
     class Meta:
         model = Frais_Scolaire
-        fields = ["type_frais", "annee", "section", "montant", "devise", "echeance", "est_obligatoire"]
+        fields = ["type_frais", "annee", "section", "classes", "montant", "devise", "echeance", "est_obligatoire"]
         labels = {
             "type_frais": "Type de frais",
             "annee": "Année scolaire",
             "section": "Section concernée",
+            "classes": "Classes concernées",
             "montant": "Montant",
             "devise": "Devise",
             "echeance": "Date d'échéance",
@@ -64,24 +87,69 @@ class FraisScolaireForm(FormControlMixin, forms.ModelForm):
         widgets = {
             "echeance": forms.DateInput(attrs={"type": "date"}),
             "montant": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
+            "classes": _InputOnlyCheckboxSelect,
+        }
+        help_texts = {
+            "classes": "Cochez une ou plusieurs classes. Le frais ne sera dû que par leurs élèves.",
         }
 
     def __init__(self, *args, ecole=None, **kwargs):
+        self.ecole = ecole
         super().__init__(*args, **kwargs)
+        self.fields["section"].required = False
+        self.fields["classes"].required = False
+        self.fields["classes"].widget.attrs["class"] = "form-check-input"
+        self.fields["classes"].queryset = classes_for_ecole(ecole).select_related("section").order_by(
+            "section__section", "classe"
+        )
         if ecole:
-            self.fields['type_frais'].queryset = TypeFrais.objects.filter(ecole=ecole)
+            self.fields["classes"].label_from_instance = (
+                lambda c: f"{c.classe} — {c.section}"
+            )
+            self.fields["type_frais"].queryset = TypeFrais.objects.filter(ecole=ecole)
             annee_qs = annees_for_ecole(ecole).filter(est_encoure=True)
-            # En modification, conserver l'année déjà liée si elle n'est plus « en cours »
             if self.instance and self.instance.pk and self.instance.annee_id:
                 annee_qs = annees_for_ecole(ecole).filter(
                     Q(est_encoure=True) | Q(pk=self.instance.annee_id)
                 )
-            self.fields['annee'].queryset = annee_qs
-            self.fields['section'].queryset = sections_for_ecole(ecole)
+            self.fields["annee"].queryset = annee_qs
+            self.fields["section"].queryset = sections_for_ecole(ecole)
             annee_courante = annee_qs.filter(est_encoure=True).first()
             if annee_courante and not (self.instance and self.instance.pk):
-                self.fields['annee'].initial = annee_courante.pk
-                self.fields['annee'].empty_label = None
+                self.fields["annee"].initial = annee_courante.pk
+                self.fields["annee"].empty_label = None
+        if self.instance and self.instance.pk and self.instance.est_specifique():
+            self.fields["portee"].initial = self.PORTEE_CLASSES
+
+    def clean(self):
+        cleaned = super().clean()
+        portee = cleaned.get("portee")
+        section = cleaned.get("section")
+        classes = cleaned.get("classes")
+        if portee == self.PORTEE_SECTION:
+            if not section:
+                self.add_error("section", "Choisissez la section concernée.")
+        elif portee == self.PORTEE_CLASSES:
+            if not classes:
+                    self.add_error("classes", "Sélectionnez au moins une classe.")
+            elif self.ecole:
+                etrangeres = [c for c in classes if c.ecole_id != self.ecole.id]
+                if etrangeres:
+                    self.add_error("classes", "Une classe n'appartient pas à votre établissement.")
+        return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        portee = self.cleaned_data.get("portee")
+        if portee == self.PORTEE_CLASSES:
+            instance.section = None
+        if commit:
+            instance.save()
+            if portee == self.PORTEE_CLASSES:
+                instance.classes.set(self.cleaned_data.get("classes") or [])
+            else:
+                instance.classes.clear()
+        return instance
 
 
 class TauxChangeForm(FormControlMixin, forms.ModelForm):
@@ -121,6 +189,9 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             "api_url",
             "indicatif_pays",
             "template_meta",
+            "template_relance",
+            "template_annonce",
+            "template_otp",
             "template_langue",
             "template_variables",
             "message_modele",
@@ -132,21 +203,30 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             "instance_id": "Phone Number ID (Meta) ou Instance ID (Ultramsg)",
             "api_url": "URL API (optionnel)",
             "indicatif_pays": "Indicatif pays (sans +)",
-            "template_meta": "Nom du modèle Meta",
-            "template_langue": "Langue du modèle Meta",
-            "template_variables": "Variables du modèle (ordre {{1}}, {{2}}, …)",
-            "message_modele": "Texte du message (Ultramsg / sans modèle Meta)",
+            "template_meta": "Template reçu de paiement",
+            "template_relance": "Template relance minerval",
+            "template_annonce": "Template annonce école → parents",
+            "template_otp": "Template code OTP",
+            "template_langue": "Langue des templates",
+            "template_variables": "Variables du reçu Meta (ordre {{1}}, {{2}}, …)",
+            "message_modele": "Texte du message (Ultramsg / sans modèle)",
         }
         help_texts = {
+            "provider": (
+                "Meta Cloud API : token et Phone Number ID ci-dessous. "
+                "Bird : clé API dans .env (BIRD_API_KEY), secours OTP si Meta inactif."
+            ),
             "api_token": (
-                "Meta : collez le jeton permanent (Utilisateur système), pas le jeton "
-                "temporaire de 24 h. Ne pas mettre « Bearer » devant. "
+                "Inutile avec Bird. Meta : jeton permanent (Utilisateur système). "
                 "Laisser vide pour conserver le jeton déjà enregistré."
             ),
             "instance_id": (
-                "Meta : Phone number ID (chiffres, ex. 123456789012345), "
-                "pas le numéro +243…"
+                "Inutile avec Bird. Meta : Phone number ID (chiffres), pas le numéro +243…"
             ),
+            "template_meta": "Meta : recu_paiement. Bird : bird_delivery_update.",
+            "template_relance": "Meta : relance_minerval.",
+            "template_annonce": "Meta : annonce_ecole.",
+            "template_otp": "Meta : code_verification.",
         }
         widgets = {
             "api_token": forms.PasswordInput(
@@ -159,12 +239,22 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             ),
             "instance_id": forms.TextInput(
                 attrs={"placeholder": "ex. 123456789012345 (Phone Number ID Meta)"}
-            ),            "api_url": forms.TextInput(
+            ),
+            "api_url": forms.TextInput(
                 attrs={"placeholder": "Laisser vide pour l'URL par défaut"}
             ),
             "indicatif_pays": forms.TextInput(attrs={"placeholder": "243"}),
             "template_meta": forms.TextInput(
-                attrs={"placeholder": "ex. recu_paiement_ecole"}
+                attrs={"placeholder": "ex. recu_paiement"}
+            ),
+            "template_relance": forms.TextInput(
+                attrs={"placeholder": "ex. relance_minerval"}
+            ),
+            "template_annonce": forms.TextInput(
+                attrs={"placeholder": "ex. annonce_ecole"}
+            ),
+            "template_otp": forms.TextInput(
+                attrs={"placeholder": "ex. code_verification"}
             ),
             "template_langue": forms.TextInput(attrs={"placeholder": "fr"}),
             "template_variables": forms.TextInput(
@@ -317,11 +407,11 @@ class PaiementForm(FormControlMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, ecole=None, exclude_paiement_id=None, taux_courant=None, **kwargs):
-        super().__init__(*args, **kwargs)
         self.ecole = ecole
         self.exclude_paiement_id = exclude_paiement_id
         self.taux_courant = taux_courant
         self._conversion_appliquee = False
+        super().__init__(*args, **kwargs)
 
         if ecole:
             self.fields["eleve"].queryset = (
@@ -356,7 +446,7 @@ class PaiementForm(FormControlMixin, forms.ModelForm):
                 frais_ids.append(self.instance.frais_id)
             self.fields["frais"].queryset = frais_for_ecole(ecole).filter(
                 pk__in=frais_ids
-            ).select_related("type_frais", "section", "annee", "devise")
+            ).select_related("type_frais", "section", "annee", "devise").prefetch_related("classes")
 
             def label_with_solde(frais):
                 solde = solde_frais(
@@ -453,9 +543,9 @@ class PaiementForm(FormControlMixin, forms.ModelForm):
                 cleaned_data["_devise_origine"] = frais.devise
 
         if inscription and frais:
-            if frais.section_id != inscription.classe.section_id or frais.annee_id != inscription.annee_s_id:
+            if not frais_concerne_inscription(frais, inscription):
                 raise forms.ValidationError(
-                    "Le frais sélectionné ne correspond pas à la section ou à l'année scolaire de l'élève."
+                    "Le frais sélectionné ne s'applique pas à la classe ou à l'année scolaire de l'élève."
                 )
             solde = solde_frais(
                 frais,

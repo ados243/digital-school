@@ -209,10 +209,10 @@ def valeurs_template(config, contexte: dict) -> List[str]:
 
 
 def get_config_pour_ecole(ecole):
-    """Toujours la config centrale — un seul compte WhatsApp pour toutes les écoles."""
+    """Config WhatsApp de l'école si définie, sinon le compte central."""
     from .models import ConfigWhatsApp
 
-    return ConfigWhatsApp.charger_centrale()
+    return ConfigWhatsApp.charger_pour_ecole(ecole)
 
 
 def _envoyer_ultramsg(config, telephone: str, message: str) -> Tuple[bool, str, str]:
@@ -239,15 +239,54 @@ def _envoyer_ultramsg(config, telephone: str, message: str) -> Tuple[bool, str, 
         return False, "", str(exc)
 
 
-def _construire_payload_meta_template(config, telephone: str, contexte: dict) -> dict:
-    template = (config.template_meta or "").strip()
-    langue = (getattr(config, "template_langue", None) or "fr").strip() or "fr"
-    params = [
-        {"type": "text", "text": v} for v in valeurs_template(config, contexte)
-    ]
+def _param_texte(valeur, max_len=1024) -> str:
+    val = str(valeur if valeur is not None else "—").strip() or "—"
+    val = re.sub(r"[\t\n\r]+", " ", val)
+    if len(val) > max_len:
+        val = val[: max_len - 3] + "..."
+    return val
+
+
+def nom_template(config, kind: str) -> str:
+    """Nom du modèle Meta/Bird pour un cas d'usage."""
+    kind = (kind or "paiement").lower()
+    if kind == "paiement":
+        return (getattr(config, "template_meta", None) or "").strip() or getattr(
+            settings, "WHATSAPP_META_TEMPLATE_PAIEMENT", "recu_paiement"
+        )
+    if kind == "relance":
+        return (getattr(config, "template_relance", None) or "").strip() or getattr(
+            settings, "WHATSAPP_META_TEMPLATE_RELANCE", "relance_minerval"
+        )
+    if kind == "annonce":
+        return (getattr(config, "template_annonce", None) or "").strip() or getattr(
+            settings, "WHATSAPP_META_TEMPLATE_ANNONCE", "annonce_ecole"
+        )
+    if kind == "otp":
+        return (getattr(config, "template_otp", None) or "").strip() or getattr(
+            settings, "WHATSAPP_META_TEMPLATE_OTP", "code_verification"
+        )
+    return (getattr(config, "template_meta", None) or "").strip()
+
+
+def langue_template(config) -> str:
+    return (
+        (getattr(config, "template_langue", None) or "").strip()
+        or getattr(settings, "WHATSAPP_META_LANGUAGE", "fr")
+        or "fr"
+    )
+
+
+def _construire_payload_meta_template(
+    telephone: str,
+    template_name: str,
+    langue: str,
+    body_params: List[str],
+) -> dict:
+    params = [{"type": "text", "text": _param_texte(v)} for v in body_params]
     template_obj = {
-        "name": template,
-        "language": {"code": langue},
+        "name": template_name,
+        "language": {"code": langue or "fr"},
     }
     if params:
         template_obj["components"] = [
@@ -264,9 +303,68 @@ def _construire_payload_meta_template(config, telephone: str, contexte: dict) ->
     }
 
 
+def envoyer_meta_template(
+    config,
+    telephone: str,
+    template_name: str,
+    body_params: List[str],
+    *,
+    language: Optional[str] = None,
+) -> Tuple[bool, str, str]:
+    """Envoie un template Meta Cloud API (body {{1}}, {{2}}, …)."""
+    phone_id = (config.instance_id or "").strip()
+    token = (config.api_token or "").strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    if not phone_id or not token:
+        return False, "", "Phone Number ID ou token Meta manquant."
+    if not (template_name or "").strip():
+        return False, "", "Nom de template Meta manquant."
+
+    base = (config.api_url or "").strip().rstrip("/")
+    if not base:
+        version = getattr(settings, "WHATSAPP_META_API_VERSION", "v19.0")
+        base = f"https://graph.facebook.com/{version}/{phone_id}"
+    url = f"{base}/messages"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    payload = _construire_payload_meta_template(
+        telephone,
+        template_name.strip(),
+        language or langue_template(config),
+        body_params or [],
+    )
+    try:
+        resp = requests.post(
+            url,
+            json=payload,
+            headers=headers,
+            timeout=getattr(settings, "WHATSAPP_TIMEOUT", 20),
+        )
+        body = resp.text[:2000]
+        if resp.ok:
+            return True, body, ""
+        return False, body, f"HTTP {resp.status_code}: {body}"
+    except requests.RequestException as exc:
+        return False, "", str(exc)
+
+
 def _envoyer_meta(
     config, telephone: str, message: str, contexte: Optional[dict] = None
 ) -> Tuple[bool, str, str]:
+    template = nom_template(config, "paiement")
+    if template:
+        if contexte is None:
+            contexte = {}
+        return envoyer_meta_template(
+            config,
+            telephone,
+            template,
+            valeurs_template(config, contexte),
+            language=langue_template(config),
+        )
     phone_id = (config.instance_id or "").strip()
     token = (config.api_token or "").strip()
     if token.lower().startswith("bearer "):
@@ -283,18 +381,12 @@ def _envoyer_meta(
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
-    template = (config.template_meta or "").strip()
-    if template:
-        if contexte is None:
-            contexte = {}
-        payload = _construire_payload_meta_template(config, telephone, contexte)
-    else:
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": telephone,
-            "type": "text",
-            "text": {"preview_url": False, "body": message},
-        }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": telephone,
+        "type": "text",
+        "text": {"preview_url": False, "body": message},
+    }
     try:
         resp = requests.post(
             url,
@@ -310,16 +402,91 @@ def _envoyer_meta(
         return False, "", str(exc)
 
 
+def envoyer_otp_meta(config, telephone: str, code: str) -> Tuple[bool, str, str]:
+    """OTP via template Meta code_verification ({{1}} = code)."""
+    return envoyer_meta_template(
+        config,
+        telephone,
+        nom_template(config, "otp"),
+        [str(code).strip()],
+        language=langue_template(config),
+    )
+
+
+def envoyer_relance_meta(config, contexte: dict, telephone: str) -> Tuple[bool, str, str]:
+    """Template relance_minerval : ecole, parent, eleve, classe, frais, montant."""
+    ordre = ("ecole", "parent", "eleve", "classe", "frais", "montant_affiche")
+    params = [_param_texte(contexte.get(cle)) for cle in ordre]
+    return envoyer_meta_template(
+        config,
+        telephone,
+        nom_template(config, "relance"),
+        params,
+        language=langue_template(config),
+    )
+
+
+def envoyer_annonce_meta(config, contexte: dict, telephone: str) -> Tuple[bool, str, str]:
+    """Template annonce_ecole : ecole, parent, texte, cible."""
+    ordre = ("ecole", "parent", "texte", "cible")
+    params = [_param_texte(contexte.get(cle)) for cle in ordre]
+    return envoyer_meta_template(
+        config,
+        telephone,
+        nom_template(config, "annonce"),
+        params,
+        language=langue_template(config),
+    )
+
+
+def provider_effectif(config) -> str:
+    """Respecte le fournisseur choisi dans la config ; Bird n'est pas imposé si Meta est sélectionné."""
+    provider = (getattr(config, "provider", None) or "LOG").upper()
+    if provider == "LOG":
+        return "LOG"
+    if provider in ("META", "ULTRAMSG", "BIRD"):
+        return provider
+    if (getattr(settings, "BIRD_API_KEY", "") or "").strip():
+        return "BIRD"
+    return provider
+
+
+def _envoyer_bird(
+    config, telephone: str, contexte: Optional[dict] = None
+) -> Tuple[bool, str, str]:
+    from ds.bird import BirdError, bird_configure, envoyer_paiement_whatsapp
+
+    if not bird_configure():
+        return False, "", "BIRD_API_KEY manquant dans le fichier .env."
+    slug = (getattr(config, "template_meta", None) or "").strip() or None
+    langue = (getattr(config, "template_langue", None) or "").strip() or None
+    defaut = getattr(settings, "BIRD_WHATSAPP_PAIEMENT_TEMPLATE", "bird_delivery_update")
+    if not slug or slug in ("bird_delivery_update", "bird_otp", defaut):
+        langue = getattr(settings, "BIRD_WHATSAPP_LANGUAGE", "en") or "en"
+    try:
+        msg_id, status = envoyer_paiement_whatsapp(
+            telephone, contexte or {}, slug=slug, language=langue
+        )
+        return True, f"id={msg_id} status={status}", ""
+    except BirdError as exc:
+        detail = ""
+        if getattr(exc, "payload", None):
+            detail = str(exc.payload)[:2000]
+        return False, detail, str(exc)
+
+
 def _envoyer_via_provider(
     config, telephone: str, message: str, contexte: Optional[dict] = None
 ) -> Tuple[bool, str, str]:
-    provider = (config.provider or "LOG").upper()
+    provider = provider_effectif(config)
     if provider == "LOG":
         extra = ""
         if contexte and (config.template_meta or "").strip():
             extra = " | vars=" + ",".join(valeurs_template(config, contexte))
         logger.info("WhatsApp [LOG] → +%s : %s%s", telephone, message[:200], extra)
         return True, "mode=LOG" + extra, ""
+    if provider == "BIRD":
+        return _envoyer_bird(config, telephone, contexte=contexte)
     if provider == "ULTRAMSG":
         return _envoyer_ultramsg(config, telephone, message)
     if provider == "META":
@@ -327,18 +494,122 @@ def _envoyer_via_provider(
     return False, "", f"Fournisseur inconnu : {provider}"
 
 
+def resume_envoi_bird(config, contexte: dict) -> str:
+    slug = (config.template_meta or "").strip() or getattr(
+        settings, "BIRD_WHATSAPP_PAIEMENT_TEMPLATE", "bird_delivery_update"
+    )
+    langue = (getattr(config, "template_langue", None) or "").strip() or getattr(
+        settings, "BIRD_WHATSAPP_LANGUAGE", "en"
+    )
+    return (
+        f"Template Bird : {slug} ({langue})\n"
+        f"ref = {contexte.get('numero_recu') or '—'}\n"
+        f"date = {contexte.get('date') or '—'}"
+    )
+
+
 def resume_envoi_meta(config, contexte: dict) -> str:
     """Texte journalisé décrivant le template + variables envoyées."""
-    nom = (config.template_meta or "").strip()
+    nom = nom_template(config, "paiement")
     if not nom:
         return formater_message(config.modele_effectif(), contexte)
-    langue = (getattr(config, "template_langue", None) or "fr").strip() or "fr"
+    langue = langue_template(config)
     cles = parser_cles_template(config)
     vals = valeurs_template(config, contexte)
     lignes = [f"Template Meta : {nom} ({langue})"]
     for i, (cle, val) in enumerate(zip(cles, vals), start=1):
         lignes.append(f"{{{{{i}}}}} ({cle}) = {val}")
     return "\n".join(lignes)
+
+
+def notifier_communication_whatsapp(communication) -> dict:
+    """
+    Envoie l'annonce école → parents via WhatsApp (template annonce_ecole).
+    Retourne {envoyes, echecs, ignores}.
+    """
+    from utilisateur.security import telephone_utilisateur
+
+    from .models import NotificationWhatsApp
+
+    ecole = communication.ecole
+    config = get_config_pour_ecole(ecole)
+    stats = {"envoyes": 0, "echecs": 0, "ignores": 0}
+    if config is None or not config.actif:
+        return stats
+
+    canal = provider_effectif(config)
+    texte = f"{communication.sujet}\n{communication.contenu}".strip()
+    cible = communication.libelle_cible
+    lectures = communication.lectures.select_related("parent", "parent__tuteur").all()
+
+    for lecture in lectures:
+        parent = lecture.parent
+        parent_nom = ""
+        if parent:
+            parent_nom = (
+                getattr(parent, "nom_complet", None)
+                or f"{getattr(parent, 'prenom', '')} {getattr(parent, 'last_name', '')}".strip()
+            )
+        contexte = {
+            "ecole": ecole.ecole if ecole else "École",
+            "parent": parent_nom or "Parent",
+            "texte": texte,
+            "cible": cible,
+        }
+        tel_e164 = telephone_utilisateur(parent) if parent else ""
+        telephone = normaliser_telephone(
+            tel_e164, getattr(config, "indicatif_pays", None) or "243"
+        )
+        message = (
+            f"Template Meta : {nom_template(config, 'annonce')} ({langue_template(config)})\n"
+            f"ecole={contexte['ecole']}\nparent={contexte['parent']}\n"
+            f"cible={contexte['cible']}\ntexte={_param_texte(texte, 200)}"
+        )
+        if not telephone:
+            NotificationWhatsApp.objects.create(
+                ecole=ecole,
+                paiement=None,
+                destinataire="",
+                message=message,
+                statut="IGNORE",
+                provider=canal,
+                erreur="Aucun numéro WhatsApp pour ce parent.",
+            )
+            stats["ignores"] += 1
+            continue
+
+        if canal == "META":
+            ok, reponse, erreur = envoyer_annonce_meta(config, contexte, telephone)
+        elif canal == "LOG":
+            logger.info("WhatsApp [LOG] annonce → +%s : %s", telephone, texte[:200])
+            ok, reponse, erreur = True, "mode=LOG", ""
+        else:
+            # Bird / Ultramsg : message texte libre (hors template Meta)
+            ok, reponse, erreur = _envoyer_via_provider(
+                config, telephone, texte[:1500], contexte=contexte
+            )
+
+        NotificationWhatsApp.objects.create(
+            ecole=ecole,
+            paiement=None,
+            destinataire=f"+{telephone}",
+            message=message,
+            statut="ENVOYE" if ok else "ECHEC",
+            provider=canal,
+            reponse_api=reponse or "",
+            erreur=erreur or "",
+        )
+        if ok:
+            stats["envoyes"] += 1
+        else:
+            stats["echecs"] += 1
+            logger.warning(
+                "WhatsApp annonce échec com=%s → %s : %s",
+                communication.pk,
+                telephone,
+                erreur,
+            )
+    return stats
 
 
 def notifier_paiement_whatsapp(paiement, force: bool = False):
@@ -368,9 +639,12 @@ def notifier_paiement_whatsapp(paiement, force: bool = False):
     tel_brut, _ = _telephone_tuteur(paiement)
     telephone = normaliser_telephone(tel_brut, config.indicatif_pays)
     contexte = construire_contexte_message(paiement)
+    canal = provider_effectif(config)
 
-    if (config.provider or "").upper() == "META" and (config.template_meta or "").strip():
+    if canal == "META":
         message = resume_envoi_meta(config, contexte)
+    elif canal == "BIRD":
+        message = resume_envoi_bird(config, contexte)
     else:
         message = formater_message(config.modele_effectif(), contexte)
 
@@ -381,7 +655,7 @@ def notifier_paiement_whatsapp(paiement, force: bool = False):
             destinataire="",
             message=message,
             statut="IGNORE",
-            provider=config.provider,
+            provider=canal,
             erreur="Aucun numéro de téléphone valide pour le tuteur.",
         )
         return notif
@@ -395,7 +669,7 @@ def notifier_paiement_whatsapp(paiement, force: bool = False):
         destinataire=f"+{telephone}",
         message=message,
         statut="ENVOYE" if ok else "ECHEC",
-        provider=config.provider,
+        provider=canal,
         reponse_api=reponse or "",
         erreur=erreur or "",
     )

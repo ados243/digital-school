@@ -5,6 +5,11 @@
 {% block page_title %}Tableau de bord Finances{% endblock %}
 {% block page_subtitle %}Caisse réelle, paiements et minerval par classe.{% endblock %}
 
+{% block header_actions %}
+<a href="{% url 'finances:budget_annuel' %}" class="btn btn-secondary">📐 Budget</a>
+<a href="{% url 'finances:relances_impayes' %}" class="btn btn-primary">Relancer le minerval</a>
+{% endblock %}
+
 {% block content %}
 
 <section class="kpi-grid">
@@ -62,6 +67,26 @@
       🗓️ {{ depenses_mois.date_debut|date:"d/m" }} → {{ depenses_mois.date_fin|date:"d/m/Y" }} · salaires payés
     </div>
   </div>
+
+  {% if budget_suivi %}
+  <a href="{% url 'finances:budget_annuel' %}{% if budget_suivi.annee %}?annee={{ budget_suivi.annee.id }}{% endif %}" class="kpi-card kpi-card--link">
+    <div>
+      <div class="kpi-title">Exécution du budget{% if budget_suivi.annee %} {{ budget_suivi.annee }}{% endif %}</div>
+      <div class="kpi-value">
+        {% if budget_suivi.pct_recettes_usd is not None %}{{ budget_suivi.pct_recettes_usd }} %{% else %}—{% endif %}
+      </div>
+      <div style="margin-top:.5rem;">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill is-{{ budget_suivi.etat_recettes }}" style="width: {{ budget_suivi.barre_recettes_usd }}%;"></div>
+        </div>
+        <div style="margin-top:.5rem; font-size:.85rem; color:var(--text-muted);">
+          Recettes {{ budget_suivi.realise_recettes_usd }} / {{ budget_suivi.total_recettes_usd }} USD
+        </div>
+      </div>
+    </div>
+    <div class="kpi-footer">📐 Voir le suivi et exporter Excel</div>
+  </a>
+  {% endif %}
 </section>
 
 <p style="margin:.25rem 0 .5rem; font-size:.85rem; font-weight:600; color:var(--text-muted); letter-spacing:.02em;">

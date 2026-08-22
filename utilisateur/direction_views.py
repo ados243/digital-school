@@ -274,6 +274,18 @@ def direction_communication_create(request):
                 cible_section=cible_section,
             )
             nb = enregistrer_destinataires(com)
+            wa_stats = {"envoyes": 0, "echecs": 0, "ignores": 0}
+            try:
+                from finances.whatsapp import notifier_communication_whatsapp
+
+                wa_stats = notifier_communication_whatsapp(com)
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).exception(
+                    "Envoi WhatsApp communication %s échoué", com.pk
+                )
+
             if nb == 0:
                 messages.warning(
                     request,
@@ -281,10 +293,17 @@ def direction_communication_create(request):
                     "Les parents doivent avoir créé leur compte (matricule tuteur) pour recevoir les messages.",
                 )
             else:
+                extra_wa = ""
+                if wa_stats.get("envoyes") or wa_stats.get("echecs") or wa_stats.get("ignores"):
+                    extra_wa = (
+                        f" WhatsApp : {wa_stats.get('envoyes', 0)} envoyé(s), "
+                        f"{wa_stats.get('echecs', 0)} échec(s), "
+                        f"{wa_stats.get('ignores', 0)} sans numéro."
+                    )
                 messages.success(
                     request,
                     f"Communication envoyée à {nb} parent{'' if nb == 1 else 's'} "
-                    f"({com.libelle_cible}).",
+                    f"({com.libelle_cible}).{extra_wa}",
                 )
             return redirect('utilisateur:direction_communication_list')
 

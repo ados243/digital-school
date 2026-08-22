@@ -4,6 +4,7 @@ from .models import (
     Devise,
     TypeFrais,
     Frais_Scolaire,
+    FraisClasse,
     Paiement,
     TauxChange,
     DemandeModificationPaiement,
@@ -117,11 +118,24 @@ class TypeFraisAdmin(admin.ModelAdmin):
     search_fields = ("libelle", "description")
 
 
+class FraisClasseInline(admin.TabularInline):
+    model = FraisClasse
+    extra = 1
+
+
 @admin.register(Frais_Scolaire)
 class FraisScolaireAdmin(admin.ModelAdmin):
-    list_display = ("type_frais", "annee", "section", "montant", "devise", "echeance", "est_obligatoire")
+    list_display = ("type_frais", "annee", "section", "portee_libelle", "montant", "devise", "echeance", "est_obligatoire")
     list_filter = ("annee", "section", "devise", "est_obligatoire")
     search_fields = ("type_frais__libelle",)
+    inlines = [FraisClasseInline]
+
+
+@admin.register(FraisClasse)
+class FraisClasseAdmin(admin.ModelAdmin):
+    list_display = ("frais", "classe")
+    list_filter = ("classe__ecole", "classe__section")
+    search_fields = ("frais__type_frais__libelle", "classe__classe")
 
 
 @admin.register(ConfigWhatsApp)

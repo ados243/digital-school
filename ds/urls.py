@@ -13,12 +13,13 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include, re_path
-from django.views.static import serve
 
 from ds.health import healthz
+from ds.media_views import servir_media
+from finances.mobile_views import mobile_money_webhook
+from utilisateur.api_views import api_moi
 
 # Django Admin réservé aux superutilisateurs uniquement
 admin.site.has_permission = lambda request: bool(
@@ -28,15 +29,13 @@ admin.site.has_permission = lambda request: bool(
 
 urlpatterns = [
     path('sante/', healthz, name='healthz'),
+    path('api/moi/', api_moi, name='api_moi'),
+    path('webhooks/mobile-money/', mobile_money_webhook, name='mobile_money_webhook'),
     path('admin/', admin.site.urls),
     path('', include('utilisateur.urls')),
     path('grh/', include('grh.urls')),
     path('inscription/', include('inscription.urls')),
     path('finances/', include('finances.urls')),
     path('pedagogie/', include(('pedagogie.urls', 'pedagogie'), namespace='pedagogie')),
-    re_path(
-        r'^media/(?P<path>.*)$',
-        serve,
-        {'document_root': settings.MEDIA_ROOT},
-    ),
+    re_path(r'^media/(?P<path>.*)$', servir_media, name='media'),
 ]

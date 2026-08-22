@@ -1,0 +1,8 @@
+.wrangler
+node_modules
+.dev.vars
+.DS_Store
+worker.mjs
+worker-single.mjs
+deploy_code.js
+

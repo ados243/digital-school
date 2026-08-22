@@ -1,5 +1,8 @@
 from django.urls import path
 from . import views
+from . import mobile_views
+from . import relance_views
+from .whatsapp_views import whatsapp_config, whatsapp_test, whatsapp_renvoyer
 
 app_name = 'finances'
 
@@ -20,6 +23,11 @@ urlpatterns = [
 
     # Paiements
     path("paiements/", views.paiement_list, name="paiement_list"),
+    path(
+        "paiements/mobile/<int:pk>/confirmer/",
+        mobile_views.caisse_confirmer_mobile,
+        name="caisse_confirmer_mobile",
+    ),
     path("paiements/nouveau/", views.paiement_create, name="paiement_create"),
     path("paiements/demandes-modification/", views.demandes_modification_list, name="demandes_modification_list"),
     path(
@@ -37,15 +45,21 @@ urlpatterns = [
     path("paiements/<int:pk>/print/", views.paiement_print, name="paiement_print"),
     path("classes/<int:classe_id>/paiements/", views.classe_paiements, name="classe_paiements"),
     path("cloture/", views.cloture_caisse, name="cloture_caisse"),
+    path("relances/", relance_views.relances_impayes, name="relances_impayes"),
+    path(
+        "relances/envoyer/",
+        relance_views.relances_impayes_envoyer,
+        name="relances_impayes_envoyer",
+    ),
     path("budget/", views.budget_annuel, name="budget_annuel"),
 
     # Taux de change CDF ↔ USD
     path("taux-change/", views.taux_change_list, name="taux_change_list"),
 
     # WhatsApp — notifications de paiement
-    path("whatsapp/", views.whatsapp_config, name="whatsapp_config"),
-    path("whatsapp/test/", views.whatsapp_test, name="whatsapp_test"),
-    path("whatsapp/renvoyer/<int:pk>/", views.whatsapp_renvoyer, name="whatsapp_renvoyer"),
+    path("whatsapp/", whatsapp_config, name="whatsapp_config"),
+    path("whatsapp/test/", whatsapp_test, name="whatsapp_test"),
+    path("whatsapp/renvoyer/<int:pk>/", whatsapp_renvoyer, name="whatsapp_renvoyer"),
 
     # Salaires / Payer le personnel
     path("salaires/", views.salaires_list, name="salaires_list"),

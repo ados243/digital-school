@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Tuteurs{% endblock %}
+{% block page_title %}Registre des tuteurs{% endblock %}
+{% block page_subtitle %}Coordonnées WhatsApp et fiches parents rattachés à l’établissement.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inscription:tuteur_create' %}" class="btn btn-primary">Nouveau tuteur</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+        <h3>Tuteurs enregistrés</h3>
+        <form method="get" action="{% url 'inscription:tuteur_list' %}" style="display:flex; gap:0.5rem; max-width:350px; width:100%;">
+            <input type="text" name="q" placeholder="Nom, matricule, téléphone…" class="form-control" value="{{ query }}">
+            <button type="submit" class="btn btn-secondary btn-sm">Rechercher</button>
+        </form>
+    </div>
+    <div class="panel-body table-responsive" style="padding:0;">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Matricule</th>
+                    <th>Nom</th>
+                    <th>Lien</th>
+                    <th>Téléphone</th>
+                    <th>WhatsApp 2</th>
+                    <th>Quartier</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tuteurs %}
+                <tr>
+                    <td><span style="font-family:monospace; font-weight:700; color:var(--primary);">{{ t.matricule }}</span></td>
+                    <td>
+                        <strong>{{ t.prenom }} {{ t.nom }} {{ t.Post_nom }}</strong>
+                        {% if t.email %}<span style="display:block; font-size:.8rem; color:var(--text-muted);">{{ t.email }}</span>{% endif %}
+                    </td>
+                    <td>{{ t.get_lien_parente_display }}</td>
+                    <td>{{ t.telephone }}</td>
+                    <td>{{ t.telephone2|default:"—" }}</td>
+                    <td>
+                        {% if t.quartier %}{{ t.quartier.quartier }}{% else %}—{% endif %}
+                        <span style="display:block; font-size:.8rem; color:var(--text-muted);">{{ t.adresse|default:"" }}</span>
+                    </td>
+                    <td style="text-align:right;">
+                        <a href="{% url 'inscription:tuteur_update' t.pk %}" class="btn btn-secondary btn-sm">Modifier</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align:center; padding:2rem; color:var(--text-muted);">
+                        Aucun tuteur.
+                        <a href="{% url 'inscription:tuteur_create' %}">Enregistrer le premier</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -66,3 +66,31 @@ def upload_to_cours_video(instance, filename):
         pass
 
     return f'{ecole_id}/{cours_id}/{safe}-{unique}{ext}'
+
+
+def upload_to_ressource(instance, filename):
+    """Documents / PDF / images partagés par un enseignant."""
+    import os
+    import uuid
+    from django.utils.text import slugify
+
+    base, ext = os.path.splitext(filename)
+    ext = (ext or '').lower() or '.bin'
+    safe = slugify(base)[:40] or 'fichier'
+    unique = uuid.uuid4().hex[:10]
+    ecole_id = str(getattr(instance, 'ecole_id', None) or '0')
+    return f'ressources/{ecole_id}/{safe}-{unique}{ext}'
+
+
+def upload_to_ressource_video(instance, filename):
+    """Vidéos de ressources : même stockage privé que les cours."""
+    import os
+    import uuid
+    from django.utils.text import slugify
+
+    base, ext = os.path.splitext(filename)
+    ext = (ext or '.mp4').lower()
+    safe = slugify(base)[:40] or 'video'
+    unique = uuid.uuid4().hex[:10]
+    ecole_id = str(getattr(instance, 'ecole_id', None) or '0')
+    return f'{ecole_id}/ressources/{safe}-{unique}{ext}'

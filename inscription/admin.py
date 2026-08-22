@@ -7,6 +7,15 @@ class EleveAdmin(admin.ModelAdmin):
                     'titeur', 'sexe','date_de_naissance', 'nationalite')
     search_fields = ('nom',)
     list_filter = ('sexe','titeur')
+    actions = ['anonymiser_eleves']
+
+    @admin.action(description="Anonymiser les fiches sélectionnées (droit à l'effacement)")
+    def anonymiser_eleves(self, request, queryset):
+        n = 0
+        for eleve in queryset:
+            eleve.anonymiser()
+            n += 1
+        self.message_user(request, f"{n} fiche(s) élève anonymisée(s).")
 
 @admin.register(Tuteur)
 class Tuteur(admin.ModelAdmin):

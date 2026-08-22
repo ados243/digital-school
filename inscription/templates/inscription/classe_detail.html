@@ -10,6 +10,7 @@ Section {{ classe.section.section }} — Cycle {{ classe.section.cycle }}
 
 {% block header_actions %}
 <a href="{% url 'inscription:classe_list' %}" class="btn btn-secondary">⬅️ Retour à la liste</a>
+<a href="{% url 'inscription:classe_export_csv' classe.id %}" class="btn btn-secondary" style="margin-left: 0.5rem;">⬇️ Exporter CSV</a>
 <a href="{% url 'pedagogie:affectations_classe' classe.id %}" class="btn btn-secondary" style="margin-left: 0.5rem;">👩‍🏫 Enseignants / cours</a>
 <a href="{% url 'inscription:classe_update' classe.id %}?next={% url 'inscription:classe_detail' classe.id %}" class="btn btn-secondary" style="margin-left: 0.5rem;">✏️ Modifier</a>
 {% if not stats.is_full %}

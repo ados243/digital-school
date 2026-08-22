@@ -1,0 +1,53 @@
+{% extends 'portal_base.html' %}
+
+{% block title %}{{ ressource.titre }}{% endblock %}
+
+{% block content %}
+<div class="portal-hero">
+    <p style="margin-bottom:.5rem;">
+        <a href="{% url 'utilisateur:ressource_eleve_list' %}" style="color:var(--secondary); text-decoration:none; font-weight:600;">← Ressources</a>
+    </p>
+    <h1>{{ ressource.icone }} {{ ressource.titre }}</h1>
+    <p>
+        {{ ressource.get_type_fichier_display }}
+        · {{ ressource.taille_affichee }}
+        {% if ressource.matiere %} · {{ ressource.matiere.libelle }}{% endif %}
+        · {{ ressource.enseignant.prenom }} {{ ressource.enseignant.nom }}
+    </p>
+</div>
+
+{% if ressource.description %}
+<div class="panel" style="margin-bottom:1.25rem;">
+    <div class="panel-body">{{ ressource.description|linebreaks }}</div>
+</div>
+{% endif %}
+
+<div class="panel">
+    <div class="panel-body">
+        {% if ressource.est_video and ressource.video %}
+        <video controls playsinline style="width:100%; max-height:70vh; background:#000; border-radius:12px;">
+            <source src="{{ ressource.video.url }}">
+            Votre navigateur ne peut pas lire cette vidéo.
+        </video>
+        <p style="margin-top:1rem;">
+            <a href="{{ ressource.video.url }}" class="btn btn-secondary" target="_blank" rel="noopener">Télécharger la vidéo</a>
+        </p>
+        {% elif ressource.type_fichier == 'PDF' and ressource.fichier %}
+        <iframe src="{{ ressource.fichier.url }}" title="{{ ressource.titre }}" style="width:100%; min-height:70vh; border:0; border-radius:12px; background:#f4f4f5;"></iframe>
+        <p style="margin-top:1rem;">
+            <a href="{{ ressource.fichier.url }}" class="btn btn-primary" target="_blank" rel="noopener">Télécharger le PDF</a>
+        </p>
+        {% elif ressource.type_fichier == 'IMAGE' and ressource.fichier %}
+        <img src="{{ ressource.fichier.url }}" alt="{{ ressource.titre }}" style="max-width:100%; border-radius:12px;">
+        <p style="margin-top:1rem;">
+            <a href="{{ ressource.fichier.url }}" class="btn btn-secondary" target="_blank" rel="noopener">Télécharger l’image</a>
+        </p>
+        {% elif ressource.fichier %}
+        <p>Fichier : <strong>{{ ressource.nom_fichier }}</strong> ({{ ressource.taille_affichee }})</p>
+        <a href="{{ ressource.fichier.url }}" class="btn btn-primary" target="_blank" rel="noopener">Télécharger</a>
+        {% else %}
+        <p class="text-muted">Aucun fichier n’est associé à cette ressource.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

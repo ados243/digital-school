@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="NTOBO'S TECHNOLOGY NTT">
+  <text x="120" y="58" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="42" font-weight="800" fill="#0c0c0c">NTT</text>
+  <rect x="26" y="72" width="188" height="22" fill="#0c0c0c"/>
+  <text x="120" y="88" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.2" fill="#fff">NTOBO'S TECHNOLOGY</text>
+  <path d="M16 132h208a104 104 0 0 1-208 0z" fill="#0c0c0c"/>
+  <text x="120" y="128" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="20" fill="#fff">NTT</text>
+  <g fill="none" stroke="#fff" stroke-width="2">
+    <path d="M68 228V176"/>
+    <path d="M94 228V164"/>
+    <path d="M120 228V156"/>
+    <path d="M146 228V164"/>
+    <path d="M172 228V176"/>
+    <path d="M68 176h14M94 164h14M120 156h20M146 164h-14M172 176h-14"/>
+  </g>
+  <g fill="#fff">
+    <circle cx="68" cy="176" r="4.5"/>
+    <circle cx="94" cy="164" r="4.5"/>
+    <circle cx="120" cy="156" r="4.5"/>
+    <circle cx="140" cy="156" r="4.5"/>
+    <circle cx="146" cy="164" r="4.5"/>
+    <circle cx="172" cy="176" r="4.5"/>
+  </g>
+</svg>

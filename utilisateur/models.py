@@ -35,6 +35,13 @@ class Utilisateur(AbstractUser):
         verbose_name='Photo de profil',
     )
     ecole = models.ForeignKey(Ecole, on_delete=models.DO_NOTHING, null=True)
+    telephone = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        verbose_name="WhatsApp",
+        help_text="Numéro pour la double authentification (ex. +243…).",
+    )
 
     # Rattachement du compte à la fiche métier déjà existante (créée par l'école).
     eleve = models.OneToOneField(
@@ -168,6 +175,12 @@ class Utilisateur(AbstractUser):
     @property
     def is_personnel_interne(self):
         return self.role in self.ROLES_INTERNES
+
+    @property
+    def requiert_mfa(self):
+        """Direction, enseignants, parents : 2e facteur WhatsApp."""
+        from .security import doit_mfa
+        return doit_mfa(self)
 
 
 class Conversation(models.Model):
@@ -316,3 +329,120 @@ class CommunicationLecture(models.Model):
     @property
     def est_lu(self):
         return self.lu_at is not None
+
+
+class JournalAcces(models.Model):
+    """Trace des consultations / modifications de dossiers (litiges, exfiltration)."""
+
+    utilisateur = models.ForeignKey(
+        'Utilisateur', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='journaux_acces',
+    )
+    action = models.CharField(max_length=40)
+    ressource = models.CharField(max_length=80, blank=True)
+    identifiant = models.CharField(max_length=64, blank=True)
+    ecole = models.ForeignKey(
+        Ecole, on_delete=models.SET_NULL, null=True, blank=True, related_name='journaux_acces',
+    )
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+    extra = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        verbose_name = "Journal d'accès"
+        verbose_name_plural = "Journaux d'accès"
+        indexes = [
+            models.Index(fields=['utilisateur', 'created_at']),
+            models.Index(fields=['action', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.action} {self.ressource} #{self.identifiant}"
+
+
+class AppareilConnu(models.Model):
+    """Empreintes d'appareils pour notifier une connexion inhabituelle."""
+
+    utilisateur = models.ForeignKey(
+        'Utilisateur', on_delete=models.CASCADE, related_name='appareils',
+    )
+    empreinte = models.CharField(max_length=64)
+    libelle = models.CharField(max_length=200, blank=True)
+    dernier_vu = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('utilisateur', 'empreinte')
+        verbose_name = 'Appareil connu'
+        verbose_name_plural = 'Appareils connus'
+
+    def __str__(self):
+        return self.libelle or self.empreinte[:12]
+
+
+class VerrouillageConnexion(models.Model):
+    """Compteur d'échecs de connexion par IP + identifiant."""
+
+    cle = models.CharField(max_length=190, unique=True)
+    echecs = models.PositiveIntegerField(default=0)
+    verrouille_jusquau = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Verrouillage connexion'
+        verbose_name_plural = 'Verrouillages connexion'
+
+    def __str__(self):
+        return self.cle
+
+
+class SessionConnexion(models.Model):
+    """Une session applicative créée à chaque connexion réussie."""
+
+    utilisateur = models.ForeignKey(
+        "Utilisateur",
+        on_delete=models.CASCADE,
+        related_name="sessions_connexion",
+    )
+    cle_session = models.CharField(max_length=40, db_index=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+    mfa = models.BooleanField(default=False, verbose_name="Double authentification")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    revoquee = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "Session de connexion"
+        verbose_name_plural = "Sessions de connexion"
+        indexes = [
+            models.Index(fields=["utilisateur", "ended_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.utilisateur} — {self.created_at:%d/%m/%Y %H:%M}"
+
+    @property
+    def est_active(self):
+        return self.ended_at is None and not self.revoquee
+
+    @property
+    def libelle(self):
+        ua = (self.user_agent or "").strip()
+        if not ua:
+            return "Appareil inconnu"
+        if "Edg/" in ua:
+            nom = "Edge"
+        elif "Chrome/" in ua:
+            nom = "Chrome"
+        elif "Firefox/" in ua:
+            nom = "Firefox"
+        elif "Safari/" in ua and "Chrome/" not in ua:
+            nom = "Safari"
+        else:
+            nom = ua[:40]
+        return nom

@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}Emploi du temps{% endblock %}
+{% block page_title %}Emploi du temps{% endblock %}
+{% block page_subtitle %}
+{% if classe %}Classe {{ classe.classe }} — {{ classe.section.section }}{% else %}Choisissez une classe{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'inscription:classe_list' %}" class="btn btn-secondary">Classes</a>
+{% endblock %}
+
+{% block content %}
+<div class="panel" style="margin-bottom:1rem;">
+    <div class="panel-body" style="display:flex; flex-wrap:wrap; gap:.5rem;">
+        {% for c in classes %}
+        <a href="{% url 'pedagogie:emploi_du_temps_classe' c.id %}"
+           class="btn {% if classe and c.id == classe.id %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+            {{ c.classe }}
+        </a>
+        {% empty %}
+        <span style="color:var(--text-muted);">Aucune classe. Créez-en une d’abord.</span>
+        {% endfor %}
+    </div>
+</div>
+
+{% if classe %}
+<div class="synth-layout">
+    <section class="panel">
+        <div class="panel-header"><h3>Grille de la semaine</h3></div>
+        <div class="panel-body table-responsive" style="padding:0;">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Jour</th>
+                        <th>Horaires</th>
+                        <th>Matière</th>
+                        <th>Enseignant</th>
+                        <th>Salle</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for jour in par_jour %}
+                    {% for c in jour.creneaux %}
+                    <tr>
+                        {% if forloop.first %}
+                        <td rowspan="{{ jour.creneaux|length }}"><strong>{{ jour.label }}</strong></td>
+                        {% endif %}
+                        <td>{{ c.heure_debut|time:"H:i" }} – {{ c.heure_fin|time:"H:i" }}</td>
+                        <td>{{ c.matiere.libelle|default:"—" }}</td>
+                        <td>{% if c.enseignant %}{{ c.enseignant.prenom }} {{ c.enseignant.nom }}{% else %}—{% endif %}</td>
+                        <td>{{ c.salle|default:classe.salle }}</td>
+                        <td>
+                            <form method="post" action="{% url 'pedagogie:creneau_delete' c.pk %}" onsubmit="return confirm('Retirer ce créneau ?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-sm">Retirer</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td><strong>{{ jour.label }}</strong></td>
+                        <td colspan="5" style="color:var(--text-muted);">Aucun cours</td>
+                    </tr>
+                    {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    <section class="panel">
+        <div class="panel-header"><h3>Ajouter un créneau</h3></div>
+        <div class="panel-body">
+            <form method="post">
+                {% csrf_token %}
+                {% include 'includes/form_errors.html' %}
+                {% include 'includes/form_field.html' with field=form.jour %}
+                {% include 'includes/form_field.html' with field=form.heure_debut %}
+                {% include 'includes/form_field.html' with field=form.heure_fin %}
+                {% include 'includes/form_field.html' with field=form.matiere %}
+                {% include 'includes/form_field.html' with field=form.enseignant %}
+                {% include 'includes/form_field.html' with field=form.salle %}
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </form>
+        </div>
+    </section>
+</div>
+{% endif %}
+{% endblock %}

@@ -136,7 +136,6 @@ from .forms import (
     PaiementForm,
     TauxChangeForm,
     DemandeModificationPaiementForm,
-    ConfigWhatsAppForm,
     # HOADA
     CompteComptableForm,
     JournalComptableForm,
@@ -150,8 +149,7 @@ from .models import (
     Devise,
     TauxChange,
     DemandeModificationPaiement,
-    ConfigWhatsApp,
-    NotificationWhatsApp,
+    IntentionPaiementMobile,
     ClotureCaisse,
     BudgetAnnuel,
     LigneBudget,
@@ -163,7 +161,7 @@ from .models import (
     Ecriture,
     EcritureLigne,
 )
-from .tenant import get_user_ecole, type_frais_for_ecole, frais_for_ecole, paiements_for_ecole, taux_change_for_ecole
+from .whatsapp_views import whatsapp_config, whatsapp_test, whatsapp_renvoyer  # noqa: F401
 from inscription.models import Classe
 from inscription.tenant import (
     inscriptions_for_ecole,
@@ -182,7 +180,11 @@ from .paiement_utils import (
     minerval_paiements_queryset,
     projection_budget_minerval,
     construire_postes_budget,
+    realisations_budget,
+    enrichir_plan_suivi,
+    frais_concerne_inscription,
 )
+from .tenant import get_user_ecole, type_frais_for_ecole, frais_for_ecole, paiements_for_ecole, taux_change_for_ecole, budgets_for_ecole
 
 
 def _parse_optional_date(value):
@@ -330,6 +332,21 @@ def dashboard(request):
     # Querystring des filtres (pour liens vers détail classe)
     filter_query = request.GET.urlencode()
 
+    annee_budget = annees.filter(est_encoure=True).first() or annees.first()
+    budget_suivi = None
+    if ecole and annee_budget:
+        budget_obj = (
+            budgets_for_ecole(ecole)
+            .filter(annee=annee_budget)
+            .first()
+        )
+        plan_budget = construire_postes_budget(ecole, annee_budget, budget=budget_obj)
+        budget_suivi = enrichir_plan_suivi(
+            plan_budget, realisations_budget(ecole, annee_budget)
+        )
+        budget_suivi["annee"] = annee_budget
+        budget_suivi["budget"] = budget_obj
+
     context = {
         "total_encaisse_par_devise": total_encaisse_par_devise,
         "frais_par_type": frais_par_type,
@@ -365,6 +382,7 @@ def dashboard(request):
         "devises": Devise.objects.all().order_by("devise"),
         "types_minerval": types_frais_minerval_for_ecole(ecole).order_by("libelle"),
         "modes_paiement": Paiement.mode_paiement_choices,
+        "budget_suivi": budget_suivi,
     }
 
     return render(request, "finances/dashboard.html", context)
@@ -774,7 +792,12 @@ def type_frais_delete(request, pk):
 @login_required
 def frais_scolaire_list(request):
     ecole = get_user_ecole(request)
-    items = frais_for_ecole(ecole).select_related("type_frais", "annee", "section", "devise").order_by("-echeance")
+    items = (
+        frais_for_ecole(ecole)
+        .select_related("type_frais", "annee", "section", "devise")
+        .prefetch_related("classes__section")
+        .order_by("-echeance")
+    )
     return render(request, "finances/frais_scolaire_list.html", {"object_list": items})
 
 
@@ -916,154 +939,6 @@ def taux_change_list(request):
 
 
 @login_required
-def whatsapp_config(request):
-    """Configuration WhatsApp centrale + journal des envois."""
-    ecole = get_user_ecole(request)
-    if not request.user.is_superuser:
-        messages.error(request, "Seul un superutilisateur peut configurer WhatsApp.")
-        return redirect("finances:dashboard")
-
-    config = ConfigWhatsApp.charger_centrale()
-
-    if request.method == "POST" and request.POST.get("action") == "save_config":
-        form = ConfigWhatsAppForm(request.POST, instance=config)
-        if form.is_valid():
-            obj = form.save(commit=False)
-            obj.ecole = None
-            obj.save()
-            messages.success(request, "Configuration WhatsApp centrale enregistrée.")
-            return redirect("finances:whatsapp_config")
-    else:
-        form = ConfigWhatsAppForm(instance=config)
-
-    from .whatsapp import CLES_CONTEXTE, parser_cles_template
-
-    notif_qs = NotificationWhatsApp.objects.select_related("paiement", "ecole")
-    if not request.user.is_superuser and ecole:
-        notif_qs = notif_qs.filter(ecole=ecole)
-    notifications = notif_qs.order_by("-date_envoi")[:80]
-    mapping_vars = [
-        (f"{{{{{i}}}}}", cle)
-        for i, cle in enumerate(parser_cles_template(config), start=1)
-    ]
-    return render(
-        request,
-        "finances/whatsapp_config.html",
-        {
-            "form": form,
-            "config": config,
-            "notifications": notifications,
-            "ecole": ecole,
-            "journal_multi_ecoles": request.user.is_superuser,
-            "placeholders": " ".join("{" + c + "}" for c in CLES_CONTEXTE),
-            "mapping_vars": mapping_vars,
-            "exemple_template_meta": (
-                "Bonjour, paiement reçu pour {{1}}.\n"
-                "Montant : {{2}}\n"
-                "Reçu : {{3}}\n"
-                "Frais : {{4}}\n"
-                "Classe : {{5}}\n"
-                "Date : {{6}}"
-            ),
-        },
-    )
-
-
-@login_required
-def whatsapp_test(request):
-    """Envoie un message de test au numéro saisi (ou au téléphone de l'école)."""
-    ecole = get_user_ecole(request)
-    if not request.user.is_superuser:
-        messages.error(request, "Seul un superutilisateur peut tester WhatsApp.")
-        return redirect("finances:dashboard")
-    if request.method != "POST":
-        return redirect("finances:whatsapp_config")
-
-    config = ConfigWhatsApp.charger_centrale()
-    if not config or not config.actif:
-        messages.error(request, "Activez d'abord WhatsApp et enregistrez la configuration centrale.")
-        return redirect("finances:whatsapp_config")
-
-    from .whatsapp import (
-        contexte_test,
-        formater_message,
-        normaliser_telephone,
-        resume_envoi_meta,
-        _envoyer_via_provider,
-    )
-
-    tel_brut = (request.POST.get("telephone_test") or "").strip() or (
-        getattr(ecole, "telephone1", None) or ""
-    )
-    telephone = normaliser_telephone(tel_brut, config.indicatif_pays)
-    if not telephone:
-        messages.error(request, "Numéro de test invalide.")
-        return redirect("finances:whatsapp_config")
-
-    contexte = contexte_test(ecole)
-    if (config.provider or "").upper() == "META" and (config.template_meta or "").strip():
-        message = resume_envoi_meta(config, contexte)
-    else:
-        nom_ecole = getattr(ecole, "ecole", None) or "Digital School"
-        message = (
-            f"Test Digital School — {nom_ecole}\n"
-            f"Les notifications de paiement WhatsApp sont opérationnelles."
-        )
-        # Si texte libre Ultramsg, on peut aussi prévisualiser le modèle
-        if (config.provider or "").upper() != "META":
-            message = formater_message(config.modele_effectif(), contexte)
-
-    ok, reponse, erreur = _envoyer_via_provider(
-        config, telephone, message, contexte=contexte
-    )
-    NotificationWhatsApp.objects.create(
-        ecole=ecole,
-        paiement=None,
-        destinataire=f"+{telephone}",
-        message=message,
-        statut="ENVOYE" if ok else "ECHEC",
-        provider=config.provider,
-        reponse_api=reponse or "",
-        erreur=erreur or "",
-    )
-    if ok:
-        messages.success(request, f"Message de test envoyé à +{telephone}.")
-    else:
-        messages.error(request, f"Échec d'envoi : {erreur or 'erreur API'}")
-    return redirect("finances:whatsapp_config")
-
-
-@login_required
-def whatsapp_renvoyer(request, pk):
-    """Renvoie la notification WhatsApp pour un paiement."""
-    ecole = get_user_ecole(request)
-    if not request.user.is_superuser:
-        messages.error(request, "Seul un superutilisateur peut renvoyer un WhatsApp.")
-        return redirect("finances:dashboard")
-
-    paiement = get_object_or_404(paiements_for_ecole(ecole), pk=pk)
-    if paiement.statut != "VALIDE":
-        messages.error(request, "Seuls les paiements validés peuvent être notifiés.")
-        return redirect("finances:whatsapp_config")
-
-    from .whatsapp import notifier_paiement_whatsapp
-
-    notif = notifier_paiement_whatsapp(paiement, force=True)
-    if notif is None:
-        messages.warning(
-            request,
-            "Aucune notification envoyée (WhatsApp inactif ou école introuvable).",
-        )
-    elif notif.statut == "ENVOYE":
-        messages.success(request, f"WhatsApp renvoyé pour le reçu {paiement.numero_recu}.")
-    elif notif.statut == "IGNORE":
-        messages.warning(request, notif.erreur or "Notification ignorée.")
-    else:
-        messages.error(request, notif.erreur or "Échec d'envoi WhatsApp.")
-    return redirect("finances:whatsapp_config")
-
-
-@login_required
 def paiement_list(request):
     ecole = get_user_ecole(request)
     qs = (
@@ -1101,6 +976,15 @@ def paiement_list(request):
     demandes_ouvertes_ids = set(demandes_qs.values_list("paiement_id", flat=True))
     nb_demandes_ouvertes = len(demandes_ouvertes_ids)
 
+    intentions_mobile = (
+        IntentionPaiementMobile.objects.filter(
+            ecole=ecole,
+            statut__in=("INITIEE", "EN_ATTENTE"),
+        )
+        .select_related("inscription__eleve", "frais", "frais__type_frais", "devise")
+        .order_by("-created_at")[:40]
+    )
+
     return render(
         request,
         "finances/paiement_list.html",
@@ -1109,6 +993,7 @@ def paiement_list(request):
             "demandes_ouvertes_ids": demandes_ouvertes_ids,
             "nb_demandes_ouvertes": nb_demandes_ouvertes,
             "filtre_perso": filtre_perso,
+            "intentions_mobile": intentions_mobile,
         },
     )
 
@@ -1272,9 +1157,257 @@ def cloture_caisse(request):
     )
 
 
+def _charger_budget(ecole, annee):
+    if not ecole or not annee:
+        return None
+    return (
+        budgets_for_ecole(ecole)
+        .filter(annee=annee)
+        .prefetch_related(
+            "lignes__classe__section",
+            "lignes__devise",
+            "postes__rubrique",
+        )
+        .first()
+    )
+
+
+def _contexte_budget(ecole, annee, budget=None):
+    plan_saisie = construire_postes_budget(ecole, annee, budget=None)
+    projection = plan_saisie["projection_minerval"]
+    plan = construire_postes_budget(ecole, annee, budget=budget) if budget else plan_saisie
+    plan = enrichir_plan_suivi(plan, realisations_budget(ecole, annee))
+    solde_usd = plan["total_recettes_usd"] - plan["total_depenses_usd"]
+    solde_cdf = plan["total_recettes_cdf"] - plan["total_depenses_cdf"]
+    return {
+        "plan_saisie": plan_saisie,
+        "projection": projection,
+        "plan": plan,
+        "solde_usd": solde_usd,
+        "solde_cdf": solde_cdf,
+        "taux_courant": TauxChange.courant_pour_ecole(ecole),
+    }
+
+
+def _cell_num(value):
+    return float(_decimal(value))
+
+
+def _export_budget_excel(ecole, annee, budget, plan, projection, solde_usd, solde_cdf, taux_courant):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill, numbers
+
+    wb = Workbook()
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="2563EB")
+    recette_fill = PatternFill("solid", fgColor="ECFDF3")
+    depense_fill = PatternFill("solid", fgColor="FEF3C7")
+    total_fill = PatternFill("solid", fgColor="EEF2FF")
+    thin = Border(
+        left=Side(style="thin", color="D0D5DD"),
+        right=Side(style="thin", color="D0D5DD"),
+        top=Side(style="thin", color="D0D5DD"),
+        bottom=Side(style="thin", color="D0D5DD"),
+    )
+    money = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
+
+    def _style_header(ws, row, headers):
+        for col, title in enumerate(headers, start=1):
+            cell = ws.cell(row=row, column=col, value=title)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", wrap_text=True)
+            cell.border = thin
+
+    def _write_row(ws, row, values, fill=None, bold=False):
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=row, column=col, value=value)
+            cell.border = thin
+            if fill:
+                cell.fill = fill
+            if bold:
+                cell.font = Font(bold=True)
+            if isinstance(value, (int, float)) and col > 1:
+                cell.number_format = money
+
+    def _pct_label(pct):
+        if pct is None:
+            return "—"
+        return float(pct) / 100.0
+
+    def _autosize(ws):
+        for column_cells in ws.columns:
+            length = max(len(str(c.value)) if c.value is not None else 0 for c in column_cells)
+            ws.column_dimensions[column_cells[0].column_letter].width = min(max(length + 2, 12), 42)
+
+    # ——— Synthèse ———
+    ws = wb.active
+    ws.title = "Synthèse"
+    ecole_nom = getattr(ecole, "ecole", "") or ""
+    ws["A1"] = f"Suivi du budget — {ecole_nom}"
+    ws["A1"].font = Font(bold=True, size=14)
+    ws["A2"] = f"Année scolaire : {annee}" if annee else "Année scolaire : —"
+    if budget:
+        fixe_le = budget.date_fixation.strftime("%d/%m/%Y %H:%M") if budget.date_fixation else "—"
+        ws["A3"] = f"Budget fixé le {fixe_le}" + (f" par {budget.fixe_par}" if budget.fixe_par else "")
+    else:
+        ws["A3"] = "Budget non encore fixé (prévisions automatiques)"
+    ws["A4"] = f"Exporté le : {timezone.now().strftime('%d/%m/%Y %H:%M')}"
+    if taux_courant:
+        ws["A5"] = f"Taux : 1 USD = {taux_courant.taux} CDF"
+    if budget and budget.commentaire:
+        ws["A6"] = f"Commentaire : {budget.commentaire}"
+
+    _style_header(
+        ws,
+        8,
+        ["Indicateur", "Budgété USD", "Réalisé USD", "Écart USD", "% USD",
+         "Budgété CDF", "Réalisé CDF", "Écart CDF", "% CDF"],
+    )
+    synthese_rows = [
+        (
+            "Recettes",
+            plan["total_recettes_usd"], plan["realise_recettes_usd"], plan["ecart_recettes_usd"], plan["pct_recettes_usd"],
+            plan["total_recettes_cdf"], plan["realise_recettes_cdf"], plan["ecart_recettes_cdf"], plan["pct_recettes_cdf"],
+            recette_fill,
+        ),
+        (
+            "Dépenses",
+            plan["total_depenses_usd"], plan["realise_depenses_usd"], plan["ecart_depenses_usd"], plan["pct_depenses_usd"],
+            plan["total_depenses_cdf"], plan["realise_depenses_cdf"], plan["ecart_depenses_cdf"], plan["pct_depenses_cdf"],
+            depense_fill,
+        ),
+        (
+            "Solde",
+            solde_usd, plan["solde_realise_usd"], plan["solde_realise_usd"] - solde_usd, None,
+            solde_cdf, plan["solde_realise_cdf"], plan["solde_realise_cdf"] - solde_cdf, None,
+            total_fill,
+        ),
+    ]
+    for i, row in enumerate(synthese_rows):
+        label, b_usd, r_usd, e_usd, p_usd, b_cdf, r_cdf, e_cdf, p_cdf, fill = row
+        values = [
+            label,
+            _cell_num(b_usd), _cell_num(r_usd), _cell_num(e_usd), _pct_label(p_usd),
+            _cell_num(b_cdf), _cell_num(r_cdf), _cell_num(e_cdf), _pct_label(p_cdf),
+        ]
+        _write_row(ws, 9 + i, values, fill=fill, bold=True)
+        for col in (5, 9):
+            cell = ws.cell(row=9 + i, column=col)
+            if isinstance(cell.value, float):
+                cell.number_format = "0.0%"
+    ws["A13"] = "Réalisé recettes = paiements élèves validés. Réalisé dépenses = salaires payés (autres postes : saisie budgétaire, réalisé à 0 tant que non payés via la paie)."
+    ws.merge_cells("A13:I13")
+
+    # ——— Recettes / Dépenses ———
+    poste_headers = [
+        "Rubrique", "Note",
+        "Budgété USD", "Réalisé USD", "Écart USD", "% USD",
+        "Budgété CDF", "Réalisé CDF", "Écart CDF", "% CDF",
+    ]
+
+    def _feuille_postes(title, postes, totaux, fill):
+        sheet = wb.create_sheet(title)
+        sheet["A1"] = title
+        sheet["A1"].font = Font(bold=True, size=13)
+        _style_header(sheet, 3, poste_headers)
+        row_idx = 4
+        for poste in postes:
+            values = [
+                poste["rubrique"].libelle,
+                poste.get("note") or "",
+                _cell_num(poste["montant_usd"]),
+                _cell_num(poste["realise_usd"]),
+                _cell_num(poste["ecart_usd"]),
+                _pct_label(poste["pct_usd"]),
+                _cell_num(poste["montant_cdf"]),
+                _cell_num(poste["realise_cdf"]),
+                _cell_num(poste["ecart_cdf"]),
+                _pct_label(poste["pct_cdf"]),
+            ]
+            _write_row(sheet, row_idx, values)
+            for col in (6, 10):
+                cell = sheet.cell(row=row_idx, column=col)
+                if isinstance(cell.value, float):
+                    cell.number_format = "0.0%"
+            row_idx += 1
+        totaux_values = [
+            f"Total {title.lower()}",
+            "",
+            _cell_num(totaux[0]),
+            _cell_num(totaux[1]),
+            _cell_num(totaux[2]),
+            _pct_label(totaux[3]),
+            _cell_num(totaux[4]),
+            _cell_num(totaux[5]),
+            _cell_num(totaux[6]),
+            _pct_label(totaux[7]),
+        ]
+        _write_row(sheet, row_idx + 1, totaux_values, fill=fill, bold=True)
+        for col in (6, 10):
+            cell = sheet.cell(row=row_idx + 1, column=col)
+            if isinstance(cell.value, float):
+                cell.number_format = "0.0%"
+        _autosize(sheet)
+        return sheet
+
+    _feuille_postes(
+        "Recettes",
+        plan["recettes"],
+        (
+            plan["total_recettes_usd"], plan["realise_recettes_usd"], plan["ecart_recettes_usd"], plan["pct_recettes_usd"],
+            plan["total_recettes_cdf"], plan["realise_recettes_cdf"], plan["ecart_recettes_cdf"], plan["pct_recettes_cdf"],
+        ),
+        recette_fill,
+    )
+    _feuille_postes(
+        "Dépenses",
+        plan["depenses"],
+        (
+            plan["total_depenses_usd"], plan["realise_depenses_usd"], plan["ecart_depenses_usd"], plan["pct_depenses_usd"],
+            plan["total_depenses_cdf"], plan["realise_depenses_cdf"], plan["ecart_depenses_cdf"], plan["pct_depenses_cdf"],
+        ),
+        depense_fill,
+    )
+
+    ws4 = wb.create_sheet("Minerval par classe")
+    ws4["A1"] = "Détail minerval (capacité × barème)"
+    ws4["A1"].font = Font(bold=True, size=13)
+    _style_header(ws4, 3, ["Section", "Classe", "Capacité", "Minerval / élève", "Devise", "Sous-total"])
+    for offset, ligne in enumerate(projection.get("lignes") or []):
+        devise = ligne["devise"]
+        _write_row(
+            ws4,
+            4 + offset,
+            [
+                str(ligne["classe"].section),
+                str(ligne["classe"].classe),
+                int(ligne["capacite"] or 0),
+                _cell_num(ligne["montant_unitaire"]),
+                str(devise) if devise else "",
+                _cell_num(ligne["sous_total"]),
+            ],
+        )
+    _autosize(ws)
+    _autosize(ws4)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    annee_slug = slugify(str(annee) if annee else "budget") or "budget"
+    ecole_slug = slugify(ecole_nom) or "ecole"
+    filename = f"budget_{ecole_slug}_{annee_slug}.xlsx"
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
 @login_required
 def budget_annuel(request):
-    """Budget annuel complet : toutes rubriques + détail minerval par classe."""
+    """Suivi du budget annuel : budgété vs réalisé, saisie et export Excel."""
     ecole = get_user_ecole(request)
     annees = annees_for_ecole(ecole).order_by("-est_encoure", "-anne_scolaire")
     annee_id = _parse_optional_int(request.GET.get("annee")) or _parse_optional_int(
@@ -1286,21 +1419,9 @@ def budget_annuel(request):
     if annee is None:
         annee = annees.filter(est_encoure=True).first() or annees.first()
 
-    budget = None
-    if ecole and annee:
-        budget = (
-            BudgetAnnuel.objects.filter(ecole=ecole, annee=annee)
-            .prefetch_related(
-                "lignes__classe__section",
-                "lignes__devise",
-                "postes__rubrique",
-            )
-            .first()
-        )
-
-    # Affichage : montants figés si budget existant, sinon propositions auto
-    plan = construire_postes_budget(ecole, annee, budget=None)
-    projection = plan["projection_minerval"]
+    budget = _charger_budget(ecole, annee)
+    plan_saisie = construire_postes_budget(ecole, annee, budget=None)
+    projection = plan_saisie["projection_minerval"]
 
     if request.method == "POST" and request.POST.get("action") == "fixer":
         if not ecole or not annee:
@@ -1329,11 +1450,17 @@ def budget_annuel(request):
             total_d_usd = Decimal("0")
             total_d_cdf = Decimal("0")
 
-            for item in plan["postes"]:
+            for item in plan_saisie["postes"]:
                 rub = item["rubrique"]
-                usd = _decimal(request.POST.get(f"usd_{rub.id}", "0") or "0")
-                cdf = _decimal(request.POST.get(f"cdf_{rub.id}", "0") or "0")
-                note = (request.POST.get(f"note_{rub.id}") or "").strip()[:255]
+                if rub.calcul_auto:
+                    # Minerval / inscription / salaires : toujours recalculés (pas la saisie).
+                    usd = _decimal(item["montant_usd"])
+                    cdf = _decimal(item["montant_cdf"])
+                    note = item["note"] or (request.POST.get(f"note_{rub.id}") or "").strip()[:255]
+                else:
+                    usd = _decimal(request.POST.get(f"usd_{rub.id}", "0") or "0")
+                    cdf = _decimal(request.POST.get(f"cdf_{rub.id}", "0") or "0")
+                    note = (request.POST.get(f"note_{rub.id}") or "").strip()[:255]
                 postes_payload.append(
                     PosteBudget(
                         budget=budget,
@@ -1385,26 +1512,19 @@ def budget_annuel(request):
         )
         return redirect(f"{reverse('finances:budget_annuel')}?annee={annee.id}")
 
-    # Recharger le plan avec montants figés pour l'affichage
-    if budget:
-        plan = construire_postes_budget(ecole, annee, budget=budget)
-
-    realise = {"usd": Decimal("0"), "cdf": Decimal("0")}
-    if ecole and annee:
-        for row in (
-            minerval_paiements_queryset(ecole, {"annee": annee.id})
-            .values("devise__devise")
-            .annotate(total=Sum("montant_paye"))
-        ):
-            code = (row["devise__devise"] or "").upper()
-            if code == "USD":
-                realise["usd"] = _decimal(row["total"])
-            elif code == "CDF":
-                realise["cdf"] = _decimal(row["total"])
-
-    solde_usd = plan["total_recettes_usd"] - plan["total_depenses_usd"]
-    solde_cdf = plan["total_recettes_cdf"] - plan["total_depenses_cdf"]
-    taux_obj = TauxChange.courant_pour_ecole(ecole)
+    ctx_budget = _contexte_budget(ecole, annee, budget=budget)
+    plan = ctx_budget["plan"]
+    if request.GET.get("export") == "excel":
+        return _export_budget_excel(
+            ecole,
+            annee,
+            budget,
+            plan,
+            ctx_budget["projection"],
+            ctx_budget["solde_usd"],
+            ctx_budget["solde_cdf"],
+            ctx_budget["taux_courant"],
+        )
 
     return render(
         request,
@@ -1413,13 +1533,13 @@ def budget_annuel(request):
             "ecole": ecole,
             "annees": annees,
             "annee": annee,
-            "projection": projection,
+            "projection": ctx_budget["projection"],
             "plan": plan,
+            "plan_saisie": ctx_budget["plan_saisie"],
             "budget": budget,
-            "realise": realise,
-            "solde_usd": solde_usd,
-            "solde_cdf": solde_cdf,
-            "taux_courant": taux_obj,
+            "solde_usd": ctx_budget["solde_usd"],
+            "solde_cdf": ctx_budget["solde_cdf"],
+            "taux_courant": ctx_budget["taux_courant"],
         },
     )
 
@@ -2348,24 +2468,24 @@ def inscriptions_non_paye(request):
 
     annee_encours = annees_for_ecole(ecole).filter(est_encoure=True).first()
 
-    frais_qs = frais_for_ecole(ecole).select_related("type_frais", "annee", "section", "devise").filter(
+    frais_qs = frais_for_ecole(ecole).select_related("type_frais", "annee", "section", "devise").prefetch_related("classes").filter(
         type_frais__in=types_inscription
     )
     if annee_encours:
         frais_qs = frais_qs.filter(annee=annee_encours)
+    frais_list = list(frais_qs)
 
     inscriptions_qs = (
         inscriptions_for_ecole(ecole)
         .select_related("eleve", "classe", "annee_s")
-        .filter(annee_s__in=frais_qs.values_list("annee", flat=True).distinct())
+        .filter(annee_s__in={f.annee_id for f in frais_list} or [0])
     )
 
     paiement_valides = paiements_for_ecole(ecole).filter(statut="VALIDE")
 
     object_list = []
     for ins in inscriptions_qs:
-        frais_ins = frais_qs.filter(annee=ins.annee_s, section_id=ins.classe.section_id)
-        frais_ins = frais_ins.filter(type_frais__in=types_inscription)
+        frais_ins = [f for f in frais_list if frais_concerne_inscription(f, ins)]
 
         # Payé si au moins un paiement VALIDE existe
         ins.frais_inscription = paiement_valides.filter(eleve=ins, frais__in=frais_ins).exists()

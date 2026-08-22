@@ -1,12 +1,7 @@
 """Helpers pour l'isolation des données par école (multi-tenant)."""
 
+from common.tenant import get_user_ecole  # noqa: F401
 from .models import Eleve, Tuteur, Inscription, Classe, Annee_Scolaire, Section
-
-
-def get_user_ecole(request):
-    if not getattr(request, "user", None) or not request.user.is_authenticated:
-        return None
-    return getattr(request.user, "ecole", None)
 
 
 def eleves_for_ecole(ecole):

@@ -1,0 +1,25 @@
+<div class="form-field form-field--wide{% if field.errors %} form-field--invalid{% endif %}">
+    <div class="form-field__row">
+        <label class="form-field__label">
+            {{ field.label }}{% if field.field.required %}<span class="form-required" aria-hidden="true">*</span>{% endif %}
+        </label>
+        <div class="form-field__content">
+            <div class="cours-classes-grid">
+                {% for checkbox in field %}
+                <label class="form-check-card">
+                    <span class="form-check-card__control">{{ checkbox.tag }}</span>
+                    <span class="form-check-card__label">{{ checkbox.choice_label }}</span>
+                </label>
+                {% empty %}
+                <p class="form-help">Aucune classe disponible pour votre profil.</p>
+                {% endfor %}
+            </div>
+            {% if field.help_text %}
+            <p class="form-help">{{ field.help_text }}</p>
+            {% endif %}
+            {% if field.errors %}
+            <p class="form-error" role="alert">{{ field.errors|striptags }}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>

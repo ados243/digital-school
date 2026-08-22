@@ -10,9 +10,10 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body class="has-taskbar">
+    <a class="skip-link" href="#contenu-principal">Aller au contenu principal</a>
     {% include 'includes/taskbar.html' %}
     <div class="app-container">
-        <main class="main-content">
+        <main class="main-content" id="contenu-principal">
             {% block breadcrumbs %}
             {% include 'includes/breadcrumbs.html' %}
             {% endblock %}

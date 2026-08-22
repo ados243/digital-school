@@ -9,7 +9,7 @@
         <a href="{% url 'utilisateur:cours_enseignant_list' %}" class="ll-back">← Mes cours</a>
         <div class="ll-course__banner-grid">
             <div class="ll-course__intro">
-                <p class="ll-eyebrow">{{ cours.matiere.libelle }} · {{ cours.classe.classe }}</p>
+                <p class="ll-eyebrow">{{ cours.matiere.libelle }} · {{ cours.classes_libelle }}</p>
                 <h1>{{ cours.titre }}</h1>
                 {% if cours.sous_titre %}<p class="ll-course__tagline">{{ cours.sous_titre }}</p>{% endif %}
                 <div class="ll-course__stats">

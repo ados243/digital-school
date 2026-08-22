@@ -233,11 +233,14 @@
 <div class="panel" style="margin-bottom: 1.5rem;">
     <div class="panel-header">
         <h3>Situation financière</h3>
-        {% if finances.nb_impayes %}
-        <span class="badge badge-warning">Reste à payer : {{ finances.total_du }}</span>
-        {% else %}
-        <span class="badge badge-success">À jour</span>
-        {% endif %}
+        <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+            {% if finances.nb_impayes %}
+            <span class="badge badge-warning">Reste à payer : {{ finances.total_du }}</span>
+            <a href="{% url 'utilisateur:parent_payer_mobile' eleve.id %}" class="btn btn-primary btn-sm">Payer par Mobile Money</a>
+            {% else %}
+            <span class="badge badge-success">À jour</span>
+            {% endif %}
+        </div>
     </div>
     <div class="panel-body table-responsive" style="padding:0;">
         <table class="custom-table">

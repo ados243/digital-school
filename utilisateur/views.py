@@ -1,16 +1,22 @@
+from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import InscriptionForm
+from .auth_views import demarrer_verification_inscription
 
 
 def root_redirect(request):
     if request.user.is_authenticated:
         return redirect('utilisateur:post_login')
     return redirect('utilisateur:login')
+
+
+def politique_confidentialite(request):
+    """Page publique exigée notamment pour WhatsApp / Meta App Review."""
+    return render(request, 'utilisateur/politique_confidentialite.html')
 
 
 def inscription_view(request):
@@ -20,14 +26,14 @@ def inscription_view(request):
     if request.method == 'POST':
         form = InscriptionForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            auth_login(request, user)
-            messages.success(request, f"Bienvenue {user.prenom} ! Votre compte a été créé avec succès.")
-            return redirect('utilisateur:post_login')
+            return demarrer_verification_inscription(request, form)
     else:
         form = InscriptionForm()
 
-    return render(request, 'utilisateur/inscription.html', {'form': form})
+    return render(request, 'utilisateur/inscription.html', {
+        'form': form,
+        'inscription_whatsapp_actif': getattr(settings, 'INSCRIPTION_WHATSAPP_ACTIF', False),
+    })
 
 
 @login_required
@@ -73,6 +79,21 @@ def portail_view(request):
             context['enfants'] = _enfants_parent_enrichis(user)
             context['tuteur'] = user.tuteur
             context['nb_inscrits'] = sum(1 for e in context['enfants'] if e['inscription'])
+            from decimal import Decimal
+            total_du = Decimal('0')
+            nb_impayes = 0
+            nb_absences = 0
+            for item in context['enfants']:
+                fin = item.get('finances') or {}
+                total_du += fin.get('total_du') or Decimal('0')
+                nb_impayes += fin.get('nb_impayes') or 0
+                pres = item.get('presence') or {}
+                nb_absences += pres.get('absents') or 0
+            context['kpi_parent'] = {
+                'total_du': total_du,
+                'nb_impayes': nb_impayes,
+                'nb_absences': nb_absences,
+            }
 
         from .direction_views import (
             communications_pour_parent,
@@ -265,6 +286,14 @@ def parent_enfant_detail(request, pk):
         Eleve.objects.select_related('ecole', 'titeur'),
         pk=pk,
         titeur=request.user.tuteur,
+    )
+    from .security import journaliser
+    journaliser(
+        request,
+        action='CONSULTATION_ELEVE',
+        ressource='eleve',
+        identifiant=eleve.pk,
+        ecole=eleve.ecole,
     )
     inscription = _inscription_courante(eleve)
     presence = _stats_presence_inscription(inscription)

@@ -1,4 +1,6 @@
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import render, redirect, get_object_or_404
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
@@ -66,11 +68,20 @@ def dashboard(request):
         'nb_retards': nb_retards,
         'nb_conges': nb_conges,
         'today': today,
+        'peut_generer_demo': bool(settings.DEBUG and request.user.is_superuser),
     }
     return render(request, 'grh/dashboard.html', context)
 
 @login_required
 def generer_donnees_demo(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied
+    if not settings.DEBUG:
+        messages.error(
+            request,
+            "Le jeu de données de démonstration n'est disponible qu'en développement.",
+        )
+        return redirect("grh:dashboard")
     try:
         # 1. Communes and Quartiers
         commune, _ = Commune.objects.get_or_create(commune="Commune de la Gombe")

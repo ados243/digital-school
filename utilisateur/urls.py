@@ -1,4 +1,3 @@
-from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from . import views
@@ -10,9 +9,11 @@ from . import evolution_views
 from . import cours_views
 from . import live_views
 from . import profil_views
-from .forms import ConnexionForm
+from . import auth_views
+from . import ressource_views
 from pedagogie import views as pedagogie_views
 from pedagogie.video_views import servir_video_cours
+from finances.mobile_views import parent_payer_mobile
 
 
 app_name = 'utilisateur'
@@ -20,36 +21,35 @@ app_name = 'utilisateur'
 urlpatterns = [
     path('', views.root_redirect, name='root'),
     path(
+        'politique-confidentialite/',
+        views.politique_confidentialite,
+        name='politique_confidentialite',
+    ),
+    path(
         'connexion/',
-        auth_views.LoginView.as_view(
-            template_name='utilisateur/login.html',
-            authentication_form=ConnexionForm,
-            redirect_authenticated_user=True,
-        ),
+        auth_views.ConnexionView.as_view(),
         name='login',
     ),
-    path(
-        'deconnexion/',
-        auth_views.LogoutView.as_view(next_page='utilisateur:login'),
-        name='logout',
-    ),
+    path('connexion/verification/', auth_views.mfa_view, name='mfa'),
+    path('deconnexion/', auth_views.logout_view, name='logout'),
     path('creer-compte/', views.inscription_view, name='inscription'),
+    path('verifier-compte/', auth_views.verifier_compte_view, name='verifier_compte'),
     path('bienvenue/', views.post_login_redirect, name='post_login'),
 
-    # Récupération de mot de passe
+    # Recuperation de mot de passe (code WhatsApp)
     path(
         'mot-de-passe-oublie/',
-        profil_views.MotDePasseOublieView.as_view(),
+        auth_views.mot_de_passe_oublie_view,
         name='password_reset',
     ),
     path(
-        'mot-de-passe-oublie/envoye/',
-        profil_views.MotDePasseOublieDoneView.as_view(),
+        'mot-de-passe-oublie/code/',
+        auth_views.mot_de_passe_oublie_code_view,
         name='password_reset_done',
     ),
     path(
-        'reinitialiser-mot-de-passe/<uidb64>/<token>/',
-        profil_views.MotDePasseResetConfirmView.as_view(),
+        'reinitialiser-mot-de-passe/',
+        auth_views.mot_de_passe_nouveau_view,
         name='password_reset_confirm',
     ),
     path(
@@ -70,6 +70,11 @@ urlpatterns = [
 
     path('mon-espace/', views.portail_view, name='portail'),
     path('mon-espace/enfant/<int:pk>/', views.parent_enfant_detail, name='parent_enfant'),
+    path(
+        'mon-espace/enfant/<int:pk>/payer-mobile/',
+        parent_payer_mobile,
+        name='parent_payer_mobile',
+    ),
     path('mon-espace/enseignant/', views.enseignant_dashboard, name='enseignant_dashboard'),
     path('mon-espace/enseignant/classe/<int:pk>/', views.enseignant_classe_detail, name='enseignant_classe'),
 
@@ -93,11 +98,21 @@ urlpatterns = [
     path('mon-espace/enseignant/lecons/<int:pk>/modifier/', cours_views.lecon_enseignant_update, name='lecon_enseignant_update'),
     path('mon-espace/enseignant/lecons/<int:pk>/supprimer/', cours_views.lecon_enseignant_delete, name='lecon_enseignant_delete'),
 
+    # Ressources partagées (enseignant)
+    path('mon-espace/enseignant/ressources/', ressource_views.ressource_enseignant_list, name='ressource_enseignant_list'),
+    path('mon-espace/enseignant/ressources/nouveau/', ressource_views.ressource_enseignant_create, name='ressource_enseignant_create'),
+    path('mon-espace/enseignant/ressources/<int:pk>/modifier/', ressource_views.ressource_enseignant_update, name='ressource_enseignant_update'),
+    path('mon-espace/enseignant/ressources/<int:pk>/supprimer/', ressource_views.ressource_enseignant_delete, name='ressource_enseignant_delete'),
+
     # Cours en ligne (espace élève)
     path('mon-espace/etudier/', cours_views.cours_eleve_list, name='cours_eleve_list'),
     path('mon-espace/etudier/cours/<int:pk>/', cours_views.cours_eleve_detail, name='cours_eleve_detail'),
     path('mon-espace/etudier/chapitre/<int:pk>/', cours_views.chapitre_eleve_detail, name='chapitre_eleve_detail'),
     path('mon-espace/etudier/lecon/<int:pk>/', cours_views.lecon_eleve_detail, name='lecon_eleve_detail'),
+
+    # Ressources partagées (élève)
+    path('mon-espace/etudier/ressources/', ressource_views.ressource_eleve_list, name='ressource_eleve_list'),
+    path('mon-espace/etudier/ressources/<int:pk>/', ressource_views.ressource_eleve_detail, name='ressource_eleve_detail'),
 
     # Cours en direct / visioconférence (enseignant)
     path('mon-espace/enseignant/direct/', live_views.direct_enseignant_list, name='direct_enseignant_list'),

@@ -78,8 +78,8 @@ class EleveForm(FormControlMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, ecole=None, **kwargs):
-        super().__init__(*args, **kwargs)
         self.ecole = ecole
+        super().__init__(*args, **kwargs)
         self.fields['titeur'].queryset = tuteurs_for_ecole(ecole).order_by(
             'nom', 'prenom'
         )
@@ -121,8 +121,8 @@ class InscriptionForm(FormControlMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, ecole=None, **kwargs):
-        super().__init__(*args, **kwargs)
         self.ecole = ecole
+        super().__init__(*args, **kwargs)
         if ecole:
             self.fields['eleve'].queryset = eleves_for_ecole(ecole).order_by('nom', 'prenom')
             self.fields['eleve'].label_from_instance = (
@@ -174,8 +174,8 @@ class ClasseForm(FormControlMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, ecole=None, **kwargs):
-        super().__init__(*args, **kwargs)
         self.ecole = ecole
+        super().__init__(*args, **kwargs)
         self.fields['titulaire'].required = False
         self.fields['titulaire'].empty_label = "— Aucun enseignant —"
         from grh.models import Personnel

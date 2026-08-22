@@ -2,7 +2,7 @@
 
 {% block title %}{% if object %}Modifier{% else %}Créer{% endif %} un frais scolaire{% endblock %}
 {% block page_title %}{% if object %}Modifier{% else %}Nouveau{% endif %} frais scolaire{% endblock %}
-{% block page_subtitle %}Définissez le montant, la section et l'échéance du frais.{% endblock %}
+{% block page_subtitle %}Définissez le montant, la section ou les classes concernées, et l'échéance.{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -67,6 +67,55 @@
   }
   .type-frais-modal__errors.is-visible { display: block; }
   body.modal-open { overflow: hidden; }
+  .frais-portee-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75rem;
+  }
+  .frais-portee-card {
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    margin: 0;
+    padding: .95rem 1.05rem;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .frais-portee-card:hover { border-color: #b8bcc4; }
+  .frais-portee-card:has(input:checked) {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, var(--primary-light) 0%, #fff 85%);
+    box-shadow: 0 0 0 3px rgba(0, 119, 197, .1);
+  }
+  .frais-portee-card input { accent-color: var(--primary); }
+  .frais-portee-card__title {
+    display: block;
+    font-weight: 700;
+    font-size: .88rem;
+    color: var(--text-main);
+  }
+  .frais-portee-card__help {
+    display: block;
+    margin-top: .2rem;
+    font-size: .76rem;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+  .frais-classes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: .5rem;
+  }
+  .frais-classes-grid .form-check-card {
+    margin: 0;
+    padding: .65rem .85rem;
+    align-items: center;
+  }
+  @media (max-width: 720px) {
+    .frais-portee-cards { grid-template-columns: 1fr; }
+  }
 </style>
 {% endblock %}
 
@@ -124,7 +173,61 @@
                     <div class="form-grid-2">
                         {% include 'includes/form_field.html' with field=form.type_frais %}
                         {% include 'includes/form_field.html' with field=form.annee %}
+                    </div>
+                    <div class="form-field form-field--wide{% if form.portee.errors %} form-field--invalid{% endif %}">
+                        <div class="form-field__row">
+                            <label class="form-field__label">{{ form.portee.label }}{% if form.portee.field.required %}<span class="form-required" aria-hidden="true">*</span>{% endif %}</label>
+                            <div class="form-field__content">
+                                <div class="frais-portee-cards">
+                                    {% for radio in form.portee %}
+                                    <label class="frais-portee-card">
+                                        <span class="form-check-card__control">{{ radio.tag }}</span>
+                                        <span>
+                                            <span class="frais-portee-card__title">{{ radio.choice_label }}</span>
+                                            {% if radio.data.value == 'section' %}
+                                            <span class="frais-portee-card__help">Tous les élèves de la section choisie.</span>
+                                            {% else %}
+                                            <span class="frais-portee-card__help">Uniquement les classes cochées ci-dessous.</span>
+                                            {% endif %}
+                                        </span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                                {% if form.portee.errors %}
+                                <p class="form-error" role="alert">{{ form.portee.errors|striptags }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div id="frais-portee-section">
                         {% include 'includes/form_field.html' with field=form.section %}
+                    </div>
+                    <div id="frais-portee-classes" hidden>
+                        <div class="form-field form-field--wide{% if form.classes.errors %} form-field--invalid{% endif %}">
+                            <div class="form-field__row">
+                                <label class="form-field__label">{{ form.classes.label }}{% if form.classes.field.required %}<span class="form-required" aria-hidden="true">*</span>{% endif %}</label>
+                                <div class="form-field__content">
+                                    <div class="frais-classes-grid">
+                                        {% for checkbox in form.classes %}
+                                        <label class="form-check-card">
+                                            <span class="form-check-card__control">{{ checkbox.tag }}</span>
+                                            <span class="form-check-card__label">{{ checkbox.choice_label }}</span>
+                                        </label>
+                                        {% empty %}
+                                        <p class="form-help">Aucune classe dans cet établissement.</p>
+                                        {% endfor %}
+                                    </div>
+                                    {% if form.classes.help_text %}
+                                    <p class="form-help">{{ form.classes.help_text }}</p>
+                                    {% endif %}
+                                    {% if form.classes.errors %}
+                                    <p class="form-error" role="alert">{{ form.classes.errors|striptags }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-grid-2">
                         {% include 'includes/form_field.html' with field=form.echeance %}
                         {% include 'includes/form_field.html' with field=form.montant %}
                         {% include 'includes/form_field.html' with field=form.devise %}
@@ -139,7 +242,7 @@
                 <div class="panel">
                     <div class="qb-form__sidebar-head">
                         <h3>Validation</h3>
-                        <p>Ce barème sera proposé lors des encaissements.</p>
+                        <p>Ce barème sera proposé à l'encaissement pour la section ou les classes choisies.</p>
                     </div>
                 </div>
             </aside>
@@ -298,6 +401,23 @@
             }
         }
     });
+})();
+
+(function () {
+    const radios = document.querySelectorAll('input[name="portee"]');
+    const boxSection = document.getElementById('frais-portee-section');
+    const boxClasses = document.getElementById('frais-portee-classes');
+    if (!radios.length || !boxSection || !boxClasses) return;
+
+    function sync() {
+        const checked = document.querySelector('input[name="portee"]:checked');
+        const isClasses = checked && checked.value === 'classes';
+        boxSection.hidden = isClasses;
+        boxClasses.hidden = !isClasses;
+    }
+
+    radios.forEach((radio) => radio.addEventListener('change', sync));
+    sync();
 })();
 </script>
 {% endblock %}

@@ -1,12 +1,7 @@
 """Helpers pour l'isolation des données GRH par école (multi-tenant)."""
 
+from common.tenant import get_user_ecole  # noqa: F401
 from .models import Personnel, Contrat, Conge, Presence, Paie
-
-
-def get_user_ecole(request):
-    if not getattr(request, "user", None) or not request.user.is_authenticated:
-        return None
-    return getattr(request.user, "ecole", None)
 
 
 def personnel_for_ecole(ecole):

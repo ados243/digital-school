@@ -1,5 +1,7 @@
 """Cours en direct (visioconférence Jitsi) — espaces enseignant et élève."""
 
+from datetime import timedelta
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -10,9 +12,10 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
 
 from inscription.models import Annee_Scolaire
-from pedagogie.affectations import peut_gerer_matiere_classe
+from common.jitsi import build_jaas_jwt, external_api_script_url, is_jaas_enabled, meeting_domain, room_path
+from pedagogie.affectations import peut_gerer_matiere_classes
 from pedagogie.forms import CoursEnDirectForm
-from pedagogie.models import CoursEnDirect, QuestionCoursDirect
+from pedagogie.models import CoursEnDirect, QuestionCoursDirect, qs_pour_classe
 from utilisateur.cours_views import _require_eleve
 from utilisateur.travaux_views import (
     _classes_enseignant,
@@ -25,6 +28,7 @@ def _direct_enseignant_qs(personnel):
     return (
         CoursEnDirect.objects.filter(ecole=personnel.ecole, enseignant=personnel)
         .select_related('classe', 'matiere', 'annee_scolaire', 'enseignant')
+        .prefetch_related('classes')
         .order_by('-date_heure_prevue')
     )
 
@@ -34,7 +38,7 @@ def _peut_gerer_direct(personnel, seance):
         return False
     if seance.enseignant_id == personnel.id:
         return True
-    return peut_gerer_matiere_classe(personnel, seance.matiere, seance.classe)
+    return peut_gerer_matiere_classes(personnel, seance.matiere, seance.classes_concernees())
 
 
 def _display_name(user):
@@ -48,12 +52,41 @@ def _is_ajax(request):
     )
 
 
+def _salle_tips(role):
+    commun = [
+        "Privilégiez Chrome ou Edge et une connexion Wi-Fi stable.",
+        "Fermez les téléchargements et onglets vidéo inutiles avant de rejoindre la salle.",
+        "Utilisez un casque pour réduire l'écho et améliorer l'intelligibilité.",
+    ]
+    if role == 'enseignant':
+        return commun + [
+            "Commencez avec micro coupé pour la classe puis donnez la parole progressivement.",
+            "Épinglez les questions importantes pour garder le fil du cours.",
+        ]
+    return commun + [
+        "Coupez votre caméra si la connexion devient lente, puis réactivez-la au besoin.",
+        "Utilisez les signaux rapides pour demander une répétition ou signaler un souci de son.",
+    ]
+
+
+def _signaux_rapides(role):
+    if role != 'eleve':
+        return []
+    return [
+        "Main levée : je veux répondre",
+        "Le son coupe chez moi",
+        "Pouvez-vous répéter la consigne ?",
+        "Pouvez-vous ralentir un peu ?",
+        "J'ai terminé l'exercice",
+    ]
+
+
 def _acces_salle_enseignant(request, pk):
     personnel, err = _require_enseignant(request)
     if err:
         return None, None, err
     seance = get_object_or_404(
-        CoursEnDirect.objects.select_related('classe', 'matiere'),
+        CoursEnDirect.objects.select_related('classe', 'matiere').prefetch_related('classes'),
         pk=pk,
         ecole=personnel.ecole,
     )
@@ -70,23 +103,58 @@ def _acces_salle_eleve(request, pk):
     if err:
         return None, None, None, err
     seance = get_object_or_404(
-        CoursEnDirect.objects.select_related('classe', 'matiere', 'enseignant'),
+        qs_pour_classe(
+            CoursEnDirect.objects.select_related('classe', 'matiere', 'enseignant')
+            .prefetch_related('classes'),
+            inscription.classe,
+        ),
         pk=pk,
         ecole=eleve.ecole,
-        classe=inscription.classe,
         annee_scolaire=inscription.annee_s,
     )
     return eleve, inscription, seance, None
 
 
 def _salle_context(request, seance, role, retour_url):
+    debut = seance.date_heure_prevue
+    fin = None
+    if debut:
+        fin = debut + timedelta(minutes=seance.duree_minutes or 60)
+    display_name = _display_name(request.user)
+    email = getattr(request.user, 'email', '') or ''
+    est_enseignant = (role == 'enseignant')
+    user_id = str(request.user.pk) if getattr(request.user, 'pk', None) else ''
     return {
         'seance': seance,
-        'jitsi_url': seance.jitsi_embed_url(_display_name(request.user)),
+        'jitsi_url': seance.jitsi_embed_url(
+            display_name,
+            email=email,
+            est_enseignant=est_enseignant,
+            user_id=user_id,
+        ),
+        'jitsi_is_jaas': is_jaas_enabled(),
+        'jitsi_domain': meeting_domain(),
+        'jitsi_room_name': room_path(seance.room_name),
+        'jitsi_script_url': external_api_script_url(),
+        'jitsi_jwt': build_jaas_jwt(
+            display_name,
+            email,
+            is_moderator=est_enseignant,
+            user_id=user_id,
+        ),
+        'jitsi_display_name': display_name,
+        'jitsi_email': email,
+        'share_url': request.build_absolute_uri(),
         'role': role,
+        'role_label': 'Enseignant' if role == 'enseignant' else 'Élève',
         'retour_url': retour_url,
         'questions_url': reverse('utilisateur:direct_questions', kwargs={'pk': seance.pk}),
         'question_create_url': reverse('utilisateur:direct_question_create', kwargs={'pk': seance.pk}),
+        'salle_tips': _salle_tips(role),
+        'signaux_rapides': _signaux_rapides(role),
+        'debut_iso': debut.isoformat() if debut else '',
+        'fin_iso': fin.isoformat() if fin else '',
+        'now': timezone.now(),
     }
 
 
@@ -101,12 +169,20 @@ def direct_enseignant_list(request):
     if statut:
         seances = [s for s in seances if s.statut == statut]
 
+    now = timezone.now()
+    seances_a_venir = sorted(
+        [s for s in seances if s.date_heure_prevue and s.date_heure_prevue >= now],
+        key=lambda s: s.date_heure_prevue,
+    )
+
     return render(request, 'utilisateur/direct_enseignant_list.html', {
         'seances': seances,
         'filtre_statut': statut or '',
         'nb_planifies': sum(1 for s in seances if s.statut == CoursEnDirect.STATUT_PLANIFIE),
         'nb_en_cours': sum(1 for s in seances if s.statut == CoursEnDirect.STATUT_EN_COURS),
-        'now': timezone.now(),
+        'nb_a_venir': len(seances_a_venir),
+        'prochaine_seance': seances_a_venir[0] if seances_a_venir else None,
+        'now': now,
     })
 
 
@@ -128,20 +204,23 @@ def direct_enseignant_create(request):
             seance = form.save(commit=False)
             seance.ecole = ecole
             seance.enseignant = personnel
-            if not peut_gerer_matiere_classe(personnel, seance.matiere, seance.classe):
+            if not peut_gerer_matiere_classes(
+                personnel, seance.matiere, form.cleaned_data.get('classes')
+            ):
                 messages.error(
                     request,
                     "Vous ne pouvez pas planifier un cours pour cette classe / matière.",
                 )
             else:
                 seance.save()
+                form.save_m2m()
                 messages.success(request, "Séance de visioconférence planifiée.")
                 return redirect('utilisateur:direct_enseignant_list')
     else:
         annee = Annee_Scolaire.objects.filter(est_encoure=True).first()
         initial = {'annee_scolaire': annee, 'duree_minutes': 60}
         if request.GET.get('classe'):
-            initial['classe'] = request.GET.get('classe')
+            initial['classes'] = [request.GET.get('classe')]
         if request.GET.get('matiere'):
             initial['matiere'] = request.GET.get('matiere')
         form = CoursEnDirectForm(
@@ -162,7 +241,7 @@ def direct_enseignant_update(request, pk):
         return err
 
     seance = get_object_or_404(
-        CoursEnDirect.objects.select_related('classe', 'matiere'),
+        CoursEnDirect.objects.select_related('classe', 'matiere').prefetch_related('classes'),
         pk=pk,
         ecole=personnel.ecole,
     )
@@ -186,13 +265,16 @@ def direct_enseignant_update(request, pk):
         )
         if form.is_valid():
             updated = form.save(commit=False)
-            if not peut_gerer_matiere_classe(personnel, updated.matiere, updated.classe):
+            if not peut_gerer_matiere_classes(
+                personnel, updated.matiere, form.cleaned_data.get('classes')
+            ):
                 messages.error(
                     request,
                     "Vous ne pouvez pas planifier un cours pour cette classe / matière.",
                 )
             else:
                 updated.save()
+                form.save_m2m()
                 messages.success(request, "Séance mise à jour.")
                 return redirect('utilisateur:direct_enseignant_list')
     else:
@@ -285,21 +367,35 @@ def direct_eleve_list(request):
         return err
 
     seances = list(
-        CoursEnDirect.objects.filter(
-            ecole=eleve.ecole,
-            classe=inscription.classe,
-            annee_scolaire=inscription.annee_s,
-            statut__in=[CoursEnDirect.STATUT_PLANIFIE, CoursEnDirect.STATUT_EN_COURS],
+        qs_pour_classe(
+            CoursEnDirect.objects.filter(
+                ecole=eleve.ecole,
+                annee_scolaire=inscription.annee_s,
+                statut__in=[CoursEnDirect.STATUT_PLANIFIE, CoursEnDirect.STATUT_EN_COURS],
+            ),
+            inscription.classe,
         )
         .select_related('matiere', 'enseignant', 'classe')
+        .prefetch_related('classes')
         .order_by('date_heure_prevue')
     )
     for s in seances:
         s.peut_rejoindre = s.peut_etre_rejoint(est_enseignant=False)
+        s.est_imminente = bool(
+            s.date_heure_prevue
+            and 0 <= (s.date_heure_prevue - timezone.now()).total_seconds() <= 30 * 60
+        )
+
+    seances_a_venir = sorted(
+        [s for s in seances if s.date_heure_prevue and s.date_heure_prevue >= timezone.now()],
+        key=lambda s: s.date_heure_prevue,
+    )
 
     return render(request, 'utilisateur/direct_eleve_list.html', {
         'seances': seances,
         'inscription': inscription,
+        'nb_accessibles': sum(1 for s in seances if s.peut_rejoindre),
+        'prochaine_seance': seances_a_venir[0] if seances_a_venir else None,
         'now': timezone.now(),
     })
 
@@ -340,7 +436,7 @@ def _peut_voir_questions(request, seance):
         return bool(
             inscription
             and seance.ecole_id == eleve.ecole_id
-            and seance.classe_id == inscription.classe_id
+            and seance.concerne_classe(inscription.classe)
             and seance.annee_scolaire_id == inscription.annee_s_id
         )
     return False

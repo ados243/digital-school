@@ -2,39 +2,122 @@
 
 {% block title %}Cours en ligne{% endblock %}
 
+{% block extra_css %}
+<style>
+  .live-overview {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  @media (max-width: 900px) {
+    .live-overview { grid-template-columns: 1fr; }
+  }
+  .live-overview-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+  }
+  .live-overview-card__label {
+    color: var(--text-muted);
+    font-size: .82rem;
+    margin-bottom: .35rem;
+  }
+  .live-overview-card__value {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .live-overview-card__hint {
+    margin-top: .5rem;
+    color: var(--text-muted);
+    font-size: .9rem;
+  }
+  .live-session-list {
+    display: grid;
+    gap: 1rem;
+  }
+  .live-session-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.05);
+  }
+  .live-session-card__top,
+  .live-session-card__bottom {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .85rem;
+  }
+  .live-session-card__title {
+    margin: 0 0 .25rem;
+    font-size: 1.08rem;
+  }
+  .live-session-card__meta,
+  .live-session-card__desc {
+    margin: 0;
+    color: var(--text-muted);
+  }
+  .live-session-card__desc {
+    margin-top: .45rem;
+    font-size: .92rem;
+  }
+  .live-session-card__facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+    margin-top: .85rem;
+  }
+  .live-session-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    justify-content: flex-end;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="portal-hero">
     <h1>Cours en ligne</h1>
-    <p>Dispensez vos cours en visioconférence : planifiez une séance, démarrez, et les élèves rejoignent la salle.</p>
+    <p>Planifiez vos séances, démarrez rapidement la salle et gardez les élèves engagés grâce au panneau d’interactions intégré.</p>
 </div>
 
 <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
     <a href="{% url 'utilisateur:direct_enseignant_create' %}" class="btn btn-primary">+ Nouveau cours (visio)</a>
-    <a href="{% url 'utilisateur:cours_enseignant_list' %}" class="btn btn-secondary">Cours enregistrés (ressources)</a>
+    <a href="{% url 'utilisateur:cours_enseignant_list' %}" class="btn btn-secondary">Cours enregistrés</a>
+    <a href="{% url 'utilisateur:ressource_enseignant_list' %}" class="btn btn-secondary">Ressources (fichiers)</a>
 </div>
 
-<section class="kpi-grid" style="margin-bottom:1.25rem;">
-    <div class="kpi-card">
-        <div>
-            <div class="kpi-title">Séances</div>
-            <div class="kpi-value">{{ seances|length }}</div>
+<section class="live-overview">
+    <article class="live-overview-card">
+        <div class="live-overview-card__label">Séances visibles</div>
+        <div class="live-overview-card__value">{{ seances|length }}</div>
+        <div class="live-overview-card__hint">Résultat du filtre actuel</div>
+    </article>
+    <article class="live-overview-card">
+        <div class="live-overview-card__label">Salles actives</div>
+        <div class="live-overview-card__value">{{ nb_en_cours }}</div>
+        <div class="live-overview-card__hint">Les élèves peuvent rejoindre immédiatement</div>
+    </article>
+    <article class="live-overview-card">
+        <div class="live-overview-card__label">Prochaine séance</div>
+        <div class="live-overview-card__value">
+            {% if prochaine_seance %}{{ prochaine_seance.date_heure_prevue|date:"H:i" }}{% else %}--:--{% endif %}
         </div>
-        <div class="kpi-footer">Liste filtrée</div>
-    </div>
-    <div class="kpi-card">
-        <div>
-            <div class="kpi-title">Planifiées</div>
-            <div class="kpi-value">{{ nb_planifies }}</div>
+        <div class="live-overview-card__hint">
+            {% if prochaine_seance %}
+            {{ prochaine_seance.titre }} · {{ prochaine_seance.date_heure_prevue|date:"d/m" }}
+            {% else %}
+            Aucune séance à venir
+            {% endif %}
         </div>
-        <div class="kpi-footer">À venir</div>
-    </div>
-    <div class="kpi-card">
-        <div>
-            <div class="kpi-title">En cours</div>
-            <div class="kpi-value">{{ nb_en_cours }}</div>
-        </div>
-        <div class="kpi-footer">Salles ouvertes</div>
-    </div>
+    </article>
 </section>
 
 <div class="panel" style="margin-bottom:1.25rem;">
@@ -54,76 +137,62 @@
     </div>
 </div>
 
-<div class="panel">
-    <div class="panel-body table-responsive" style="padding:0;">
-        <table class="custom-table">
-            <thead>
-                <tr>
-                    <th>Séance</th>
-                    <th>Classe</th>
-                    <th>Matière</th>
-                    <th>Date / heure</th>
-                    <th>Statut</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in seances %}
-                <tr>
-                    <td>
-                        <strong>{{ s.titre }}</strong>
-                        {% if s.description %}
-                        <span style="display:block;font-size:.85rem;color:var(--text-muted);">{{ s.description|truncatechars:80 }}</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ s.classe }}</td>
-                    <td>{{ s.matiere }}</td>
-                    <td>{{ s.date_heure_prevue|date:"d/m/Y H:i" }} · {{ s.duree_minutes }} min</td>
-                    <td>
-                        {% if s.statut == 'EN_COURS' %}
-                        <span class="badge badge-success">{{ s.get_statut_display }}</span>
-                        {% elif s.statut == 'PLANIFIE' %}
-                        <span class="badge badge-info">{{ s.get_statut_display }}</span>
-                        {% elif s.statut == 'ANNULE' %}
-                        <span class="badge badge-danger">{{ s.get_statut_display }}</span>
-                        {% else %}
-                        <span class="badge">{{ s.get_statut_display }}</span>
-                        {% endif %}
-                    </td>
-                    <td style="white-space:nowrap;">
-                        {% if s.statut == 'PLANIFIE' or s.statut == 'EN_COURS' %}
-                        <a href="{% url 'utilisateur:direct_enseignant_salle' s.id %}" class="btn btn-primary btn-sm">Rejoindre</a>
-                        <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' s.id 'demarrer' %}" style="display:inline;">
-                            {% csrf_token %}
-                            {% if s.statut == 'PLANIFIE' %}
-                            <button type="submit" class="btn btn-secondary btn-sm">Démarrer</button>
-                            {% endif %}
-                        </form>
-                        {% endif %}
-                        {% if s.statut == 'EN_COURS' %}
-                        <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' s.id 'terminer' %}" style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-secondary btn-sm">Terminer</button>
-                        </form>
-                        {% endif %}
-                        {% if s.statut == 'PLANIFIE' or s.statut == 'EN_COURS' %}
-                        <a href="{% url 'utilisateur:direct_enseignant_update' s.id %}" class="btn btn-secondary btn-sm">Modifier</a>
-                        <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' s.id 'annuler' %}" style="display:inline;" onsubmit="return confirm('Annuler cette séance ?');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-secondary btn-sm">Annuler</button>
-                        </form>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" style="text-align:center;padding:2rem;">
-                        Aucune séance. <a href="{% url 'utilisateur:direct_enseignant_create' %}">Planifier un cours en visioconférence</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<section class="live-session-list">
+    {% for s in seances %}
+    <article class="live-session-card">
+        <div class="live-session-card__top">
+            <div>
+                <h2 class="live-session-card__title">{{ s.titre }}</h2>
+                <p class="live-session-card__meta">{{ s.matiere }} · {{ s.classes_libelle }}</p>
+                {% if s.description %}
+                <p class="live-session-card__desc">{{ s.description|truncatechars:180 }}</p>
+                {% endif %}
+                <div class="live-session-card__facts">
+                    <span class="badge badge-secondary">{{ s.date_heure_prevue|date:"d/m/Y H:i" }}</span>
+                    <span class="badge badge-secondary">{{ s.duree_minutes }} min</span>
+                    {% if s.statut == 'EN_COURS' %}
+                    <span class="badge badge-success">{{ s.get_statut_display }}</span>
+                    {% elif s.statut == 'PLANIFIE' %}
+                    <span class="badge badge-info">{{ s.get_statut_display }}</span>
+                    {% elif s.statut == 'ANNULE' %}
+                    <span class="badge badge-danger">{{ s.get_statut_display }}</span>
+                    {% else %}
+                    <span class="badge">{{ s.get_statut_display }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="live-session-card__actions">
+                {% if s.statut == 'PLANIFIE' or s.statut == 'EN_COURS' %}
+                <a href="{% url 'utilisateur:direct_enseignant_salle' s.id %}" class="btn btn-primary btn-sm">Entrer</a>
+                {% endif %}
+                {% if s.statut == 'PLANIFIE' %}
+                <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' s.id 'demarrer' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary btn-sm">Démarrer</button>
+                </form>
+                {% endif %}
+                {% if s.statut == 'EN_COURS' %}
+                <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' s.id 'terminer' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary btn-sm">Terminer</button>
+                </form>
+                {% endif %}
+                {% if s.statut == 'PLANIFIE' or s.statut == 'EN_COURS' %}
+                <a href="{% url 'utilisateur:direct_enseignant_update' s.id %}" class="btn btn-secondary btn-sm">Modifier</a>
+                <form method="post" action="{% url 'utilisateur:direct_enseignant_statut' s.id 'annuler' %}" onsubmit="return confirm('Annuler cette séance ?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary btn-sm">Annuler</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </article>
+    {% empty %}
+    <div class="panel">
+        <div class="panel-body" style="text-align:center;padding:2rem;">
+            Aucune séance. <a href="{% url 'utilisateur:direct_enseignant_create' %}">Planifier un cours en visioconférence</a>
+        </div>
     </div>
-</div>
+    {% endfor %}
+</section>
 {% endblock %}

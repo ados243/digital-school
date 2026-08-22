@@ -1,0 +1,212 @@
+{% extends 'auth_base.html' %}
+
+{% block title %}Politique de confidentialité{% endblock %}
+
+{% block visual_title %}Vos données, en toute clarté.{% endblock %}
+{% block visual_tagline %}
+Digital School traite les informations scolaires pour le compte des établissements, avec des règles d’accès, de conservation et de communication explicites.
+{% endblock %}
+{% block visual_features %}
+<li>Responsable : NTT S.A.R.L — NTOBO'S TECHNOLOGY</li>
+<li>Finalités limitées au service scolaire</li>
+<li>WhatsApp : messages transactionnels uniquement</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.auth-panel { overflow-y: auto; }
+.legal-doc {
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: 1.5rem 0 2.5rem;
+}
+.legal-doc h2 {
+    font-size: 1.65rem;
+    margin: 0 0 .5rem;
+    color: var(--text-main, #0f172a);
+}
+.legal-doc .legal-meta {
+    color: var(--text-muted, #64748b);
+    font-size: .92rem;
+    margin: 0 0 1.5rem;
+}
+.legal-doc h3 {
+    font-size: 1.05rem;
+    margin: 1.4rem 0 .45rem;
+    color: var(--text-main, #0f172a);
+}
+.legal-doc p,
+.legal-doc li {
+    color: var(--text-main, #1e293b);
+    line-height: 1.55;
+    font-size: .95rem;
+}
+.legal-doc p { margin: 0 0 .75rem; }
+.legal-doc ul {
+    margin: 0 0 .9rem 1.1rem;
+    padding: 0;
+    display: grid;
+    gap: .35rem;
+}
+.legal-doc a { color: var(--primary, #0066ad); }
+.legal-doc .legal-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem 1rem;
+    margin-top: 1.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border, #e2e8f0);
+    font-size: .92rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<article class="legal-doc">
+    <h2>Politique de confidentialité</h2>
+    <p class="legal-meta">
+        Digital School · NTT S.A.R.L (NTOBO'S TECHNOLOGY)<br>
+        Dernière mise à jour : 23 août 2026
+    </p>
+
+    <p>
+        La présente politique décrit comment <strong>NTT S.A.R.L</strong>, éditeur de la plateforme
+        <strong>Digital School</strong>, traite les données personnelles dans le cadre de la gestion scolaire
+        et des communications associées (portail web et WhatsApp Business).
+    </p>
+
+    <h3>1. Responsable du traitement</h3>
+    <p>
+        <strong>NTT S.A.R.L — NTOBO'S TECHNOLOGY</strong><br>
+        Siège : 12, avenue Avenir, quartier Basoko, commune de Ngaliema, Kinshasa,
+        République démocratique du Congo.<br>
+        Contact : via le formulaire ou les coordonnées communiqués sur
+        <a href="https://ntt-website.pages.dev/" rel="noopener">le site NTT</a>,
+        ou auprès de la direction de votre établissement pour toute demande relative à votre dossier scolaire.
+    </p>
+    <p>
+        Pour les données des élèves, parents et personnel, <strong>l’établissement scolaire</strong>
+        est responsable de la collecte et de l’exactitude des informations. NTT traite ces données
+        pour le compte de l’école, uniquement afin d’exécuter le service Digital School.
+    </p>
+
+    <h3>2. Champ d’application</h3>
+    <p>Cette politique s’applique :</p>
+    <ul>
+        <li>à l’utilisation de Digital School (back-office, portails parent, élève et enseignant) ;</li>
+        <li>aux comptes créés pour la direction, la caisse, les enseignants, les parents et les élèves ;</li>
+        <li>aux messages envoyés via WhatsApp Business API (reçus, relances, annonces scolaires, codes de vérification).</li>
+    </ul>
+
+    <h3>3. Données collectées</h3>
+    <p>Selon le rôle et les modules activés, Digital School peut traiter notamment :</p>
+    <ul>
+        <li>identité et coordonnées (nom, prénom, matricule, téléphone WhatsApp, e-mail éventuel, adresse) ;</li>
+        <li>données scolaires (classe, inscriptions, notes, présences, bulletins, ressources pédagogiques) ;</li>
+        <li>données financières (frais, paiements, reçus, relances de minerval) ;</li>
+        <li>données RH du personnel de l’école (si le module GRH est utilisé) ;</li>
+        <li>données techniques de connexion (identifiant, journal d’accès, adresse IP, type d’appareil) pour la sécurité ;</li>
+        <li>photo d’élève lorsque l’école la saisit (carte / dossier).</li>
+    </ul>
+    <p>
+        Digital School n’est pas destiné à collecter des données de santé, sauf si l’établissement
+        les saisit de sa propre initiative dans un champ libre.
+    </p>
+
+    <h3>4. Finalités</h3>
+    <ul>
+        <li>gérer la scolarité (inscriptions, classes, pédagogie, portails) ;</li>
+        <li>assurer la caisse scolaire et l’émission de reçus ;</li>
+        <li>permettre la communication officielle de l’école vers les parents / tuteurs ;</li>
+        <li>sécuriser les comptes (authentification, codes OTP WhatsApp, verrouillage, journaux) ;</li>
+        <li>fournir le support technique et maintenir la plateforme.</li>
+    </ul>
+    <p>NTT ne revend pas les fichiers élèves et n’utilise pas ces données pour de la publicité tierce.</p>
+
+    <h3>5. WhatsApp Business</h3>
+    <p>
+        Lorsque l’école active WhatsApp, Digital School peut envoyer des messages
+        <strong>transactionnels ou de service</strong> aux numéros déjà enregistrés dans les dossiers :
+    </p>
+    <ul>
+        <li>confirmation / reçu de paiement de frais scolaires ;</li>
+        <li>relance de minerval impayé, à l’initiative du personnel habilité ;</li>
+        <li>annonces et communications officielles école → parents ;</li>
+        <li>codes de vérification (connexion, création de compte, mot de passe oublié).</li>
+    </ul>
+    <p>
+        Ces messages ne sont pas utilisés pour du marketing commercial non sollicité
+        ni pour contacter des personnes hors de la relation école–famille.
+        L’envoi s’appuie sur l’API WhatsApp Business (Meta) et, le cas échéant, sur des prestataires
+        techniques configurés par NTT.
+    </p>
+
+    <h3>6. Base légale et cadre</h3>
+    <p>
+        Le traitement s’inscrit dans l’exécution du service de gestion scolaire demandé par l’établissement,
+        dans le respect des principes applicables en RDC, notamment la loi n°&nbsp;20/017 du 26 juin 2020
+        relative aux télécommunications et aux technologies de l’information, et les obligations contractuelles
+        entre l’école et NTT.
+    </p>
+
+    <h3>7. Destinataires</h3>
+    <ul>
+        <li>personnel habilité de l’établissement (selon rôles : direction, caisse, enseignants, etc.) ;</li>
+        <li>parents / tuteurs et élèves pour les informations de leur portail ;</li>
+        <li>NTT et ses sous-traitants techniques strictement nécessaires à l’hébergement, la messagerie
+            (ex. Meta WhatsApp Cloud API) et la maintenance ;</li>
+        <li>autorités uniquement si la loi l’exige.</li>
+    </ul>
+
+    <h3>8. Conservation</h3>
+    <p>
+        Les données sont conservées pendant la relation contractuelle avec l’établissement et les années
+        scolaires suivantes en cas de renouvellement. En cas d’arrêt définitif du service, NTT restitue
+        un export selon les formats disponibles, puis procède à la suppression ou à l’archivage sécurisé
+        dans un délai d’environ 90 jours, sauf obligation légale de conservation plus longue.
+    </p>
+
+    <h3>9. Sécurité</h3>
+    <ul>
+        <li>accès par comptes nominatifs et contrôle des rôles ;</li>
+        <li>mots de passe hashés ; sessions limitées dans le temps ;</li>
+        <li>journalisation des accès sensibles ;</li>
+        <li>fichiers médias et vidéos servis de façon contrôlée ;</li>
+        <li>communications WhatsApp limitées aux modèles / canaux configurés.</li>
+    </ul>
+    <p>L’école s’interdit de partager les mots de passe administrateur et reste responsable de ses utilisateurs.</p>
+
+    <h3>10. Droits des personnes</h3>
+    <p>
+        Toute demande d’accès, de rectification, de mise à jour ou d’opposition relative à un dossier élève
+        ou parent doit être adressée <strong>en premier lieu à l’établissement scolaire</strong>.
+        NTT coopère dans un délai raisonnable sur demande écrite de la direction de l’école.
+    </p>
+
+    <h3>11. Cookies et traceurs</h3>
+    <p>
+        Digital School utilise des cookies ou équivalents techniques nécessaires à la session de connexion
+        et à la sécurité (par exemple jeton CSRF). Aucun cookie publicitaire tiers n’est déployé par la plateforme
+        pour profiler les élèves ou les parents.
+    </p>
+
+    <h3>12. Modifications</h3>
+    <p>
+        Cette politique peut être mise à jour pour refléter l’évolution du service ou de la réglementation.
+        La date de mise à jour figure en tête de page. La version publiée sur cette URL fait foi.
+    </p>
+
+    <h3>13. Contact</h3>
+    <p>
+        Pour toute question sur la présente politique :<br>
+        <strong>NTT S.A.R.L — NTOBO'S TECHNOLOGY</strong><br>
+        12, av. Avenir, Q. Basoko, C. Ngaliema, Kinshasa<br>
+        Objet suggéré : « Digital School — confidentialité ».
+    </p>
+
+    <nav class="legal-nav" aria-label="Liens utiles">
+        <a href="{% url 'utilisateur:login' %}">Connexion</a>
+        <a href="{% url 'utilisateur:inscription' %}">Créer un compte</a>
+    </nav>
+</article>
+{% endblock %}

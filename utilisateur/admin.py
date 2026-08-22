@@ -9,6 +9,8 @@ from utilisateur.models import (
     MessageEchange,
     CommunicationDirection,
     CommunicationLecture,
+    JournalAcces,
+    SessionConnexion,
 )
 
 
@@ -22,6 +24,7 @@ class UtilisateurCreationForm(UserCreationForm):
             "email",
             "role",
             "ecole",
+            "telephone",
             "eleve",
             "tuteur",
         )
@@ -55,7 +58,7 @@ class UtilisateurAdmin(UserAdmin):
         (None, {"fields": ("username", "password")}),
         (
             _("Informations personnelles"),
-            {"fields": ("prenom", "last_name", "email", "avatar")},
+            {"fields": ("prenom", "last_name", "email", "telephone", "avatar")},
         ),
         (
             _("Profil Digital School"),
@@ -89,6 +92,7 @@ class UtilisateurAdmin(UserAdmin):
                     "email",
                     "role",
                     "ecole",
+                    "telephone",
                     "eleve",
                     "tuteur",
                     "is_active",
@@ -141,3 +145,52 @@ class CommunicationDirectionAdmin(admin.ModelAdmin):
 class CommunicationLectureAdmin(admin.ModelAdmin):
     list_display = ("communication", "parent", "lu_at")
     list_filter = ("lu_at",)
+
+
+@admin.register(JournalAcces)
+class JournalAccesAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "action", "utilisateur", "ressource", "identifiant", "ip")
+    list_filter = ("action", "created_at")
+    search_fields = ("utilisateur__username", "identifiant", "ip")
+    readonly_fields = (
+        "utilisateur", "action", "ressource", "identifiant", "ecole",
+        "ip", "user_agent", "extra", "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(SessionConnexion)
+class SessionConnexionAdmin(admin.ModelAdmin):
+    list_display = (
+        "created_at",
+        "utilisateur",
+        "ip",
+        "mfa",
+        "last_seen",
+        "ended_at",
+        "revoquee",
+    )
+    list_filter = ("revoquee", "mfa", "created_at")
+    search_fields = ("utilisateur__username", "ip", "cle_session")
+    readonly_fields = (
+        "utilisateur",
+        "cle_session",
+        "ip",
+        "user_agent",
+        "mfa",
+        "created_at",
+        "last_seen",
+        "ended_at",
+        "revoquee",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

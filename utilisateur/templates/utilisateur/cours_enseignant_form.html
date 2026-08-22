@@ -24,7 +24,6 @@
                         {% include 'includes/form_field.html' with field=form.titre %}
                         {% include 'includes/form_field.html' with field=form.sous_titre %}
                         {% include 'includes/form_field.html' with field=form.annee_scolaire %}
-                        {% include 'includes/form_field.html' with field=form.classe %}
                         {% include 'includes/form_field.html' with field=form.matiere %}
                         {% include 'includes/form_field.html' with field=form.niveau %}
                         {% include 'includes/form_field.html' with field=form.duree_minutes %}
@@ -32,6 +31,7 @@
                         {% include 'includes/form_field.html' with field=form.image_couverture %}
                         {% include 'includes/form_field.html' with field=form.competences %}
                     </div>
+                    {% include 'utilisateur/includes/classes_checkboxes.html' with field=form.classes %}
                 </div>
             </div>
             <div class="qb-form__document" style="margin-top:1rem;">

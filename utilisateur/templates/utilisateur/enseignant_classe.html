@@ -49,6 +49,7 @@
             {% endif %}
             <a href="{% url 'utilisateur:evolution_classe' classe.id %}" class="btn btn-primary btn-sm">📈 Évolution</a>
             <a href="{% url 'utilisateur:direct_enseignant_create' %}?classe={{ classe.id }}" class="btn btn-secondary btn-sm">📹 Cours en ligne (visio)</a>
+            <a href="{% url 'utilisateur:ressource_enseignant_create' %}?classe={{ classe.id }}" class="btn btn-secondary btn-sm">📁 Partager un fichier</a>
             <span class="badge badge-info">{{ inscrits }} élève{{ inscrits|pluralize }}</span>
             {% if not est_titulaire %}
             <span class="badge badge-info" title="Bulletins et appel réservés au titulaire">Cours</span>

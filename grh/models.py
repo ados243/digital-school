@@ -35,7 +35,13 @@ class Personnel(models.Model):
     adresse = models.CharField(max_length=200)
     photo = models.ImageField(null=True, blank=True)
     matricule = models.CharField(max_length=10, unique=True)
-    telephone = models.CharField(max_length=12)
+    telephone = models.CharField(max_length=13)
+    email = models.EmailField(
+        null=True,
+        blank=True,
+        verbose_name='E-mail',
+        help_text='Utilisé pour vérifier la création de compte et l’authentification à deux facteurs.',
+    )
     fonction = models.CharField(max_length=30, choices=FONCTION_CHOICES, default='Enseignant')
 
     class Meta:

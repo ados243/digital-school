@@ -1,0 +1,12 @@
+{
+  "name": "ntt-website",
+  "private": true,
+  "description": "Site vitrine NTOBO'S TECHNOLOGY (NTT S.A.R.L)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.32.0"
+  }
+}

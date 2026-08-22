@@ -1,55 +1,94 @@
 {% extends 'base.html' %}
 
+{% block title %}Frais scolaires{% endblock %}
+{% block page_title %}Frais scolaires{% endblock %}
+{% block page_subtitle %}Barème par section, ou frais spécifique à une ou plusieurs classes.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'finances:frais_scolaire_create' %}" class="btn btn-primary">➕ Nouveau frais</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .frais-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    align-items: center;
+  }
+  .frais-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: .18rem .55rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    background: var(--primary-light);
+    color: var(--primary-hover);
+    white-space: nowrap;
+  }
+  .frais-chip--section {
+    background: #f4f5f8;
+    color: var(--text-main);
+    border: 1px solid var(--border);
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container" style="padding: 24px;">
-  <h2>Frais scolaires</h2>
-
-  <div style="margin: 1rem 0; display: flex; gap: 1rem; align-items: center;">
-    <a href="{% url 'finances:frais_scolaire_create' %}" class="btn btn-primary">➕ Ajouter</a>
+<div class="panel">
+  <div class="panel-header">
+    <h3>Barème de l'établissement</h3>
   </div>
-
-  <div class="panel">
-    <div class="panel-header">
-      <h3>Liste</h3>
-    </div>
-    <div class="panel-body table-responsive" style="padding: 0;">
-      <table class="custom-table">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Année</th>
-            <th>Section</th>
-            <th>Montant</th>
-            <th>Devise</th>
-            <th>Échéance</th>
-            <th>Obligatoire</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in object_list %}
-          <tr>
-            <td>{{ item.type_frais.libelle }}</td>
-            <td>{{ item.annee }}</td>
-            <td>{{ item.section }}</td>
-            <td>{{ item.montant }}</td>
-            <td>{{ item.devise }}</td>
-            <td>{{ item.echeance|date:"d/m/Y" }}</td>
-            <td>{% if item.est_obligatoire %}<span class="badge badge-success">Oui</span>{% else %}<span class="badge badge-warning">Non</span>{% endif %}</td>
-            <td>
-              <a class="btn btn-secondary btn-sm" href="{% url 'finances:frais_scolaire_update' item.id %}">Modifier</a>
-              <a class="btn btn-danger btn-sm" href="{% url 'finances:frais_scolaire_delete' item.id %}">Supprimer</a>
-            </td>
-          </tr>
-          {% empty %}
-          <tr>
-            <td colspan="8" style="text-align:center; color: var(--text-muted); padding: 2rem;">Aucun frais scolaire.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  <div class="panel-body table-responsive" style="padding: 0;">
+    <table class="custom-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Année</th>
+          <th>Concerne</th>
+          <th>Montant</th>
+          <th>Échéance</th>
+          <th>Obligatoire</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in object_list %}
+        <tr>
+          <td><strong>{{ item.type_frais.libelle }}</strong></td>
+          <td>{{ item.annee }}</td>
+          <td>
+            <div class="frais-chips">
+              {% if item.est_specifique %}
+                {% for classe in item.classes.all %}
+                <span class="frais-chip" title="{{ classe.section }}">{{ classe.classe }}</span>
+                {% empty %}
+                <span class="frais-chip">Classes ciblées</span>
+                {% endfor %}
+              {% else %}
+                <span class="frais-chip frais-chip--section">{{ item.section }}</span>
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            <strong>{{ item.montant }}</strong>
+            <span style="color: var(--text-muted);">{{ item.devise }}</span>
+          </td>
+          <td>{{ item.echeance|date:"d/m/Y" }}</td>
+          <td>{% if item.est_obligatoire %}<span class="badge badge-success">Oui</span>{% else %}<span class="badge badge-warning">Non</span>{% endif %}</td>
+          <td>
+            <a class="btn btn-secondary btn-sm" href="{% url 'finances:frais_scolaire_update' item.id %}">Modifier</a>
+            <a class="btn btn-danger btn-sm" href="{% url 'finances:frais_scolaire_delete' item.id %}">Supprimer</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" style="text-align:center; color: var(--text-muted); padding: 2rem;">Aucun frais scolaire.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endblock %}
-

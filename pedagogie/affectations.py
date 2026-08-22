@@ -107,6 +107,14 @@ def peut_gerer_matiere_classe(personnel, matiere, classe):
     return bool(effectif and effectif.id == personnel.id)
 
 
+def peut_gerer_matiere_classes(personnel, matiere, classes):
+    """True si l'enseignant peut gérer la matière dans toutes les classes données."""
+    classes = [c for c in (classes or []) if c]
+    if not personnel or not matiere or not classes:
+        return False
+    return all(peut_gerer_matiere_classe(personnel, matiere, c) for c in classes)
+
+
 def travaux_accessibles_qs(personnel, base_qs):
     """Filtre les travaux cotés visibles / gérables par l'enseignant."""
     ecole = personnel.ecole

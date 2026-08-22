@@ -6,11 +6,11 @@
 <div class="auth-card">
     <div class="auth-card__header">
         <h2>Connexion</h2>
-        <p>Accédez à votre espace : direction, enseignants, parents ou élèves.</p>
+        <p>Accédez à votre espace : direction, enseignants, parents ou élèves. Un code WhatsApp confirme ensuite la connexion (sauf comptes élèves).</p>
     </div>
 
     {% if form.non_field_errors %}
-    <div class="form-errors-banner" role="alert">
+    <div class="form-errors-banner" role="alert" aria-live="assertive">
         <span class="form-errors-banner__icon" aria-hidden="true">!</span>
         <div class="form-errors-banner__content">
             {% for error in form.non_field_errors %}
@@ -27,13 +27,13 @@
         <div class="auth-field">
             <label for="{{ form.username.id_for_label }}">Identifiant</label>
             {{ form.username }}
-            {% if form.username.errors %}<p class="form-error" role="alert">{{ form.username.errors|striptags }}</p>{% endif %}
+            {% if form.username.errors %}<p class="form-error" id="err-username" role="alert">{{ form.username.errors|striptags }}</p>{% endif %}
         </div>
 
         <div class="auth-field">
             <label for="{{ form.password.id_for_label }}">Mot de passe</label>
             {{ form.password }}
-            {% if form.password.errors %}<p class="form-error" role="alert">{{ form.password.errors|striptags }}</p>{% endif %}
+            {% if form.password.errors %}<p class="form-error" id="err-password" role="alert">{{ form.password.errors|striptags }}</p>{% endif %}
         </div>
 
         <button type="submit" class="btn btn-primary btn-lg btn-form-submit" style="width:100%;">Se connecter</button>
@@ -42,6 +42,7 @@
     <div class="auth-card__footer" style="display:flex;flex-direction:column;gap:.5rem;">
         <a href="{% url 'utilisateur:password_reset' %}">Mot de passe oublié ?</a>
         <span>Pas encore de compte ? <a href="{% url 'utilisateur:inscription' %}">Créer un compte</a></span>
+        <a href="{% url 'utilisateur:politique_confidentialite' %}">Politique de confidentialité</a>
     </div>
 </div>
 {% endblock %}

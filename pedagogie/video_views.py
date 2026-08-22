@@ -16,6 +16,11 @@ def _ecoles_utilisateur(user):
         tid = getattr(tuteur, 'ecole_id', None)
         if tid:
             ids.add(str(tid))
+    eleve = getattr(user, 'eleve', None)
+    if eleve is not None:
+        eid = getattr(eleve, 'ecole_id', None)
+        if eid:
+            ids.add(str(eid))
     return ids
 
 

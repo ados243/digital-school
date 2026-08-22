@@ -1,6 +1,10 @@
+from django.conf import settings
+from common.jitsi import meeting_origin
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.urls import reverse
+
+from .security import actualiser_session_connexion
 
 # Préfixes toujours accessibles, y compris pour les profils Parent / Élève :
 # authentification, espace personnel, fichiers statiques/médias et admin Django.
@@ -8,14 +12,17 @@ PREFIXES_AUTORISES = (
     '/connexion',
     '/deconnexion',
     '/creer-compte',
+    '/verifier-compte',
     '/bienvenue',
     '/mot-de-passe-oublie',
     '/reinitialiser-mot-de-passe',
+    '/politique-confidentialite',
     '/mon-espace',
     '/static',
     '/media',
     '/admin',
     '/sante',
+    '/api',
 )
 
 # Les professeurs restent dans mon-espace (travaux, présences, classes).
@@ -28,16 +35,19 @@ PREFIXES_COMMUNS = (
     '/bienvenue',
     '/mot-de-passe-oublie',
     '/reinitialiser-mot-de-passe',
+    '/politique-confidentialite',
     '/mon-espace/profil',
     '/static',
     '/media',
     '/sante',
+    '/api',
 )
 
 # Le caissier n'accède qu'aux paiements élèves (et auth / static / profil).
 PREFIXES_CAISSIER = PREFIXES_COMMUNS + (
     '/finances/paiements',
     '/finances/cloture',
+    '/finances/relances',
 )
 
 # Trésorier / Comptable : module finances (trésorerie) complet.
@@ -200,6 +210,29 @@ def _rediriger_restreint(request, path, cible_name, message):
     return redirect(cible)
 
 
+class SessionConnexionMiddleware:
+    """Met à jour les sessions de connexion et déconnecte si elles ont été révoquées."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        motif = actualiser_session_connexion(request)
+        if motif:
+            if motif == "inactivite":
+                messages.warning(
+                    request,
+                    "Votre session a été fermée après 2 heures d'inactivité.",
+                )
+            else:
+                messages.warning(
+                    request,
+                    "Cette session a été fermée. Reconnectez-vous.",
+                )
+            return redirect('utilisateur:login')
+        return self.get_response(request)
+
+
 class RestrictionPortailMiddleware:
     """Cantonne les comptes aux espaces correspondant à leur rôle / fonction.
 
@@ -224,8 +257,11 @@ class RestrictionPortailMiddleware:
             role = getattr(user, 'role', None)
             path = request.path or ''
 
-            if role in ROLES_RESTREINTS and not path.startswith(PREFIXES_AUTORISES):
-                return redirect('utilisateur:portail')
+            if role in ROLES_RESTREINTS:
+                if path.startswith('/mon-espace/enseignant') or path.startswith('/direction/'):
+                    return redirect('utilisateur:portail')
+                if not path.startswith(PREFIXES_AUTORISES):
+                    return redirect('utilisateur:portail')
 
             # Caissier avant les autres rôles finance / staff.
             if _est_caissier(user):
@@ -322,3 +358,38 @@ class RestrictionPortailMiddleware:
                     return redir or self.get_response(request)
 
         return self.get_response(request)
+
+
+class SecurityHeadersMiddleware:
+    """CSP, Permissions-Policy et durcissement des en-têtes (A05 / clickjacking)."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        jitsi_origin = meeting_origin()
+        csp = (
+            "default-src 'self'; "
+            f"script-src 'self' 'unsafe-inline' {jitsi_origin}; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: blob:; "
+            "font-src 'self'; "
+            f"connect-src 'self' {jitsi_origin} https://8x8.vc wss://8x8.vc https://*.8x8.vc wss://*.8x8.vc; "
+            f"frame-src 'self' {jitsi_origin}; "
+            "frame-ancestors 'none'; "
+            "base-uri 'self'; "
+            "form-action 'self'; "
+            "object-src 'none'; "
+            "worker-src 'self'"
+        )
+        if not getattr(settings, 'DEBUG', False):
+            csp += "; upgrade-insecure-requests"
+        response.setdefault('Content-Security-Policy', csp)
+        response.setdefault(
+            'Permissions-Policy',
+            f'camera=(self "{jitsi_origin}"), microphone=(self "{jitsi_origin}"), '
+            'geolocation=(), payment=(), usb=()',
+        )
+        response.setdefault('X-Content-Type-Options', 'nosniff')
+        return response

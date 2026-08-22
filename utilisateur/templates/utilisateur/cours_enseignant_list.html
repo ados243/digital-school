@@ -10,6 +10,7 @@
 
 <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem;">
     <a href="{% url 'utilisateur:cours_enseignant_create' %}" class="btn btn-primary">+ Nouveau cours</a>
+    <a href="{% url 'utilisateur:ressource_enseignant_list' %}" class="btn btn-secondary">Fichiers partagés</a>
 </div>
 
 <section class="kpi-grid" style="margin-bottom:1.25rem;">
@@ -76,7 +77,7 @@
                 <tr>
                     <th>Cours</th>
                     <th>Matière</th>
-                    <th>Classe</th>
+                    <th>Classes</th>
                     <th>Leçons</th>
                     <th>Statut</th>
                     <th></th>
@@ -87,7 +88,7 @@
                 <tr>
                     <td><strong>{{ c.titre }}</strong></td>
                     <td>{{ c.matiere.libelle }}</td>
-                    <td>{{ c.classe.classe }}</td>
+                    <td>{{ c.classes_libelle }}</td>
                     <td>{{ c.chapitres_total|default:0 }} ch. · {{ c.lecons_pub }} / {{ c.lecons_total }}</td>
                     <td>
                         {% if c.publie %}

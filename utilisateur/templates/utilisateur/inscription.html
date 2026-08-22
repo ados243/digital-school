@@ -8,11 +8,11 @@
 <div class="auth-card auth-card--wide">
     <div class="auth-card__header">
         <h2>Créer un compte</h2>
-        <p>Votre compte sera automatiquement rattaché à votre fiche existante grâce à votre matricule.</p>
+        <p>Votre compte sera rattaché à votre fiche existante.{% if inscription_whatsapp_actif %} Un code de confirmation sera envoyé sur le WhatsApp déjà enregistré par l’établissement.{% endif %}</p>
     </div>
 
     {% if form.non_field_errors %}
-    <div class="form-errors-banner" role="alert">
+    <div class="form-errors-banner" role="alert" aria-live="assertive">
         <span class="form-errors-banner__icon" aria-hidden="true">!</span>
         <div class="form-errors-banner__content">
             {% for error in form.non_field_errors %}
@@ -25,12 +25,19 @@
     <form method="post">
         {% csrf_token %}
 
-        <div class="auth-field">
-            <label>{{ form.profil.label }}</label>
+        <fieldset class="auth-field">
+            <legend class="auth-legend">{{ form.profil.label }}</legend>
             <div class="profile-picker">
                 {% for radio in form.profil %}
-                <label class="profile-picker__option">
-                    {{ radio.tag }}
+                <label class="profile-picker__option" for="{{ radio.id_for_label }}">
+                    <input
+                        type="radio"
+                        name="{{ radio.data.name }}"
+                        value="{{ radio.data.value }}"
+                        id="{{ radio.id_for_label }}"
+                        aria-label="{{ radio.choice_label }}"
+                        {% if radio.data.selected %}checked{% endif %}
+                    >
                     <span class="profile-picker__icon" aria-hidden="true">
                         {% if radio.data.value == 'PARENT' %}👨‍👩‍👧
                         {% elif radio.data.value == 'ELEVE' %}🎒
@@ -41,7 +48,7 @@
                 {% endfor %}
             </div>
             {% if form.profil.errors %}<p class="form-error" role="alert">{{ form.profil.errors|striptags }}</p>{% endif %}
-        </div>
+        </fieldset>
 
         <div class="form-grid-2">
             <div class="auth-field" id="field-ecole" style="grid-column: 1 / -1;">
@@ -72,6 +79,7 @@
             <div class="auth-field">
                 <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
                 {{ form.email }}
+                <p class="form-help">Adresse de votre compte. Le code de confirmation partira vers le contact déjà enregistré par l’école.</p>
                 {% if form.email.errors %}<p class="form-error" role="alert">{{ form.email.errors|striptags }}</p>{% endif %}
             </div>
 
@@ -94,11 +102,12 @@
             </div>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-lg btn-form-submit" style="width:100%; margin-top:.5rem;">Créer mon compte</button>
+        <button type="submit" class="btn btn-primary btn-lg btn-form-submit" style="width:100%; margin-top:.5rem;">Recevoir le code de confirmation</button>
     </form>
 
-    <div class="auth-card__footer">
-        Déjà inscrit ? <a href="{% url 'utilisateur:login' %}">Se connecter</a>
+    <div class="auth-card__footer" style="display:flex;flex-direction:column;gap:.5rem;">
+        <span>Déjà inscrit ? <a href="{% url 'utilisateur:login' %}">Se connecter</a></span>
+        <a href="{% url 'utilisateur:politique_confidentialite' %}">Politique de confidentialité</a>
     </div>
 </div>
 {% endblock %}

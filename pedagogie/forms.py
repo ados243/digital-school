@@ -11,9 +11,60 @@ from .models import (
     ChapitreCours,
     LeconEnLigne,
     CoursEnDirect,
+    RessourcePartagee,
 )
 from inscription.tenant import classes_for_ecole, annees_for_ecole
-from .validators import cours_video_max_mb, validate_cours_video
+from .validators import (
+    cours_video_max_mb,
+    ressource_fichier_max_mb,
+    type_ressource_depuis_nom,
+    validate_cours_video,
+    validate_ressource_fichier,
+    VIDEO_EXTENSIONS,
+)
+
+
+class _InputOnlyCheckboxSelect(forms.CheckboxSelectMultiple):
+    option_template_name = "django/forms/widgets/input.html"
+
+
+class CoursMultiClassesFormMixin:
+    """Sélection de plusieurs classes + synchro de la classe principale (FK)."""
+
+    def _configurer_classes(self, classes_qs=None):
+        self.fields["classes"].required = True
+        self.fields["classes"].widget.attrs["class"] = "form-check-input"
+        if classes_qs is not None:
+            self.fields["classes"].queryset = classes_qs.select_related("section")
+        self.fields["classes"].label_from_instance = (
+            lambda c: f"{c.classe} — {c.section}" if getattr(c, "section_id", None) else str(c.classe)
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        classes = list(cleaned.get("classes") or [])
+        matiere = cleaned.get("matiere")
+        if not classes:
+            self.add_error("classes", "Sélectionnez au moins une classe.")
+            return cleaned
+        if matiere:
+            mauvaises = [c for c in classes if c.section_id != matiere.section_id]
+            if mauvaises:
+                self.add_error(
+                    "classes",
+                    "Toutes les classes doivent appartenir à la même section que la matière.",
+                )
+        return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        classes = list(self.cleaned_data.get("classes") or [])
+        if classes:
+            instance.classe = classes[0]
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 
 
 def _configure_video_upload_field(field):
@@ -229,9 +280,9 @@ class AffectationEnseignementForm(FormControlMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, ecole=None, classe=None, **kwargs):
-        super().__init__(*args, **kwargs)
         self.ecole = ecole
         self.classe = classe
+        super().__init__(*args, **kwargs)
         if ecole and classe:
             self.fields['matiere'].queryset = (
                 Matiere.objects.filter(ecole=ecole, section=classe.section)
@@ -262,17 +313,17 @@ class AffectationEnseignementForm(FormControlMixin, forms.ModelForm):
         return cleaned
 
 
-class CoursEnLigneForm(FormControlMixin, forms.ModelForm):
+class CoursEnLigneForm(CoursMultiClassesFormMixin, FormControlMixin, forms.ModelForm):
     class Meta:
         model = CoursEnLigne
         fields = [
-            'annee_scolaire', 'classe', 'matiere', 'titre', 'sous_titre',
+            'annee_scolaire', 'classes', 'matiere', 'titre', 'sous_titre',
             'description', 'objectifs', 'competences', 'prerequis',
             'public_cible', 'niveau', 'duree_minutes', 'image_couverture',
         ]
         labels = {
             'annee_scolaire': 'Année scolaire',
-            'classe': 'Classe',
+            'classes': 'Classes',
             'matiere': 'Matière',
             'titre': 'Titre du cours',
             'sous_titre': 'Sous-titre',
@@ -286,6 +337,7 @@ class CoursEnLigneForm(FormControlMixin, forms.ModelForm):
             'image_couverture': 'Image de couverture',
         }
         widgets = {
+            'classes': _InputOnlyCheckboxSelect,
             'titre': forms.TextInput(attrs={'placeholder': 'Ex: Maîtriser les fractions'}),
             'sous_titre': forms.TextInput(attrs={
                 'placeholder': 'Ex: Comprendre, calculer et appliquer les fractions au quotidien',
@@ -308,6 +360,9 @@ class CoursEnLigneForm(FormControlMixin, forms.ModelForm):
             'public_cible': forms.TextInput(attrs={'placeholder': 'Ex: Élèves de 5e primaire'}),
             'duree_minutes': forms.NumberInput(attrs={'min': '0', 'placeholder': '0 = auto'}),
         }
+        help_texts = {
+            'classes': 'Cochez toutes les classes où vous donnez ce cours.',
+        }
 
     def __init__(self, *args, ecole=None, classes_qs=None, matieres_qs=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -315,18 +370,9 @@ class CoursEnLigneForm(FormControlMixin, forms.ModelForm):
 
         if ecole:
             self.fields['annee_scolaire'].queryset = annees_for_ecole(ecole)
-        if classes_qs is not None:
-            self.fields['classe'].queryset = classes_qs
+        self._configurer_classes(classes_qs)
         if matieres_qs is not None:
             self.fields['matiere'].queryset = matieres_qs
-
-    def clean(self):
-        cleaned = super().clean()
-        classe = cleaned.get('classe')
-        matiere = cleaned.get('matiere')
-        if classe and matiere and matiere.section_id != classe.section_id:
-            self.add_error('matiere', "Cette matière n'appartient pas à la section de la classe.")
-        return cleaned
 
 
 class ChapitreCoursForm(FormControlMixin, forms.ModelForm):
@@ -414,16 +460,16 @@ class LeconEnLigneForm(FormControlMixin, forms.ModelForm):
         return video
 
 
-class CoursEnDirectForm(FormControlMixin, forms.ModelForm):
+class CoursEnDirectForm(CoursMultiClassesFormMixin, FormControlMixin, forms.ModelForm):
     class Meta:
         model = CoursEnDirect
         fields = [
-            'annee_scolaire', 'classe', 'matiere', 'titre',
+            'annee_scolaire', 'classes', 'matiere', 'titre',
             'description', 'date_heure_prevue', 'duree_minutes',
         ]
         labels = {
             'annee_scolaire': 'Année scolaire',
-            'classe': 'Classe',
+            'classes': 'Classes',
             'matiere': 'Matière',
             'titre': 'Titre de la séance',
             'description': 'Description',
@@ -431,6 +477,7 @@ class CoursEnDirectForm(FormControlMixin, forms.ModelForm):
             'duree_minutes': 'Durée (minutes)',
         }
         widgets = {
+            'classes': _InputOnlyCheckboxSelect,
             'titre': forms.TextInput(attrs={'placeholder': 'Ex: Révision fractions — séance live'}),
             'description': forms.Textarea(attrs={
                 'rows': 3,
@@ -441,6 +488,9 @@ class CoursEnDirectForm(FormControlMixin, forms.ModelForm):
                 format='%Y-%m-%dT%H:%M',
             ),
             'duree_minutes': forms.NumberInput(attrs={'min': '15', 'step': '15'}),
+        }
+        help_texts = {
+            'classes': 'Cochez toutes les classes qui participent à cette visioconférence.',
         }
 
     def __init__(self, *args, ecole=None, classes_qs=None, matieres_qs=None, **kwargs):
@@ -458,16 +508,121 @@ class CoursEnDirectForm(FormControlMixin, forms.ModelForm):
             if annee and not (self.instance and self.instance.pk):
                 self.fields['annee_scolaire'].initial = annee.pk
                 self.fields['annee_scolaire'].empty_label = None
-        if classes_qs is not None:
-            self.fields['classe'].queryset = classes_qs
+        self._configurer_classes(classes_qs)
         if matieres_qs is not None:
             self.fields['matiere'].queryset = matieres_qs
 
+
+class RessourcePartageeForm(FormControlMixin, forms.ModelForm):
+    piece = forms.FileField(
+        label='Fichier',
+        required=False,
+        help_text='Vidéo (MP4/WebM), PDF, image, document Office ou ZIP.',
+    )
+
+    class Meta:
+        model = RessourcePartagee
+        fields = ['annee_scolaire', 'classes', 'matiere', 'titre', 'description', 'publie']
+        labels = {
+            'annee_scolaire': 'Année scolaire',
+            'classes': 'Classes',
+            'matiere': 'Matière',
+            'titre': 'Titre',
+            'description': 'Description',
+            'publie': 'Visible par les élèves',
+        }
+        widgets = {
+            'classes': _InputOnlyCheckboxSelect,
+            'titre': forms.TextInput(attrs={'placeholder': 'Ex: Fiche d’exercices — fractions'}),
+            'description': forms.Textarea(attrs={
+                'rows': 3,
+                'placeholder': 'Précisez l’usage du fichier (révision, devoir, support de cours…)',
+            }),
+        }
+        help_texts = {
+            'classes': 'Cochez les classes qui pourront télécharger ou consulter ce fichier.',
+            'matiere': 'Facultatif — aide les élèves à classer la ressource.',
+        }
+
+    def __init__(self, *args, ecole=None, classes_qs=None, matieres_qs=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['matiere'].required = False
+        self.fields['matiere'].empty_label = 'Toutes matières / non précisée'
+        self.fields['classes'].required = True
+        self.fields['classes'].widget.attrs['class'] = 'form-check-input'
+        if classes_qs is not None:
+            self.fields['classes'].queryset = classes_qs.select_related('section')
+        self.fields['classes'].label_from_instance = (
+            lambda c: f"{c.classe} — {c.section}" if getattr(c, 'section_id', None) else str(c.classe)
+        )
+        if ecole:
+            self.fields['annee_scolaire'].queryset = annees_for_ecole(ecole)
+            annee = annees_for_ecole(ecole).filter(est_encoure=True).first()
+            if annee and not (self.instance and self.instance.pk):
+                self.fields['annee_scolaire'].initial = annee.pk
+                self.fields['annee_scolaire'].empty_label = None
+        if matieres_qs is not None:
+            self.fields['matiere'].queryset = matieres_qs
+
+        max_mb = max(cours_video_max_mb(), ressource_fichier_max_mb())
+        piece = self.fields['piece']
+        piece.widget.attrs.update({
+            'accept': (
+                'video/mp4,video/webm,video/ogg,.mp4,.webm,.ogg,.mov,'
+                'application/pdf,.pdf,.doc,.docx,.odt,.xls,.xlsx,.ppt,.pptx,'
+                'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.gif,.webp,.zip'
+            ),
+            'data-max-mb': str(max_mb),
+            'data-file-limit': '1',
+        })
+        piece.help_text = (
+            f'Vidéo jusqu’à {cours_video_max_mb()} Mo ; PDF et autres fichiers jusqu’à '
+            f'{ressource_fichier_max_mb()} Mo.'
+        )
+        if self.instance and self.instance.pk and self.instance.piece:
+            piece.help_text += f' Fichier actuel : {self.instance.nom_fichier()}.'
+        else:
+            piece.required = True
+
+    def clean_piece(self):
+        piece = self.cleaned_data.get('piece')
+        if piece:
+            validate_ressource_fichier(piece)
+        return piece
+
     def clean(self):
         cleaned = super().clean()
-        classe = cleaned.get('classe')
+        classes = list(cleaned.get('classes') or [])
         matiere = cleaned.get('matiere')
-        if classe and matiere and matiere.section_id != classe.section_id:
-            self.add_error('matiere', "Cette matière n'appartient pas à la section de la classe.")
+        piece = cleaned.get('piece')
+        if not classes:
+            self.add_error('classes', 'Sélectionnez au moins une classe.')
+        if matiere and classes:
+            mauvaises = [c for c in classes if c.section_id != matiere.section_id]
+            if mauvaises:
+                self.add_error(
+                    'classes',
+                    'Toutes les classes doivent appartenir à la même section que la matière.',
+                )
+        if not (self.instance and self.instance.pk and self.instance.piece) and not piece:
+            self.add_error('piece', 'Ajoutez un fichier à partager.')
         return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        piece = self.cleaned_data.get('piece')
+        if piece:
+            nom = getattr(piece, 'name', '') or ''
+            if any(nom.lower().endswith(ext) for ext in VIDEO_EXTENSIONS):
+                instance.video = piece
+                instance.fichier = None
+                instance.type_fichier = RessourcePartagee.TYPE_VIDEO
+            else:
+                instance.fichier = piece
+                instance.video = None
+                instance.type_fichier = type_ressource_depuis_nom(nom)
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance
 

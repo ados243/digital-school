@@ -233,6 +233,30 @@ class Eleve(models.Model):
         def __str__(self):
             return f"{self.nom} {self.prenom}"
 
+        def anonymiser(self):
+            """Droit à l'effacement : retire les données personnelles identifiantes."""
+            self.nom = "Anonymisé"
+            self.Post_nom = ""
+            self.prenom = "Anonymisé"
+            self.date_de_naissance = self.date_de_naissance.replace(month=1, day=1) if self.date_de_naissance else self.date_de_naissance
+            if self.photo:
+                self.photo.delete(save=False)
+                self.photo = None
+            self.save()
+            from django.core.exceptions import ObjectDoesNotExist
+            try:
+                compte = self.compte_utilisateur
+            except ObjectDoesNotExist:
+                compte = None
+            if compte is not None:
+                compte.is_active = False
+                compte.email = ""
+                compte.prenom = "Anonymisé"
+                compte.last_name = "Anonymisé"
+                compte.set_unusable_password()
+                compte.save(update_fields=["is_active", "email", "prenom", "last_name", "password"])
+            return self
+
 
 class Inscription(models.Model):
     type_inscription_choices = [

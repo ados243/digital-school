@@ -3,6 +3,29 @@ from common.form_mixins import FormControlMixin
 from .models import Personnel, Contrat, Conge, Presence, Paie
 
 
+def _libelle_personnel(personnel):
+    nom = " ".join(
+        part for part in (personnel.prenom, personnel.nom, personnel.Post_nom) if part
+    )
+    fonction = personnel.get_fonction_display() or personnel.fonction or "Sans fonction"
+    return f"{nom} — {fonction}"
+
+
+class PersonnelFonctionSelect(forms.Select):
+    """Options du personnel annotées avec leur fonction."""
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(
+            name, value, label, selected, index, subindex=subindex, attrs=attrs
+        )
+        instance = getattr(value, "instance", None)
+        if instance is not None:
+            option["attrs"]["data-fonction"] = (
+                instance.get_fonction_display() or instance.fonction or ""
+            )
+        return option
+
+
 class PersonnelForm(FormControlMixin, forms.ModelForm):
     class Meta:
         model = Personnel
@@ -18,13 +41,19 @@ class PersonnelForm(FormControlMixin, forms.ModelForm):
             'adresse': 'Adresse',
             'photo': 'Photo',
             'telephone': 'Téléphone',
+            'email': 'E-mail',
             'fonction': 'Fonction',
         }
         widgets = {
             'date_de_naissance': forms.DateInput(attrs={'type': 'date'}),
             'fonction': forms.Select(),
             'adresse': forms.TextInput(attrs={'placeholder': 'Avenue, numéro…'}),
-            'telephone': forms.TextInput(attrs={'placeholder': 'Ex: 2438…'}),
+            'telephone': forms.TextInput(attrs={
+                'placeholder': 'Ex: 2438123456789',
+                'maxlength': '13',
+                'inputmode': 'numeric',
+            }),
+            'email': forms.EmailInput(attrs={'placeholder': 'prenom@ecole.cd'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -55,6 +84,7 @@ class ContratForm(FormControlMixin, forms.ModelForm):
             'date_debut': forms.DateInput(attrs={'type': 'date'}),
             'date_fin': forms.DateInput(attrs={'type': 'date'}),
             'salaire_base': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'personnel': PersonnelFonctionSelect,
         }
         help_texts = {
             'personnel': 'Un seul contrat par personne dans l’établissement. Les agents déjà sous contrat n’apparaissent pas.',
@@ -80,6 +110,7 @@ class ContratForm(FormControlMixin, forms.ModelForm):
         self.fields['personnel'].queryset = qs.distinct().order_by(
             'nom', 'Post_nom', 'prenom'
         )
+        self.fields['personnel'].label_from_instance = _libelle_personnel
         if current_id:
             self.fields['personnel'].disabled = True
 

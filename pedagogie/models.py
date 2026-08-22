@@ -1,15 +1,15 @@
 import uuid
-from urllib.parse import quote, urlencode
 
 from django.conf import settings
 from django.db import models
-from django.db.models import Avg
+from django.db.models import Avg, Q
 
+from common.jitsi import build_meeting_url
 from grh.models import Personnel
 from inscription.models import Ecole, Section, Classe, Annee_Scolaire, Inscription, Cycle
 
-from .storage import get_cours_video_storage, upload_to_cours_video
-from .validators import validate_cours_video
+from .storage import get_cours_video_storage, upload_to_cours_video, upload_to_ressource, upload_to_ressource_video
+from .validators import validate_cours_video, validate_ressource_fichier
 
 class Matiere(models.Model):
     ecole = models.ForeignKey(Ecole, on_delete=models.CASCADE)
@@ -480,7 +480,48 @@ class BulletinEleve(models.Model):
         return not self.total_obtenus or self.total_obtenus == 0
 
 
-class CoursEnLigne(models.Model):
+def qs_pour_classe(queryset, classe, *, via=''):
+    """Cours rattachés à une classe (M2M et/ou FK historique).
+
+    `via` permet de filtrer depuis un modèle lié, ex. via='cours' pour une leçon.
+    """
+    prefix = f"{via}__" if via else ""
+    return queryset.filter(
+        Q(**{f"{prefix}classes": classe}) | Q(**{f"{prefix}classe": classe})
+    ).distinct()
+
+
+class CoursClassesMixin:
+    """Affichage et accès multi-classes pour un cours en ligne ou une visio."""
+
+    def classes_concernees(self):
+        classes = list(self.classes.all())
+        if classes:
+            return classes
+        if getattr(self, "classe_id", None):
+            return [self.classe]
+        return []
+
+    def classes_libelle(self):
+        noms = [c.classe for c in self.classes_concernees()]
+        return ", ".join(noms) if noms else "—"
+    classes_libelle.short_description = "Classes"
+
+    def concerne_classe(self, classe):
+        if classe is None or classe == "":
+            return False
+        pk = getattr(classe, "pk", classe)
+        try:
+            pk = int(pk)
+        except (TypeError, ValueError):
+            return False
+        ids = {c.pk for c in self.classes.all()}
+        if ids:
+            return pk in ids
+        return self.classe_id == pk
+
+
+class CoursEnLigne(CoursClassesMixin, models.Model):
     """Cours numérique organisé par un enseignant pour une classe / matière."""
 
     NIVEAU_CHOICES = [
@@ -494,6 +535,13 @@ class CoursEnLigne(models.Model):
         Annee_Scolaire, on_delete=models.CASCADE, related_name='cours_en_ligne'
     )
     classe = models.ForeignKey(Classe, on_delete=models.CASCADE, related_name='cours_en_ligne')
+    classes = models.ManyToManyField(
+        Classe,
+        related_name='cours_en_ligne_partages',
+        blank=True,
+        verbose_name='Classes',
+        help_text='Classes où ce cours est dispensé.',
+    )
     matiere = models.ForeignKey(Matiere, on_delete=models.CASCADE, related_name='cours_en_ligne')
     enseignant = models.ForeignKey(
         Personnel,
@@ -555,7 +603,7 @@ class CoursEnLigne(models.Model):
     publie = models.BooleanField(
         default=False,
         verbose_name='Publié en ligne',
-        help_text='Visible par les élèves de la classe une fois publié.',
+        help_text='Visible par les élèves des classes sélectionnées une fois publié.',
     )
     date_publication = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -567,7 +615,7 @@ class CoursEnLigne(models.Model):
         ordering = ['matiere__libelle', 'titre']
 
     def __str__(self):
-        return f'{self.titre} ({self.matiere.libelle} — {self.classe.classe})'
+        return f'{self.titre} ({self.matiere.libelle} — {self.classes_libelle()})'
 
     @property
     def nb_lecons(self):
@@ -788,7 +836,7 @@ class ProgressionLecon(models.Model):
         return f'{self.inscription} — {self.lecon}'
 
 
-class CoursEnDirect(models.Model):
+class CoursEnDirect(CoursClassesMixin, models.Model):
     """Séance de cours synchrone par visioconférence (Jitsi Meet)."""
 
     STATUT_PLANIFIE = 'PLANIFIE'
@@ -807,6 +855,13 @@ class CoursEnDirect(models.Model):
         Annee_Scolaire, on_delete=models.CASCADE, related_name='cours_en_direct'
     )
     classe = models.ForeignKey(Classe, on_delete=models.CASCADE, related_name='cours_en_direct')
+    classes = models.ManyToManyField(
+        Classe,
+        related_name='cours_en_direct_partages',
+        blank=True,
+        verbose_name='Classes',
+        help_text='Classes qui rejoignent cette séance.',
+    )
     matiere = models.ForeignKey(Matiere, on_delete=models.CASCADE, related_name='cours_en_direct')
     enseignant = models.ForeignKey(
         Personnel,
@@ -842,26 +897,22 @@ class CoursEnDirect(models.Model):
         ordering = ['-date_heure_prevue']
 
     def __str__(self):
-        return f'{self.titre} — {self.classe} ({self.get_statut_display()})'
+        return f'{self.titre} — {self.classes_libelle()} ({self.get_statut_display()})'
 
     @property
     def room_name(self):
         prefix = getattr(settings, 'JITSI_ROOM_PREFIX', 'ds') or 'ds'
         return f'{prefix}-{self.jitsi_room_id}'
 
-    def jitsi_embed_url(self, display_name=''):
-        domain = (getattr(settings, 'JITSI_DOMAIN', None) or 'meet.jit.si').strip().rstrip('/')
-        if domain.startswith('https://') or domain.startswith('http://'):
-            domain = domain.split('://', 1)[1]
-        params = {
-            'config.prejoinPageEnabled': 'false',
-            'config.startWithAudioMuted': 'false',
-            'config.startWithVideoMuted': 'false',
-        }
-        if display_name:
-            params['userInfo.displayName'] = display_name
-        query = urlencode(params, quote_via=quote)
-        return f'https://{domain}/{self.room_name}#{query}'
+    def jitsi_embed_url(self, display_name='', email='', *, est_enseignant=False, user_id=''):
+        return build_meeting_url(
+            self.room_name,
+            display_name=display_name,
+            email=email,
+            is_moderator=est_enseignant,
+            start_with_video_muted=not est_enseignant,
+            user_id=user_id,
+        )
 
     def peut_etre_rejoint(self, *, est_enseignant=False):
         """Enseignant : planifié ou en cours. Élève : en cours (ou fenêtre autour de l'horaire)."""
@@ -929,3 +980,171 @@ class QuestionCoursDirect(models.Model):
             'created_at': self.created_at.isoformat() if self.created_at else '',
             'repondu_at': self.repondu_at.isoformat() if self.repondu_at else '',
         }
+
+
+class CreneauEmploiDuTemps(models.Model):
+    """Créneau hebdomadaire d'une classe (emploi du temps)."""
+
+    JOURS = [
+        (0, "Lundi"),
+        (1, "Mardi"),
+        (2, "Mercredi"),
+        (3, "Jeudi"),
+        (4, "Vendredi"),
+        (5, "Samedi"),
+    ]
+
+    ecole = models.ForeignKey(Ecole, on_delete=models.CASCADE, related_name="creneaux_edt")
+    classe = models.ForeignKey(Classe, on_delete=models.CASCADE, related_name="creneaux_edt")
+    jour = models.PositiveSmallIntegerField(choices=JOURS)
+    heure_debut = models.TimeField()
+    heure_fin = models.TimeField()
+    matiere = models.ForeignKey(
+        Matiere, on_delete=models.SET_NULL, null=True, blank=True, related_name="creneaux_edt"
+    )
+    enseignant = models.ForeignKey(
+        Personnel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="creneaux_edt",
+    )
+    salle = models.CharField(max_length=40, blank=True)
+
+    class Meta:
+        verbose_name = "Créneau d'emploi du temps"
+        verbose_name_plural = "Créneaux d'emploi du temps"
+        ordering = ["classe", "jour", "heure_debut"]
+
+    def __str__(self):
+        return f"{self.get_jour_display()} {self.heure_debut}-{self.heure_fin} · {self.classe}"
+
+
+class RessourcePartagee(models.Model):
+    """Fichier partagé par un enseignant avec une ou plusieurs classes."""
+
+    TYPE_VIDEO = 'VIDEO'
+    TYPE_PDF = 'PDF'
+    TYPE_IMAGE = 'IMAGE'
+    TYPE_DOCUMENT = 'DOCUMENT'
+    TYPE_AUTRE = 'AUTRE'
+    TYPE_CHOICES = [
+        (TYPE_VIDEO, 'Vidéo'),
+        (TYPE_PDF, 'PDF'),
+        (TYPE_IMAGE, 'Image'),
+        (TYPE_DOCUMENT, 'Document'),
+        (TYPE_AUTRE, 'Autre fichier'),
+    ]
+    TYPE_ICONES = {
+        TYPE_VIDEO: '🎬',
+        TYPE_PDF: '📄',
+        TYPE_IMAGE: '🖼️',
+        TYPE_DOCUMENT: '📎',
+        TYPE_AUTRE: '📁',
+    }
+
+    ecole = models.ForeignKey(Ecole, on_delete=models.CASCADE, related_name='ressources_partagees')
+    annee_scolaire = models.ForeignKey(
+        Annee_Scolaire, on_delete=models.CASCADE, related_name='ressources_partagees'
+    )
+    enseignant = models.ForeignKey(
+        Personnel, on_delete=models.CASCADE, related_name='ressources_partagees'
+    )
+    matiere = models.ForeignKey(
+        Matiere,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ressources_partagees',
+    )
+    classes = models.ManyToManyField(
+        Classe,
+        related_name='ressources_partagees',
+        verbose_name='Classes',
+        help_text='Classes qui peuvent consulter cette ressource.',
+    )
+    titre = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    type_fichier = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TYPE_DOCUMENT)
+    fichier = models.FileField(
+        upload_to=upload_to_ressource,
+        null=True,
+        blank=True,
+        verbose_name='Fichier',
+        validators=[validate_ressource_fichier],
+    )
+    video = models.FileField(
+        upload_to=upload_to_ressource_video,
+        storage=get_cours_video_storage,
+        null=True,
+        blank=True,
+        verbose_name='Vidéo',
+        validators=[validate_cours_video],
+    )
+    publie = models.BooleanField(
+        default=True,
+        verbose_name='Visible par les élèves',
+        help_text='Décochez pour garder un brouillon.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Ressource partagée'
+        verbose_name_plural = 'Ressources partagées'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.titre
+
+    def classes_concernees(self):
+        return list(self.classes.all())
+
+    def classes_libelle(self):
+        noms = [c.classe for c in self.classes_concernees()]
+        return ", ".join(noms) if noms else "—"
+    classes_libelle.short_description = "Classes"
+
+    def concerne_classe(self, classe):
+        if classe is None or classe == "":
+            return False
+        pk = getattr(classe, "pk", classe)
+        try:
+            pk = int(pk)
+        except (TypeError, ValueError):
+            return False
+        return pk in {c.pk for c in self.classes.all()}
+
+    @property
+    def est_video(self):
+        return self.type_fichier == self.TYPE_VIDEO and bool(self.video)
+
+    @property
+    def piece(self):
+        return self.video if self.est_video else self.fichier
+
+    @property
+    def icone(self):
+        return self.TYPE_ICONES.get(self.type_fichier, '📁')
+
+    def taille_affichee(self):
+        piece = self.piece
+        if not piece:
+            return "—"
+        try:
+            n = piece.size
+        except (OSError, ValueError, AttributeError):
+            return "—"
+        if n < 1024:
+            return f"{n} o"
+        if n < 1024 * 1024:
+            return f"{n / 1024:.0f} Ko"
+        return f"{n / (1024 * 1024):.1f} Mo"
+
+    def nom_fichier(self):
+        piece = self.piece
+        if not piece:
+            return ""
+        name = getattr(piece, "name", "") or ""
+        return name.rsplit("/", 1)[-1]
+

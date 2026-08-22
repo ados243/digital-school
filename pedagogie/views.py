@@ -5,6 +5,7 @@ from django.db.models import Sum, Count, Q
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from datetime import date, datetime
+from collections import defaultdict
 
 from .models import Matiere, PresenceClasse, PresenceEleve, DivisionAnnee, PeriodeBulletin
 from .forms import MatiereForm
@@ -16,11 +17,21 @@ from .periodes_utils import (
     synchroniser_encours,
 )
 from inscription.models import Classe, Section, Annee_Scolaire, Inscription, Cycle
+from common.tenant import get_user_ecole
+
+
+def _peut_editer_calendrier_national(user):
+    """Le calendrier MINEDU est partagé : seuls manager / superuser le basculent."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_superuser", False):
+        return True
+    return getattr(user, "role", None) == "MANAGER"
 
 
 @login_required
 def pedagogie_dashboard(request):
-    ecole = request.user.ecole
+    ecole = get_user_ecole(request)
     annee = Annee_Scolaire.objects.filter(est_encoure=True).first()
     calendrier_encours = resume_encours(annee=annee)
 
@@ -36,37 +47,49 @@ def pedagogie_dashboard(request):
         ):
             inscrits_par_classe[row['classe_id']] = row['total']
 
+    matieres_par_section = defaultdict(list)
+    for m in matieres:
+        matieres_par_section[m.section_id].append(m)
+    classes_par_section = defaultdict(list)
+    for c in classes:
+        classes_par_section[c.section_id].append(c)
+
+    section_ids = set(matieres_par_section) | set(classes_par_section)
+    sections = (
+        Section.objects.filter(pk__in=section_ids).select_related('cycle').order_by('cycle__cycle', 'section')
+        if section_ids
+        else Section.objects.none()
+    )
+
     sections_data = {}
-    sections = Section.objects.select_related('cycle').all()
     total_inscrits = 0
     classes_completes = 0
 
     for s in sections:
-        sec_matieres = matieres.filter(section=s)
-        sec_classes = classes.filter(section=s)
-        if sec_matieres.exists() or sec_classes.exists():
-            total_coef = sec_matieres.aggregate(total=Sum('coefficient'))['total'] or 0
-            classes_detail = []
-            for c in sec_classes:
-                inscrits = inscrits_par_classe.get(c.id, 0)
-                total_inscrits += inscrits
-                is_full = inscrits >= c.capacite_max
-                if is_full:
-                    classes_completes += 1
-                percent = int((inscrits / c.capacite_max) * 100) if c.capacite_max > 0 else 0
-                classes_detail.append({
-                    'obj': c,
-                    'inscrits': inscrits,
-                    'percent': percent,
-                    'is_full': is_full,
-                })
-            sections_data[s] = {
-                'matieres': sec_matieres,
-                'classes': classes_detail,
-                'total_coefficient': total_coef,
-                'matieres_count': sec_matieres.count(),
-                'classes_count': sec_classes.count(),
-            }
+        sec_matieres = matieres_par_section.get(s.id, [])
+        sec_classes = classes_par_section.get(s.id, [])
+        total_coef = sum((m.coefficient or 0) for m in sec_matieres)
+        classes_detail = []
+        for c in sec_classes:
+            inscrits = inscrits_par_classe.get(c.id, 0)
+            total_inscrits += inscrits
+            is_full = inscrits >= c.capacite_max
+            if is_full:
+                classes_completes += 1
+            percent = int((inscrits / c.capacite_max) * 100) if c.capacite_max > 0 else 0
+            classes_detail.append({
+                'obj': c,
+                'inscrits': inscrits,
+                'percent': percent,
+                'is_full': is_full,
+            })
+        sections_data[s] = {
+            'matieres': sec_matieres,
+            'classes': classes_detail,
+            'total_coefficient': total_coef,
+            'matieres_count': len(sec_matieres),
+            'classes_count': len(sec_classes),
+        }
 
     stats = {
         'total_matieres': matieres.count(),
@@ -97,6 +120,12 @@ def periodes_bulletin(request):
     desactiver_periodes_expirees()
 
     if request.method == 'POST' and request.POST.get('action') == 'sync':
+        if not _peut_editer_calendrier_national(request.user):
+            messages.error(
+                request,
+                "Seul un administrateur plateforme peut synchroniser le calendrier national.",
+            )
+            return redirect('pedagogie:periodes_bulletin')
         synchroniser_encours(annee=annee)
         messages.success(
             request,
@@ -141,12 +170,19 @@ def periodes_bulletin(request):
         'cycles_data': cycles_data,
         'aujourdhui': date.today(),
         'calendrier_encours': resume_encours(annee=annee),
+        'peut_editer_calendrier': _peut_editer_calendrier_national(request.user),
     })
 
 
 @login_required
 @require_POST
 def division_toggle_encours(request, pk):
+    if not _peut_editer_calendrier_national(request.user):
+        messages.error(
+            request,
+            "Le calendrier bulletin est national : seuls le manager et le superutilisateur peuvent le modifier.",
+        )
+        return redirect(request.POST.get('next') or 'pedagogie:periodes_bulletin')
     division = get_object_or_404(DivisionAnnee.objects.select_related('cycle'), pk=pk)
     desactiver_periodes_expirees()
     if division.est_encours:
@@ -175,6 +211,12 @@ def division_toggle_encours(request, pk):
 @login_required
 @require_POST
 def periode_toggle_encours(request, pk):
+    if not _peut_editer_calendrier_national(request.user):
+        messages.error(
+            request,
+            "Le calendrier bulletin est national : seuls le manager et le superutilisateur peuvent le modifier.",
+        )
+        return redirect(request.POST.get('next') or 'pedagogie:periodes_bulletin')
     periode = get_object_or_404(
         PeriodeBulletin.objects.select_related('cycle', 'division'), pk=pk
     )

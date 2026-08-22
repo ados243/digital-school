@@ -6,65 +6,68 @@
 {% block page_subtitle %}Vue d'ensemble de la gestion des ressources humaines.{% endblock %}
 
 {% block header_actions %}
-    {% if total_personnel == 0 %}
-        <a href="{% url 'grh:generer_demo' %}" class="btn btn-success">⚙️ Générer Données Démo</a>
-    {% else %}
-        <a href="{% url 'grh:generer_demo' %}" class="btn btn-secondary btn-sm">Réinitialiser Données Démo</a>
+    {% if peut_generer_demo %}
+        {% if total_personnel == 0 %}
+        <a href="{% url 'grh:generer_demo' %}" class="btn btn-secondary">Générer données démo</a>
+        {% else %}
+        <a href="{% url 'grh:generer_demo' %}" class="btn btn-secondary btn-sm">Réinitialiser données démo</a>
+        {% endif %}
     {% endif %}
 {% endblock %}
 
 {% block content %}
 <!-- KPI Cards -->
-<section class="kpi-grid">
-    <div class="kpi-card">
+<section class="kpi-grid" aria-label="Indicateurs GRH">
+    <a href="{% url 'grh:personnel_list' %}" class="kpi-card kpi-card--link">
         <div>
             <div class="kpi-title">Membres du Personnel</div>
             <div class="kpi-value">{{ total_personnel }}</div>
         </div>
-        <div class="kpi-footer">👥 Employés inscrits</div>
-    </div>
+        <div class="kpi-footer"><span aria-hidden="true">👥</span> Employés inscrits</div>
+    </a>
     
-    <div class="kpi-card">
+    <a href="{% url 'grh:contrat_list' %}" class="kpi-card kpi-card--link">
         <div>
             <div class="kpi-title">Contrats Actifs</div>
             <div class="kpi-value">{{ contrats_actifs }}</div>
         </div>
-        <div class="kpi-footer">📄 Contrats de travail signés</div>
-    </div>
+        <div class="kpi-footer"><span aria-hidden="true">📄</span> Contrats de travail signés</div>
+    </a>
     
-    <div class="kpi-card">
+    <a href="{% url 'grh:conge_list' %}" class="kpi-card kpi-card--link">
         <div>
             <div class="kpi-title">Congés en attente</div>
             <div class="kpi-value">{{ conges_en_attente }}</div>
         </div>
-        <div class="kpi-footer">📅 Demandes à valider</div>
-    </div>
+        <div class="kpi-footer"><span aria-hidden="true">📅</span> Demandes à valider</div>
+    </a>
     
-    <div class="kpi-card">
+    <a href="{% url 'grh:paie_list' %}" class="kpi-card kpi-card--link">
         <div>
             <div class="kpi-title">Masse Salariale (Mois)</div>
-            <div class="kpi-value" style="font-size: 1.4rem; font-weight: 700; margin-top: 0.5rem;">
-                {{ total_paie_mensuelle_usd }} USD <br>
-                {{ total_paie_mensuelle_cdf|filesizeformat|slice:":-2" }} CDF
-                <!-- wait, we can just display the numbers directly -->
-                <span style="font-size: 1.2rem; display:block; margin-top:0.25rem;">{{ total_paie_mensuelle_cdf }} CDF</span>
+            <div class="kpi-value" style="font-size: 1.35rem;">
+                {{ total_paie_mensuelle_usd }} USD
+                <span style="display:block; font-size:1.1rem; margin-top:.2rem;">{{ total_paie_mensuelle_cdf }} CDF</span>
             </div>
         </div>
-        <div class="kpi-footer">💳 Total net payé/dû</div>
-    </div>
+        <div class="kpi-footer"><span aria-hidden="true">💳</span> Total net payé / dû</div>
+    </a>
 </section>
 
 {% if total_personnel == 0 %}
 <div class="panel" style="border: 2px dashed var(--primary); text-align: center; padding: 3rem;">
-    <h2>Base de données vide</h2>
+    <h2>Aucun personnel enregistré</h2>
     <p style="color: var(--text-muted); margin: 1rem 0 2rem 0;">
-        Il semble qu'aucun membre du personnel n'ait été enregistré. 
-        Pour tester rapidement toutes les fonctionnalités (Contrats, Présences, Congés, Fiches de paie), 
-        cliquez sur le bouton ci-dessous afin de générer un jeu de données de test réaliste.
+        Commencez par créer une fiche personnel.
+        {% if peut_generer_demo %}
+        En développement, vous pouvez aussi générer un jeu de données de test.
+        {% endif %}
     </p>
-    <a href="{% url 'grh:generer_demo' %}" class="btn btn-primary" style="padding: 1rem 2rem; font-size: 1rem;">
-        ⚡ Générer les données de démonstration
-    </a>
+    {% if peut_generer_demo %}
+    <a href="{% url 'grh:generer_demo' %}" class="btn btn-primary">Générer les données de démonstration</a>
+    {% else %}
+    <a href="{% url 'grh:personnel_create' %}" class="btn btn-primary">Nouveau personnel</a>
+    {% endif %}
 </div>
 {% else %}
 

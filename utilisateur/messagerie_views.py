@@ -126,7 +126,7 @@ def messagerie_detail(request, pk):
         return redirect('utilisateur:portail')
 
     conversation = get_object_or_404(
-        Conversation.objects.select_related(
+        _conversations_visibles(request.user).select_related(
             'inscription__eleve',
             'classe',
             'annee_scolaire',
@@ -137,9 +137,6 @@ def messagerie_detail(request, pk):
         ),
         pk=pk,
     )
-    if not _peut_acceder(request.user, conversation):
-        messages.error(request, "Vous n'avez pas accès à cette conversation.")
-        return redirect('utilisateur:messagerie_inbox')
 
     if request.method == 'POST':
         contenu = (request.POST.get('contenu') or '').strip()

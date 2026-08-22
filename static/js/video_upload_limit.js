@@ -15,8 +15,11 @@
     var maxMb = Math.round(limit / (1024 * 1024));
     if (file.size > limit) {
       var sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      var label = input.hasAttribute('data-file-limit') && !input.hasAttribute('data-video-limit')
+        ? 'Fichier trop volumineux'
+        : 'Vidéo trop volumineuse';
       window.alert(
-        'Vidéo trop volumineuse (' + sizeMb + ' Mo).\n' +
+        label + ' (' + sizeMb + ' Mo).\n' +
         'Taille maximale autorisée : ' + maxMb + ' Mo.'
       );
       input.value = '';
@@ -27,7 +30,7 @@
 
   function onChange(e) {
     var input = e.target;
-    if (!input || !input.matches || !input.matches('input[type="file"][data-video-limit]')) {
+    if (!input || !input.matches || !input.matches('input[type="file"][data-video-limit], input[type="file"][data-file-limit]')) {
       return;
     }
     checkInput(input);
@@ -36,7 +39,7 @@
   function onSubmit(e) {
     var form = e.target;
     if (!form || form.tagName !== 'FORM') return;
-    var inputs = form.querySelectorAll('input[type="file"][data-video-limit]');
+    var inputs = form.querySelectorAll('input[type="file"][data-video-limit], input[type="file"][data-file-limit]');
     for (var i = 0; i < inputs.length; i++) {
       if (!checkInput(inputs[i])) {
         e.preventDefault();
