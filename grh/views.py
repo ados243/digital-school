@@ -1,6 +1,4 @@
-from django.core.exceptions import PermissionDenied
 from django.shortcuts import render, redirect, get_object_or_404
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
@@ -19,8 +17,6 @@ from .tenant import (
     presences_for_ecole,
     paies_for_ecole,
 )
-from inscription.models import Ecole, Quartier, Commune
-from utilisateur.models import Utilisateur
 from finances.models import Devise
 
 @login_required
@@ -68,184 +64,8 @@ def dashboard(request):
         'nb_retards': nb_retards,
         'nb_conges': nb_conges,
         'today': today,
-        'peut_generer_demo': bool(settings.DEBUG and request.user.is_superuser),
     }
     return render(request, 'grh/dashboard.html', context)
-
-@login_required
-def generer_donnees_demo(request):
-    if not request.user.is_superuser:
-        raise PermissionDenied
-    if not settings.DEBUG:
-        messages.error(
-            request,
-            "Le jeu de données de démonstration n'est disponible qu'en développement.",
-        )
-        return redirect("grh:dashboard")
-    try:
-        # 1. Communes and Quartiers
-        commune, _ = Commune.objects.get_or_create(commune="Commune de la Gombe")
-        quartier, _ = Quartier.objects.get_or_create(commune=commune, quartier="Quartier du Fleuve")
-        
-        # 2. Ecole
-        ecole, _ = Ecole.objects.get_or_create(
-            code_ecole="BOB01",
-            defaults={
-                'ecole': "Collège Boboto",
-                'type_ecole': "PUBLICQUE",
-                'quartier': quartier,
-                'adresse': "Avenue Boboto N° 12, Gombe",
-                'telephone1': "+243810000001",
-                'telephone2': "+243810000002",
-                'email': "contact@boboto.cd",
-                'activation': True
-            }
-        )
-        
-        # 3. Devises
-        usd, _ = Devise.objects.get_or_create(devise='USD')
-        cdf, _ = Devise.objects.get_or_create(devise='CDF')
-        
-        # 4. Users (Utilisateurs)
-        users_data = [
-            ('jean.mukendi', 'Jean', 'DIRECTEUR'),
-            ('marie.mwamba', 'Marie', 'ENSEIGNANT'),
-            ('pierre.kabeya', 'Pierre', 'TRESORIE'),
-            ('julie.kasa', 'Julie', 'CAISSIER'),
-        ]
-        
-        users = {}
-        for username, first_name, role in users_data:
-            user = Utilisateur.objects.filter(username=username).first()
-            if not user:
-                user = Utilisateur.objects.create_user(
-                    username=username,
-                    email=f"{username}@boboto.cd",
-                    password="password123",
-                    prenom=first_name,
-                    role=role
-                )
-            users[username] = user
-            
-        # 5. Personnel
-        personnel_data = [
-            ('jean.mukendi', 'Mukendi', 'Jean', 'Masculin', 'Directeur des Etudes', 'DIR001', '243811234567'),
-            ('marie.mwamba', 'Mwamba', 'Marie', 'Feminin', 'Enseignante de Français', 'ENS002', '243811234568'),
-            ('pierre.kabeya', 'Kabeya', 'Pierre', 'Masculin', 'Trésorier Principal', 'TRE003', '243811234569'),
-            ('julie.kasa', 'Kasa', 'Julie', 'Feminin', 'Caissière', 'CAI004', '243811234570'),
-        ]
-        
-        employees = {}
-        for username, nom, prenom, sexe, fonction, matricule, tel in personnel_data:
-            emp = Personnel.objects.filter(matricule=matricule).first()
-            if not emp:
-                emp = Personnel.objects.create(
-                    ecole=ecole,
-                    utilisateur=users[username],
-                    nom=nom,
-                    Post_nom="Post" + nom,
-                    prenom=prenom,
-                    sexe=sexe,
-                    date_de_naissance=date(1980, 5, 12) if prenom == 'Jean' else date(1988, 8, 20),
-                    nationalite="Congolaise",
-                    quartier=quartier,
-                    adresse="Avenue du Fleuve N° " + ("10" if prenom == 'Jean' else "14"),
-                    matricule=matricule,
-                    telephone=tel,
-                    fonction=fonction
-                )
-            employees[username] = emp
-            
-        # 6. Contrats
-        contrats_data = [
-            ('jean.mukendi', 'CDI', Decimal("1500.00"), usd),
-            ('marie.mwamba', 'CDD', Decimal("750.00"), usd),
-            ('pierre.kabeya', 'CDI', Decimal("1000.00"), usd),
-            ('julie.kasa', 'CDD', Decimal("1200000.00"), cdf),
-        ]
-
-        
-        for username, type_c, salaire, dev in contrats_data:
-            emp = employees[username]
-            if not Contrat.objects.filter(personnel=emp).exists():
-                Contrat.objects.create(
-                    personnel=emp,
-                    type_contrat=type_c,
-                    date_debut=date(2026, 1, 1),
-                    salaire_base=salaire,
-                    devise=dev,
-                    statut='ACTIF'
-                )
-                
-        # 7. Congés
-        if not Conge.objects.exists():
-            Conge.objects.create(
-                personnel=employees['marie.mwamba'],
-                type_conge='ANNUEL',
-                date_debut=date(2026, 8, 1),
-                date_fin=date(2026, 8, 15),
-                motif="Congé annuel de détente",
-                statut='APPROUVE'
-            )
-            Conge.objects.create(
-                personnel=employees['pierre.kabeya'],
-                type_conge='MALADIE',
-                date_debut=date(2026, 7, 10),
-                date_fin=date(2026, 7, 12),
-                motif="Rendez-vous médical",
-                statut='EN_ATTENTE'
-            )
-            
-        # 8. Présences
-        if not Presence.objects.exists():
-            today = date.today()
-            for i in range(5):
-                d = today - timedelta(days=i)
-                if d.weekday() >= 5:
-                    continue
-                for username, emp in employees.items():
-                    statut = 'PRESENT'
-                    heure_arr = "07:30:00"
-                    if username == 'pierre.kabeya' and i == 1:
-                        statut = 'RETARD'
-                        heure_arr = "08:15:00"
-                    elif username == 'marie.mwamba' and i == 3:
-                        statut = 'ABSENT'
-                        heure_arr = None
-                        
-                    Presence.objects.get_or_create(
-                        personnel=emp,
-                        date=d,
-                        defaults={
-                            'statut': statut,
-                            'heure_arrivee': datetime.strptime(heure_arr, "%H:%M:%S").time() if heure_arr else None,
-                            'heure_depart': datetime.strptime("16:00:00", "%H:%M:%S").time() if statut != 'ABSENT' else None
-                        }
-                    )
-                    
-        # 9. Paies
-        if not Paie.objects.exists():
-            for username, emp in employees.items():
-                contrat = emp.contrats.first()
-                if contrat:
-                    Paie.objects.create(
-                        personnel=emp,
-                        mois=6,
-                        annee=2026,
-                        salaire_base=contrat.salaire_base,
-primes=Decimal("50.00") if username == 'jean.mukendi' else Decimal("0.00"),
-                        deductions=Decimal("10.00") if username == 'marie.mwamba' else Decimal("0.00"),
-
-                        devise=contrat.devise,
-                        statut_paiement='PAYE',
-                        date_paiement=date(2026, 6, 28)
-                    )
-                    
-        messages.success(request, "Données de démonstration générées avec succès !")
-    except Exception as e:
-        messages.error(request, f"Erreur lors de la génération des données : {str(e)}")
-        
-    return redirect('grh:dashboard')
 
 # --- Personnel CRUD ---
 @login_required
@@ -263,6 +83,8 @@ def personnel_list(request):
 
 @login_required
 def personnel_create(request):
+    from inscription.forms import QuartierForm
+
     ecole = get_user_ecole(request)
     if request.method == 'POST':
         form = PersonnelForm(request.POST, request.FILES)
@@ -280,10 +102,14 @@ def personnel_create(request):
     return render(request, 'grh/personnel_form.html', {
         'form': form,
         'title': "Ajouter un membre du personnel",
+        'quartier_form': QuartierForm(prefix='quartier_modal'),
+        'quartier_create_url': reverse('inscription:quartier_create'),
     })
 
 @login_required
 def personnel_update(request, pk):
+    from inscription.forms import QuartierForm
+
     ecole = get_user_ecole(request)
     personnel = get_object_or_404(Personnel, pk=pk, ecole=ecole)
     if request.method == 'POST':
@@ -298,6 +124,8 @@ def personnel_update(request, pk):
         'form': form,
         'title': "Modifier le membre du personnel",
         'personnel': personnel,
+        'quartier_form': QuartierForm(prefix='quartier_modal'),
+        'quartier_create_url': reverse('inscription:quartier_create'),
     })
 
 @login_required
@@ -671,12 +499,26 @@ def paie_detail(request, pk):
     # Calculer le nombre de jours de présence pour ce mois (approximatif)
     absences = Presence.objects.filter(personnel=paie.personnel, date__month=paie.mois, date__year=paie.annee, statut='ABSENT').count()
     presences = Presence.objects.filter(personnel=paie.personnel, date__month=paie.mois, date__year=paie.annee, statut__in=['PRESENT', 'RETARD']).count()
-    
+
+    from finances.paiement_utils import verifier_depense_contre_caisse
+
     # Formulaire rapide pour éditer les primes et déductions
     if request.method == 'POST':
         old_statut = paie.statut_paiement
         form = PaieForm(request.POST, instance=paie, ecole=ecole)
         if form.is_valid():
+            nouveau_statut = form.cleaned_data.get('statut_paiement')
+            if old_statut != 'PAYE' and nouveau_statut == 'PAYE':
+                devise_code = str(paie.devise.devise) if paie.devise_id else ""
+                ok_caisse, msg_caisse, _ = verifier_depense_contre_caisse(
+                    ecole,
+                    form.cleaned_data.get('net_a_payer') or paie.net_a_payer,
+                    devise_code,
+                    form.cleaned_data.get('mode_paiement') or paie.mode_paiement or "ESPECES",
+                )
+                if not ok_caisse:
+                    messages.error(request, msg_caisse)
+                    return redirect('grh:paie_detail', pk=pk)
             updated = form.save()
             if old_statut != 'PAYE' and updated.statut_paiement == 'PAYE':
                 from finances.views import _hoada_auto_post_salary_to_entries
@@ -693,12 +535,20 @@ def paie_detail(request, pk):
             return redirect('grh:paie_detail', pk=pk)
     else:
         form = PaieForm(instance=paie, ecole=ecole)
-        
+
+    devise_code = str(paie.devise.devise) if paie.devise_id else ""
+    ok_caisse, msg_caisse, dispo_caisse = verifier_depense_contre_caisse(
+        ecole, paie.net_a_payer, devise_code, paie.mode_paiement or "ESPECES"
+    )
+
     context = {
         'paie': paie,
         'absences': absences,
         'presences': presences,
-        'form': form
+        'form': form,
+        'caisse_ok': ok_caisse,
+        'caisse_message': msg_caisse,
+        'caisse_disponible': dispo_caisse,
     }
     return render(request, 'grh/paie_detail.html', context)
 
@@ -722,7 +572,7 @@ def paie_pay(request, pk):
             or "Paiement enregistré, mais l'écriture comptable n'a pas pu être créée.",
         )
     elif result['erreur']:
-        messages.warning(request, result['erreur'])
+        messages.error(request, result['erreur'])
     else:
         messages.info(request, "Cette fiche était déjà payée.")
     return redirect('grh:paie_detail', pk=pk)

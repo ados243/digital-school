@@ -153,8 +153,6 @@ def _chemin_action_ecriture(path):
         '/inscrire',
         '/publier',
         '/renvoyer',
-        '/seed',
-        '/generer-demo',
     )
     if any(m in path for m in marqueurs):
         return True
@@ -175,6 +173,10 @@ def _chemin_autorise_prefet(request):
 
     # GRH : lecture et écriture.
     if path.startswith('/grh'):
+        return True
+
+    # Création de quartier depuis le formulaire personnel (modal AJAX).
+    if path.startswith('/inscription/quartiers/nouveau'):
         return True
 
     # Hors GRH : consultation uniquement (GET/HEAD/OPTIONS).
@@ -220,9 +222,13 @@ class SessionConnexionMiddleware:
         motif = actualiser_session_connexion(request)
         if motif:
             if motif == "inactivite":
+                from django.conf import settings
+
+                secondes = int(getattr(settings, "SESSION_IDLE_SECONDS", 900) or 900)
+                minutes = max(1, secondes // 60)
                 messages.warning(
                     request,
-                    "Votre session a été fermée après 2 heures d'inactivité.",
+                    f"Votre session a été fermée après {minutes} minute{'s' if minutes > 1 else ''} d'inactivité.",
                 )
             else:
                 messages.warning(

@@ -36,7 +36,7 @@
       <div class="kpi-title">Espèces en caisse — {{ row.devise__devise }}</div>
       <div class="kpi-value">{{ row.total }}</div>
     </div>
-    <div class="kpi-footer">💵 Espèces réellement reçues (devise d'encaissement)</div>
+    <div class="kpi-footer">💵 Disponible (encaissements − sorties espèces)</div>
   </div>
   {% empty %}
   <div class="kpi-card">
@@ -44,7 +44,7 @@
       <div class="kpi-title">Espèces en caisse</div>
       <div class="kpi-value">0</div>
     </div>
-    <div class="kpi-footer">💵 Aucun encaissement espèces</div>
+    <div class="kpi-footer">💵 Aucun fond disponible</div>
   </div>
   {% endfor %}
 
@@ -342,10 +342,6 @@
       <div class="panel-header">
         <h3>Derniers paiements</h3>
         <div style="display:flex; gap:.5rem; align-items:center; flex-wrap: wrap;">
-          <form method="post" action="{% url 'finances:seed_finances' %}" style="margin:0;">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-primary btn-sm">⚡ Générer données</button>
-          </form>
           <a href="{% url 'finances:paiement_list' %}" class="btn btn-secondary btn-sm">Gérer</a>
           {% if request.user.is_caissier %}
           <a href="{% url 'finances:paiement_create' %}" class="btn btn-primary btn-sm">+ Ajouter</a>

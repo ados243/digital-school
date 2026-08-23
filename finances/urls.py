@@ -83,9 +83,6 @@ urlpatterns = [
 
     # Inscription - Frais d'inscription non payés
     path('inscriptions/non-paye/', views.inscriptions_non_paye, name='inscriptions_non_paye'),
-
-    # Seed finances/paiements
-    path('seed/', views.seed_finances, name='seed_finances'),
 ]
 
 

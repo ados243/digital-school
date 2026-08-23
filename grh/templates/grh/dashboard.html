@@ -5,16 +5,6 @@
 {% block page_title %}Tableau de bord GRH{% endblock %}
 {% block page_subtitle %}Vue d'ensemble de la gestion des ressources humaines.{% endblock %}
 
-{% block header_actions %}
-    {% if peut_generer_demo %}
-        {% if total_personnel == 0 %}
-        <a href="{% url 'grh:generer_demo' %}" class="btn btn-secondary">Générer données démo</a>
-        {% else %}
-        <a href="{% url 'grh:generer_demo' %}" class="btn btn-secondary btn-sm">Réinitialiser données démo</a>
-        {% endif %}
-    {% endif %}
-{% endblock %}
-
 {% block content %}
 <!-- KPI Cards -->
 <section class="kpi-grid" aria-label="Indicateurs GRH">
@@ -59,15 +49,8 @@
     <h2>Aucun personnel enregistré</h2>
     <p style="color: var(--text-muted); margin: 1rem 0 2rem 0;">
         Commencez par créer une fiche personnel.
-        {% if peut_generer_demo %}
-        En développement, vous pouvez aussi générer un jeu de données de test.
-        {% endif %}
     </p>
-    {% if peut_generer_demo %}
-    <a href="{% url 'grh:generer_demo' %}" class="btn btn-primary">Générer les données de démonstration</a>
-    {% else %}
     <a href="{% url 'grh:personnel_create' %}" class="btn btn-primary">Nouveau personnel</a>
-    {% endif %}
 </div>
 {% else %}
 

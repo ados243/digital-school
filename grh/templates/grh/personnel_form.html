@@ -49,6 +49,9 @@
                         {% include 'includes/form_field.html' with field=form.quartier %}
                         {% include 'includes/form_field.html' with field=form.adresse %}
                     </div>
+                    <p class="form-help" style="margin-top:.35rem;">
+                        Dans la liste Quartier, choisissez « ➕ Ajouter un quartier » s’il n’existe pas encore.
+                    </p>
                     <p class="form-help" style="margin-top:.5rem;">
                         Le compte de connexion sera rattaché automatiquement lorsque ce membre du personnel créera son compte via la page d'inscription (profil « Corps professoral ») avec ce matricule.
                     </p>
@@ -74,6 +77,7 @@
         </div>
     </form>
 </div>
+{% include 'inscription/includes/quartier_modal.html' with quartier_select_ids=form.quartier.id_for_label %}
 {% endblock %}
 
 {% block extra_js %}

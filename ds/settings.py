@@ -70,12 +70,29 @@ ALLOWED_HOSTS = [
     for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
     if h.strip()
 ]
+# Dev / Quick Tunnel Cloudflare (*.trycloudflare.com)
+if DEBUG:
+    _dev_hosts = ["localhost", "127.0.0.1", "[::1]", ".trycloudflare.com"]
+    for h in _dev_hosts:
+        if h not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(h)
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip()
+        for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
+        if o.strip()
+    ] or [
+        "https://*.trycloudflare.com",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
+    # cloudflared envoie X-Forwarded-Proto=https
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Cookies / en-têtes — toujours (dev + prod)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-# Fermeture après 2 h d'inactivité (cookie + sessions de connexion).
-SESSION_IDLE_SECONDS = int(os.environ.get("SESSION_IDLE_SECONDS", "7200"))
+# Fermeture après 15 min d'inactivité (cookie + sessions de connexion).
+SESSION_IDLE_SECONDS = int(os.environ.get("SESSION_IDLE_SECONDS", "900"))
 SESSION_COOKIE_AGE = SESSION_IDLE_SECONDS
 SESSION_SAVE_EVERY_REQUEST = True
 CSRF_COOKIE_HTTPONLY = True

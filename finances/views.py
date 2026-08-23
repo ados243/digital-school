@@ -175,6 +175,8 @@ from .paiement_utils import (
     build_frais_solde_context,
     solde_caisse_comptable,
     caisse_especes_par_devise,
+    caisse_disponible_par_devise,
+    verifier_depense_contre_caisse,
     types_frais_minerval_for_ecole,
     minerval_par_classe,
     minerval_paiements_queryset,
@@ -293,7 +295,7 @@ def dashboard(request):
 
     # --- Caisse réelle ---
     solde_caisse = solde_caisse_comptable(ecole)
-    caisse_par_devise = caisse_especes_par_devise(ecole)
+    caisse_par_devise = caisse_disponible_par_devise(ecole)
 
     # --- Filtres minerval ---
     filter_annee = _parse_optional_int(request.GET.get("annee"))
@@ -2280,6 +2282,49 @@ def hoada_ecritures_create(request):
                     },
                 )
 
+            # Empêche un crédit (sortie) supérieur au solde disponible sur la trésorerie
+            credits_par_compte = {}
+            for l in lignes:
+                if str(l.sens).upper() != "CREDIT":
+                    continue
+                credits_par_compte[l.compte_id] = credits_par_compte.get(
+                    l.compte_id, Decimal("0")
+                ) + _decimal(l.montant)
+
+            treso_numeros = {"571100", "521100", "565000"}
+            for compte_id, montant_credit in credits_par_compte.items():
+                compte = CompteComptable.objects.filter(
+                    pk=compte_id, ecole=request.user.ecole
+                ).first()
+                if not compte or str(compte.numero) not in treso_numeros:
+                    continue
+                info = solde_caisse_comptable(request.user.ecole, compte.numero)
+                disponible = _decimal(info["solde"])
+                if montant_credit > disponible:
+                    ecriture.delete()
+                    return render(
+                        request,
+                        "finances/hoada_ecritures_form.html",
+                        {
+                            "form": form_ecriture,
+                            "line_count": line_count,
+                            "comptes": CompteComptable.objects.filter(
+                                ecole=request.user.ecole
+                            ).order_by("numero"),
+                            "journaux": JournalComptable.objects.filter(
+                                ecole=request.user.ecole
+                            ).order_by("code"),
+                            "pieces": PieceComptable.objects.filter(
+                                ecole=request.user.ecole
+                            ).order_by("-date", "reference"),
+                            "error": (
+                                f"Dépense impossible : le montant ({montant_credit}) dépasse "
+                                f"la somme disponible en caisse ({disponible}) "
+                                f"sur le compte {compte.numero}."
+                            ),
+                        },
+                    )
+
             for l in lignes:
                 l.save()
 
@@ -2338,121 +2383,6 @@ def hoada_grand_livre(request):
             "nb_lignes": lignes.count(),
         },
     )
-
-
-@user_passes_test(lambda u: u.is_active and (u.is_staff or u.is_superuser))
-def seed_finances(request):
-    """Génère automatiquement TypeFrais/Frais_Scolaire/Paiement pour l'école courante."""
-    from inscription.models import Inscription, Annee_Scolaire
-
-
-    if request.method != "POST":
-        return redirect("finances:dashboard")
-
-    ecole = getattr(request.user, "ecole", None)
-    if not ecole:
-        return redirect("finances:dashboard")
-
-    # Année scolaire: priorité à la currencue si trouvée, sinon première.
-    annee_encours = Annee_Scolaire.objects.filter(est_encoure=True).first()
-    if not annee_encours:
-        annee_encours = Annee_Scolaire.objects.order_by("-anne_scolaire").first()
-    if not annee_encours:
-        return redirect("finances:dashboard")
-
-    # Paramètres seed (valeurs simples et stables)
-    default_devise_codes = ["USD", "CDF"]
-    type_frais_defaults = [
-        {"key": "minerval", "libelle": "Minerval", "description": "Frais scolaire"},
-        {"key": "inscription", "libelle": "Frais inscription", "description": "Frais d'inscription"},
-        {"key": "scolarite", "libelle": "Frais scolarité", "description": "Frais de scolarité"},
-        {"key": "c", "libelle": "C", "description": "Frais C"},
-    ]
-    # Montants par défaut par type_frais
-    montant_map = {
-        "minerval": Decimal("500"),
-        "inscription": Decimal("100"),
-        "scolarite": Decimal("500"),
-        "c": Decimal("200"),
-    }
-
-    from django.db import transaction
-
-    with transaction.atomic():
-        # Devise
-        for code in default_devise_codes:
-            from .models import Devise
-            Devise.objects.get_or_create(devise=code)
-        devise_usd = Devise.objects.filter(devise="USD").first()
-        if not devise_usd:
-            devise_usd = Devise.objects.first()
-
-        # TypeFrais
-        type_objs = {}
-        for tf in type_frais_defaults:
-            obj, _ = TypeFrais.objects.get_or_create(
-                ecole=ecole,
-                libelle=tf["libelle"],
-                defaults={"description": tf["description"]},
-            )
-            type_objs[tf["key"]] = obj
-
-        # Frais_Scolaire pour toutes les sections de l'école
-        from inscription.tenant import sections_for_ecole
-        sections = list(sections_for_ecole(ecole))
-        # Modèle Annee_Scolaire: date_debut / date_fin
-        echeance = getattr(annee_encours, "date_fin", None) or getattr(annee_encours, "date_debut")
-
-
-        frais_by_type_section = {}
-        for type_key, type_obj in type_objs.items():
-            for section in sections:
-                frais, _ = Frais_Scolaire.objects.get_or_create(
-                    type_frais=type_obj,
-                    annee=annee_encours,
-                    section=section,
-                    defaults={
-                        "montant": montant_map.get(type_key, Decimal("0")),
-                        "devise": devise_usd,
-                        "echeance": echeance,
-                        "est_obligatoire": True,
-                    },
-                )
-                frais_by_type_section[(type_key, section.id)] = frais
-
-        # Paiements VALIDE pour chaque inscription
-        ins_qs = Inscription.objects.select_related("eleve", "classe").filter(
-            annee_s=annee_encours, classe__ecole=ecole
-        )
-        # modes de paiement cycliques
-        mode_cycle = ["ESPECES", "VIREMENT", "MOBILE_MONEY"]
-        paiements_created = 0
-        for idx, ins in enumerate(ins_qs):
-            for type_key in ["inscription", "scolarite", "c"]:
-                frais = frais_by_type_section.get((type_key, ins.classe.section_id))
-                if not frais:
-                    continue
-                # numéro reçu déterministe
-                numero_recu = f"{type_key[:3].upper()}-{ins.id}-{annee_encours.id}"
-                if Paiement.objects.filter(numero_recu=numero_recu, frais=frais, eleve=ins).exists():
-                    continue
-
-                paiement = Paiement.objects.create(
-                    eleve=ins,
-                    frais=frais,
-                    numero_recu=numero_recu,
-                    montant_paye=frais.montant,
-                    devise=frais.devise,
-                    mode_paiement=mode_cycle[idx % len(mode_cycle)],
-                    reference_trans=None,
-                    caissier=str(getattr(request.user, "username", request.user.id)),
-                    statut="VALIDE",
-                )
-                # Déclenche HOADA (logique existante)
-                _hoada_auto_post_payment_to_entries(paiement)
-                paiements_created += 1
-
-    return redirect("finances:paiement_list")
 
 
 @login_required
@@ -2579,6 +2509,18 @@ def marquer_paie_payee(paie, mode_paiement=None, date_paiement=None):
         if mode_paiement in modes_valides:
             paie.mode_paiement = mode_paiement
 
+    mode_effectif = (paie.mode_paiement or "ESPECES").strip().upper() or "ESPECES"
+    ecole = getattr(getattr(paie, "personnel", None), "ecole", None)
+    devise_code = ""
+    if getattr(paie, "devise_id", None):
+        devise_code = str(getattr(paie.devise, "devise", "") or "")
+    ok_caisse, msg_caisse, _ = verifier_depense_contre_caisse(
+        ecole, paie.net_a_payer, devise_code, mode_effectif
+    )
+    if not ok_caisse:
+        result["erreur"] = msg_caisse
+        return result
+
     paie.statut_paiement = "PAYE"
     paie.date_paiement = date_paiement or date.today()
     if not paie.reference_paiement:
@@ -2655,6 +2597,20 @@ def salaires_list(request):
         base_qs.values_list("annee", flat=True).distinct().order_by("-annee")
     )
 
+    import json
+
+    caisse_dispo = caisse_disponible_par_devise(ecole)
+    caisse_dispo_map = {
+        str(row["devise__devise"]).upper(): str(row["total"]) for row in caisse_dispo
+    }
+    solde_caisse = solde_caisse_comptable(ecole)
+    soldes_treso_map = {
+        "ESPECES": str(solde_caisse["solde"]),
+        "VIREMENT": str(solde_caisse_comptable(ecole, "521100")["solde"]),
+        "CHEQUE": str(solde_caisse_comptable(ecole, "521100")["solde"]),
+        "MOBILE_MONEY": str(solde_caisse_comptable(ecole, "565000")["solde"]),
+    }
+
     return render(
         request,
         "finances/salaires_list.html",
@@ -2671,6 +2627,9 @@ def salaires_list(request):
             "nb_payees": base_qs.filter(statut_paiement="PAYE").count(),
             "annees_dispo": list(annees_dispo),
             "ecole": ecole,
+            "caisse_disponible": caisse_dispo,
+            "caisse_disponible_json": json.dumps(caisse_dispo_map),
+            "soldes_treso_json": json.dumps(soldes_treso_map),
         },
     )
 
@@ -2712,7 +2671,7 @@ def salaire_payer(request, pk):
                 or "Paiement enregistré, mais l'écriture comptable est manquante.",
             )
     elif result["erreur"]:
-        messages.warning(request, result["erreur"])
+        messages.error(request, result["erreur"])
     else:
         messages.info(request, "Cette fiche de paie est déjà payée.")
     return redirect("finances:salaires_list")
@@ -2734,13 +2693,17 @@ def salaires_payer_lot(request):
     payes = 0
     ecritures_ok = 0
     erreurs = []
+    refuses = 0
     for paie in qs:
         result = marquer_paie_payee(paie, mode_paiement=mode)
         if result["payee"]:
             payes += 1
-        if result["ecriture_ok"]:
-            ecritures_ok += 1
+            if result["ecriture_ok"]:
+                ecritures_ok += 1
+            elif result["erreur"]:
+                erreurs.append(result["erreur"])
         elif result["erreur"]:
+            refuses += 1
             erreurs.append(result["erreur"])
 
     if payes:
@@ -2748,9 +2711,14 @@ def salaires_payer_lot(request):
             request,
             f"{payes} fiche(s) payée(s), {ecritures_ok} écriture(s) comptable(s) enregistrée(s).",
         )
+    elif refuses:
+        messages.error(
+            request,
+            "Aucun paiement effectué : fonds insuffisants en caisse pour la sélection.",
+        )
     else:
         messages.info(request, "Aucune fiche en attente sélectionnée.")
     for err in erreurs[:3]:
-        messages.warning(request, err)
+        messages.error(request, err)
     return redirect("finances:salaires_list")
 

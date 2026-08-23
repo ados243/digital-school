@@ -101,8 +101,6 @@ def caisse_especes_par_devise(ecole):
     if ecole is None:
         return []
 
-    from collections import defaultdict
-
     totaux = defaultdict(lambda: Decimal("0"))
     paiements = (
         paiements_for_ecole(ecole)
@@ -124,6 +122,88 @@ def caisse_especes_par_devise(ecole):
         {"devise__devise": code, "total": total}
         for code, total in sorted(totaux.items(), key=lambda x: (-x[1], x[0]))
     ]
+
+
+def caisse_disponible_par_devise(ecole):
+    """
+    Espèces réellement disponibles par devise :
+    encaissements ESPECES − salaires PAYÉS en ESPECES.
+    """
+    totaux = defaultdict(lambda: Decimal("0"))
+    for row in caisse_especes_par_devise(ecole):
+        totaux[str(row["devise__devise"]).upper()] += _decimal(row["total"])
+
+    if ecole is not None:
+        from grh.models import Paie
+
+        paies = (
+            Paie.objects.filter(
+                personnel__ecole=ecole,
+                statut_paiement="PAYE",
+                mode_paiement="ESPECES",
+            )
+            .select_related("devise")
+        )
+        for paie in paies:
+            code = str(paie.devise.devise).upper() if paie.devise_id else "—"
+            totaux[code] -= _decimal(paie.net_a_payer)
+
+    return [
+        {"devise__devise": code, "total": total}
+        for code, total in sorted(totaux.items(), key=lambda x: (-x[1], x[0]))
+    ]
+
+
+def verifier_depense_contre_caisse(ecole, montant, devise_code, mode_paiement="ESPECES"):
+    """
+    Empêche une dépense supérieure au disponible.
+
+    Retourne (ok, message, disponible).
+    - ESPECES : contrôle par devise (encaissements − sorties)
+    - Autres modes : solde du compte de trésorerie HOADA associé
+    """
+    montant = _decimal(montant)
+    mode = (mode_paiement or "ESPECES").strip().upper() or "ESPECES"
+    devise = (devise_code or "").strip().upper() or "—"
+
+    if mode == "ESPECES":
+        disponible = Decimal("0")
+        for row in caisse_disponible_par_devise(ecole):
+            if str(row["devise__devise"]).upper() == devise:
+                disponible = _decimal(row["total"])
+                break
+        if montant > disponible:
+            return (
+                False,
+                (
+                    f"Dépense impossible : le montant ({montant} {devise}) dépasse "
+                    f"la somme disponible en caisse ({disponible} {devise})."
+                ),
+                disponible,
+            )
+        return True, "", disponible
+
+    comptes = {
+        "VIREMENT": "521100",
+        "CHEQUE": "521100",
+        "MOBILE_MONEY": "565000",
+    }
+    numero = comptes.get(mode)
+    if not numero:
+        return True, "", None
+
+    info = solde_caisse_comptable(ecole, numero)
+    disponible = _decimal(info["solde"])
+    if montant > disponible:
+        return (
+            False,
+            (
+                f"Dépense impossible : le montant ({montant} {devise}) dépasse "
+                f"la somme disponible ({disponible}) sur le compte {numero}."
+            ),
+            disponible,
+        )
+    return True, "", disponible
 
 
 def minerval_paiements_queryset(ecole, filters=None):

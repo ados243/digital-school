@@ -299,3 +299,60 @@ class FraisParClasseTests(TestCase):
         self.assertTrue(frais_concerne_inscription(frais, self.ins_a))
         self.assertTrue(frais_concerne_inscription(frais, self.ins_b))
 
+
+class CaisseDisponibleTests(TestCase):
+    def setUp(self):
+        self.ecole = faire_ecole()
+        self.devise = Devise.objects.create(devise="USD")
+        self.annee = faire_annee()
+        self.classe = faire_classe(self.ecole)
+        self.tuteur = faire_tuteur(self.ecole)
+        self.eleve = faire_eleve(self.ecole, self.tuteur)
+        self.inscription = Inscription.objects.create(
+            eleve=self.eleve,
+            classe=self.classe,
+            annee_s=self.annee,
+        )
+        self.type_frais = TypeFrais.objects.create(
+            ecole=self.ecole, libelle="Minerval", description=""
+        )
+        self.frais = Frais_Scolaire.objects.create(
+            type_frais=self.type_frais,
+            annee=self.annee,
+            section=self.classe.section,
+            montant=Decimal("100.00"),
+            devise=self.devise,
+            echeance=date(2026, 12, 31),
+            est_obligatoire=True,
+        )
+
+    def test_refuse_depense_sans_fonds(self):
+        from finances.paiement_utils import verifier_depense_contre_caisse
+
+        ok, msg, dispo = verifier_depense_contre_caisse(
+            self.ecole, Decimal("50"), "USD", "ESPECES"
+        )
+        self.assertFalse(ok)
+        self.assertIn("Dépense impossible", msg)
+        self.assertEqual(dispo, Decimal("0"))
+
+    def test_autorise_depense_avec_fonds(self):
+        from finances.paiement_utils import verifier_depense_contre_caisse
+
+        Paiement.objects.create(
+            eleve=self.inscription,
+            frais=self.frais,
+            numero_recu="TEST-CAISSE-1",
+            montant_paye=Decimal("200.00"),
+            devise=self.devise,
+            mode_paiement="ESPECES",
+            caissier="test",
+            statut="VALIDE",
+        )
+        ok, msg, dispo = verifier_depense_contre_caisse(
+            self.ecole, Decimal("50"), "USD", "ESPECES"
+        )
+        self.assertTrue(ok)
+        self.assertEqual(msg, "")
+        self.assertEqual(dispo, Decimal("200.00"))
+

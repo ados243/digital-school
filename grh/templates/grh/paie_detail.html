@@ -44,32 +44,39 @@
     margin-top: .75rem; padding: .85rem 1rem;
     background: rgba(37, 99, 235, .06); border-radius: 10px; font-size: .9rem;
   }
+  .confirm-modal__meta.is-danger {
+    background: rgba(185, 28, 28, .08);
+    border: 1px solid rgba(185, 28, 28, .25);
+  }
   .confirm-modal__footer {
     display: flex; justify-content: flex-end; gap: .5rem;
     padding: 1rem 1.25rem; border-top: 1px solid var(--border); background: #fafafa;
   }
 </style>
 
-<div id="confirm-pay-modal" class="confirm-modal" aria-hidden="true">
+<div id="confirm-pay-modal" class="confirm-modal" aria-hidden="true"
+     data-caisse-ok="{% if caisse_ok %}1{% else %}0{% endif %}"
+     data-caisse-message="{{ caisse_message|default:''|escape }}">
   <div class="confirm-modal__backdrop" data-close-pay></div>
   <div class="confirm-modal__dialog" role="dialog" aria-modal="true">
     <div class="confirm-modal__header">
-      <h3>Confirmer le paiement</h3>
+      <h3 id="confirm-pay-title">Confirmer le paiement</h3>
       <button type="button" class="confirm-modal__close" data-close-pay aria-label="Fermer">✕</button>
     </div>
     <div class="confirm-modal__body">
-      <p>Voulez-vous vraiment marquer ce bulletin comme <strong>payé</strong> ?</p>
-      <div class="confirm-modal__meta">
+      <p id="confirm-pay-text">Voulez-vous vraiment marquer ce bulletin comme <strong>payé</strong> ?</p>
+      <div class="confirm-modal__meta" id="confirm-pay-meta">
         <div><strong>{{ paie.personnel.prenom }} {{ paie.personnel.nom }}</strong></div>
         <div>Période : {{ paie.mois }}/{{ paie.annee }}</div>
         <div>Net : <strong style="color:var(--primary); font-family:monospace;">{{ paie.net_a_payer }} {{ paie.devise }}</strong></div>
+        <div>Disponible en caisse : <strong style="font-family:monospace;">{{ caisse_disponible|default:"0" }} {{ paie.devise.devise }}</strong></div>
       </div>
     </div>
     <div class="confirm-modal__footer">
-      <button type="button" class="btn btn-secondary" data-close-pay>Annuler</button>
-      <form method="post" action="{% url 'grh:paie_pay' paie.pk %}" style="margin:0;">
+      <button type="button" class="btn btn-secondary" data-close-pay id="confirm-pay-cancel">Annuler</button>
+      <form method="post" action="{% url 'grh:paie_pay' paie.pk %}" style="margin:0;" id="confirm-pay-form">
         {% csrf_token %}
-        <button type="submit" class="btn btn-success">✔️ Confirmer le paiement</button>
+        <button type="submit" class="btn btn-success" id="confirm-pay-submit">✔️ Confirmer le paiement</button>
       </form>
     </div>
   </div>
@@ -80,8 +87,39 @@
   var modal = document.getElementById('confirm-pay-modal');
   var openBtn = document.getElementById('btn-open-pay-confirm');
   if (!modal || !openBtn) return;
-  function open() { modal.classList.add('is-open'); modal.setAttribute('aria-hidden', 'false'); }
-  function close() { modal.classList.remove('is-open'); modal.setAttribute('aria-hidden', 'true'); }
+  var titleEl = document.getElementById('confirm-pay-title');
+  var textEl = document.getElementById('confirm-pay-text');
+  var metaEl = document.getElementById('confirm-pay-meta');
+  var submitBtn = document.getElementById('confirm-pay-submit');
+  var cancelBtn = document.getElementById('confirm-pay-cancel');
+  var form = document.getElementById('confirm-pay-form');
+  var caisseOk = modal.getAttribute('data-caisse-ok') === '1';
+  var caisseMessage = modal.getAttribute('data-caisse-message') || '';
+
+  function open() {
+    if (!caisseOk) {
+      titleEl.textContent = 'Caisse insuffisante';
+      textEl.textContent = caisseMessage ||
+        'Dépense impossible : le montant dépasse la somme disponible en caisse.';
+      metaEl.classList.add('is-danger');
+      if (submitBtn) submitBtn.style.display = 'none';
+      if (form) form.style.display = 'none';
+      if (cancelBtn) cancelBtn.textContent = 'Fermer';
+    } else {
+      titleEl.textContent = 'Confirmer le paiement';
+      textEl.innerHTML = 'Voulez-vous vraiment marquer ce bulletin comme <strong>payé</strong> ?';
+      metaEl.classList.remove('is-danger');
+      if (submitBtn) submitBtn.style.display = '';
+      if (form) form.style.display = '';
+      if (cancelBtn) cancelBtn.textContent = 'Annuler';
+    }
+    modal.classList.add('is-open');
+    modal.setAttribute('aria-hidden', 'false');
+  }
+  function close() {
+    modal.classList.remove('is-open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
   openBtn.addEventListener('click', open);
   modal.querySelectorAll('[data-close-pay]').forEach(function (el) {
     el.addEventListener('click', close);

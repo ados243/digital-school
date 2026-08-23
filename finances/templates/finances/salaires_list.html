@@ -87,6 +87,13 @@
     border-top: 1px solid var(--border);
     background: #fafafa;
   }
+  .confirm-modal__meta.is-danger {
+    background: rgba(185, 28, 28, .08);
+    border: 1px solid rgba(185, 28, 28, .25);
+  }
+  .confirm-modal__meta.is-danger strong {
+    color: #b91c1c;
+  }
   body.modal-open { overflow: hidden; }
 </style>
 {% endblock %}
@@ -122,6 +129,23 @@
       <div class="kpi-value">{{ row.total }}</div>
     </div>
     <div class="kpi-footer">💰 Salaires en attente</div>
+  </div>
+  {% endfor %}
+  {% for row in caisse_disponible %}
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Disponible en caisse — {{ row.devise__devise }}</div>
+      <div class="kpi-value" style="color:{% if row.total < 0 %}var(--danger){% else %}var(--primary){% endif %};">{{ row.total }}</div>
+    </div>
+    <div class="kpi-footer">💵 Solde espèces disponible</div>
+  </div>
+  {% empty %}
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Disponible en caisse</div>
+      <div class="kpi-value">0</div>
+    </div>
+    <div class="kpi-footer">💵 Aucun fond disponible</div>
   </div>
   {% endfor %}
 </section>
@@ -203,7 +227,9 @@
               {% if p.statut_paiement == 'EN_ATTENTE' %}
               <input type="checkbox" name="paie_ids" value="{{ p.id }}" class="paie-check"
                      data-nom="{{ p.personnel.prenom }} {{ p.personnel.nom }}"
-                     data-montant="{{ p.net_a_payer }} {{ p.devise }}">
+                     data-montant="{{ p.net_a_payer }} {{ p.devise }}"
+                     data-montant-num="{{ p.net_a_payer }}"
+                     data-devise="{{ p.devise.devise }}">
               {% endif %}
             </td>
             {% endif %}
@@ -239,7 +265,9 @@
                         data-action="{% url 'finances:salaire_payer' p.pk %}"
                         data-nom="{{ p.personnel.prenom }} {{ p.personnel.nom }}"
                         data-periode="{% for num, label in mois_labels.items %}{% if num == p.mois %}{{ label }}{% endif %}{% endfor %} {{ p.annee }}"
-                        data-montant="{{ p.net_a_payer }} {{ p.devise }}">
+                        data-montant="{{ p.net_a_payer }} {{ p.devise }}"
+                        data-montant-num="{{ p.net_a_payer }}"
+                        data-devise="{{ p.devise.devise }}">
                   💵 Payer
                 </button>
                 {% endif %}
@@ -267,7 +295,7 @@
   </div>
 </form>
 
-<!-- Popup confirmation paiement -->
+<!-- Popup confirmation / alerte caisse -->
 <div id="confirm-paiement-modal" class="confirm-modal" aria-hidden="true">
   <div class="confirm-modal__backdrop" data-close-confirm></div>
   <div class="confirm-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="confirm-paiement-title">
@@ -280,7 +308,7 @@
       <div class="confirm-modal__meta" id="confirm-paiement-meta"></div>
     </div>
     <div class="confirm-modal__footer">
-      <button type="button" class="btn btn-secondary" data-close-confirm>Annuler</button>
+      <button type="button" class="btn btn-secondary" data-close-confirm id="confirm-paiement-cancel">Annuler</button>
       <button type="button" class="btn btn-primary" id="confirm-paiement-ok">💵 Confirmer le paiement</button>
     </div>
   </div>
@@ -293,12 +321,20 @@
 (function () {
   const form = document.getElementById('salaires-lot-form');
   const modal = document.getElementById('confirm-paiement-modal');
+  const titleEl = document.getElementById('confirm-paiement-title');
   const textEl = document.getElementById('confirm-paiement-text');
   const metaEl = document.getElementById('confirm-paiement-meta');
   const okBtn = document.getElementById('confirm-paiement-ok');
+  const cancelBtn = document.getElementById('confirm-paiement-cancel');
   const modeSelect = document.getElementById('mode-paiement-select');
   const checkAll = document.getElementById('check-all');
+  const caisseDispo = {{ caisse_disponible_json|default:"{}"|safe }};
+  const soldesTreso = {{ soldes_treso_json|default:"{}"|safe }};
   let pendingAction = null;
+
+  function modeValue() {
+    return modeSelect ? (modeSelect.value || 'ESPECES') : 'ESPECES';
+  }
 
   function modeLabel() {
     if (!modeSelect) return '—';
@@ -306,10 +342,40 @@
     return opt ? opt.textContent : modeSelect.value;
   }
 
+  function parseAmount(raw) {
+    const n = parseFloat(String(raw || '0').replace(',', '.'));
+    return isNaN(n) ? 0 : n;
+  }
+
+  function disponiblePour(mode, devise) {
+    const m = (mode || 'ESPECES').toUpperCase();
+    const d = String(devise || '').toUpperCase();
+    if (m === 'ESPECES') {
+      return parseAmount(caisseDispo[d] || 0);
+    }
+    return parseAmount(soldesTreso[m] || 0);
+  }
+
+  function messageInsuffisant(montant, devise, disponible, mode) {
+    const d = String(devise || '').toUpperCase();
+    if ((mode || 'ESPECES').toUpperCase() === 'ESPECES') {
+      return 'Dépense impossible : le montant (' + montant + ' ' + d +
+        ') dépasse la somme disponible en caisse (' + disponible + ' ' + d + ').';
+    }
+    return 'Dépense impossible : le montant (' + montant + ' ' + d +
+      ') dépasse la somme disponible (' + disponible + ') pour ce mode de paiement.';
+  }
+
   function openConfirm(options) {
     pendingAction = options;
+    titleEl.textContent = options.title || 'Confirmer le paiement';
     textEl.textContent = options.message;
     metaEl.innerHTML = options.metaHtml || '';
+    metaEl.classList.toggle('is-danger', !!options.danger);
+    okBtn.style.display = options.hideOk ? 'none' : '';
+    if (cancelBtn) {
+      cancelBtn.textContent = options.hideOk ? 'Fermer' : 'Annuler';
+    }
     modal.classList.add('is-open');
     modal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
@@ -320,6 +386,20 @@
     modal.classList.remove('is-open');
     modal.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('modal-open');
+    okBtn.style.display = '';
+    metaEl.classList.remove('is-danger');
+    if (cancelBtn) cancelBtn.textContent = 'Annuler';
+  }
+
+  function showCaisseInsuffisante(message, metaHtml) {
+    openConfirm({
+      type: 'none',
+      title: 'Caisse insuffisante',
+      message: message,
+      metaHtml: metaHtml || '',
+      danger: true,
+      hideOk: true,
+    });
   }
 
   if (checkAll) {
@@ -332,6 +412,22 @@
 
   document.querySelectorAll('.btn-payer-one').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      const mode = modeValue();
+      const devise = btn.dataset.devise || '';
+      const montant = parseAmount(btn.dataset.montantNum);
+      const disponible = disponiblePour(mode, devise);
+      if (montant > disponible) {
+        showCaisseInsuffisante(
+          messageInsuffisant(btn.dataset.montantNum, devise, disponible, mode),
+          '<div><strong>' + (btn.dataset.nom || '') + '</strong></div>' +
+          '<div>Montant : <strong>' + (btn.dataset.montant || '') + '</strong></div>' +
+          '<div>Disponible : <strong>' + disponible +
+            (mode === 'ESPECES' ? ' ' + String(devise).toUpperCase() : '') +
+            '</strong></div>' +
+          '<div>Mode : ' + modeLabel() + '</div>'
+        );
+        return;
+      }
       openConfirm({
         type: 'one',
         action: btn.dataset.action,
@@ -340,6 +436,9 @@
           '<div><strong>' + (btn.dataset.nom || '') + '</strong></div>' +
           '<div>Période : ' + (btn.dataset.periode || '') + '</div>' +
           '<div>Montant : <strong>' + (btn.dataset.montant || '') + '</strong></div>' +
+          '<div>Disponible en caisse : <strong>' + disponible +
+            (mode === 'ESPECES' ? ' ' + String(devise).toUpperCase() : '') +
+            '</strong></div>' +
           '<div>Mode : ' + modeLabel() + '</div>',
       });
     });
@@ -354,11 +453,34 @@
           type: 'none',
           message: 'Aucune fiche sélectionnée.',
           metaHtml: '<div>Cochez au moins une fiche en attente avant de payer.</div>',
+          hideOk: true,
         });
-        okBtn.style.display = 'none';
         return;
       }
-      okBtn.style.display = '';
+
+      const mode = modeValue();
+      const totaux = {};
+      checked.forEach(function (cb) {
+        const d = String(cb.dataset.devise || '').toUpperCase();
+        totaux[d] = (totaux[d] || 0) + parseAmount(cb.dataset.montantNum);
+      });
+
+      for (const devise of Object.keys(totaux)) {
+        const montant = totaux[devise];
+        const disponible = disponiblePour(mode, devise);
+        if (montant > disponible) {
+          showCaisseInsuffisante(
+            messageInsuffisant(montant, devise, disponible, mode),
+            '<div><strong>' + checked.length + ' fiche(s)</strong> sélectionnée(s)</div>' +
+            '<div>Total ' + devise + ' : <strong>' + montant + ' ' + devise + '</strong></div>' +
+            '<div>Disponible : <strong>' + disponible +
+              (mode === 'ESPECES' ? ' ' + devise : '') + '</strong></div>' +
+            '<div>Mode : ' + modeLabel() + '</div>'
+          );
+          return;
+        }
+      }
+
       const names = checked.slice(0, 5).map(function (cb) { return cb.dataset.nom; });
       const more = checked.length > 5 ? '<div>… et ' + (checked.length - 5) + ' autre(s)</div>' : '';
       openConfirm({
@@ -389,15 +511,11 @@
   });
 
   modal.querySelectorAll('[data-close-confirm]').forEach(function (el) {
-    el.addEventListener('click', function () {
-      okBtn.style.display = '';
-      closeConfirm();
-    });
+    el.addEventListener('click', closeConfirm);
   });
 
   document.addEventListener('keydown', function (evt) {
     if (evt.key === 'Escape' && modal.classList.contains('is-open')) {
-      okBtn.style.display = '';
       closeConfirm();
     }
   });

@@ -5,7 +5,6 @@ app_name = 'grh'
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
-    path('generer-demo/', views.generer_donnees_demo, name='generer_demo'),
     
     # Personnel
     path('personnel/', views.personnel_list, name='personnel_list'),
