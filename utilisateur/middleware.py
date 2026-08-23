@@ -372,6 +372,7 @@ class SecurityHeadersMiddleware:
         csp = (
             "default-src 'self'; "
             f"script-src 'self' 'unsafe-inline' {jitsi_origin}; "
+            "script-src-attr 'none'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: blob:; "
             "font-src 'self'; "

@@ -119,7 +119,7 @@ def whatsapp_test(request):
         message=message,
         statut="ENVOYE" if ok else "ECHEC",
         provider=canal,
-        reponse_api=reponse or "",
+        reponse_api=(reponse or "")[:240],
         erreur=erreur or "",
     )
     if ok:

@@ -527,6 +527,14 @@ class ConfigWhatsApp(models.Model):
     def modele_effectif(self):
         return (self.message_modele or "").strip() or self.MESSAGE_DEFAUT
 
+    def save(self, *args, **kwargs):
+        from common.secrets_crypto import PREFIX, chiffrer_secret
+
+        token = (self.api_token or "").strip()
+        if token and not token.startswith(PREFIX):
+            self.api_token = chiffrer_secret(token)
+        return super().save(*args, **kwargs)
+
 
 class NotificationWhatsApp(models.Model):
     """Journal des notifications WhatsApp envoyées pour les paiements."""

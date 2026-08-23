@@ -155,7 +155,7 @@ def envoyer_relance(ecole, ligne, config=None):
         message=message_journal[:2000],
         statut="ENVOYE" if ok else "ECHEC",
         provider=canal,
-        reponse_api=reponse or "",
+        reponse_api=(reponse or "")[:240],
         erreur=erreur or "",
     )
     return ok, erreur or ""

@@ -2216,7 +2216,7 @@ def hoada_ecritures_create(request):
     # Saisie simplifiée : on crée l'en-tête + N lignes via request.POST (fields indexés)
     # Attendu côté template : compte_0, sens_0, montant_0 ... (jusqu'à line_count)
     if request.method == "POST":
-        form_ecriture = EcritureForm(request.POST)
+        form_ecriture = EcritureForm(request.POST, ecole=request.user.ecole)
         try:
             line_count = int(request.POST.get("line_count", "0"))
         except ValueError:
@@ -2285,7 +2285,7 @@ def hoada_ecritures_create(request):
 
             return redirect("finances:hoada_ecritures_list")
     else:
-        form_ecriture = EcritureForm()
+        form_ecriture = EcritureForm(ecole=request.user.ecole)
         line_count = 3
 
     context = {

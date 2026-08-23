@@ -297,10 +297,34 @@ def payload_otp(code, extra=None):
         "expires": (timezone.now() + timedelta(minutes=ttl)).isoformat(),
         "attempts": 0,
         "sent_at": timezone.now().isoformat(),
+        "resend_count": 0,
     }
     if extra:
         data.update(extra)
     return data
+
+
+def otp_peut_renvoyer(payload):
+    """Retourne (ok, message_erreur). Cooldown + plafond de renvois."""
+    if not payload:
+        return False, MSG_CODE_INVALIDE
+    cooldown = int(getattr(settings, "OTP_RENVOI_COOLDOWN_SECONDS", 60) or 60)
+    max_renvois = int(getattr(settings, "OTP_RENVOI_MAX", 5) or 5)
+    try:
+        sent_at = datetime.fromisoformat(payload.get("sent_at") or "")
+        if timezone.is_naive(sent_at):
+            sent_at = timezone.make_aware(sent_at, timezone.get_current_timezone())
+    except (TypeError, ValueError):
+        sent_at = None
+    if sent_at is not None:
+        ecoule = (timezone.now() - sent_at).total_seconds()
+        if ecoule < cooldown:
+            reste = max(1, int(cooldown - ecoule))
+            return False, f"Patientez {reste} s avant de renvoyer un code."
+    count = int(payload.get("resend_count") or 0)
+    if count >= max_renvois:
+        return False, "Nombre maximal de renvois atteint. Recommencez la procédure."
+    return True, ""
 
 
 def otp_encore_valide(payload):

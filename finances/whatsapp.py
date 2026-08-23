@@ -19,6 +19,42 @@ MODE_PAIEMENT_LABELS = {
     "CHEQUE": "Chèque",
 }
 
+# Domaines autorisés pour ConfigWhatsApp.api_url (anti-SSRF)
+WHATSAPP_API_HOSTS_AUTORISES = frozenset(
+    {
+        "graph.facebook.com",
+        "api.ultramsg.com",
+    }
+)
+
+
+def valider_api_url_whatsapp(url: str, provider: str = "") -> Tuple[bool, str]:
+    """Refuse les URL hors allowlist (SSRF)."""
+    from urllib.parse import urlparse
+
+    brut = (url or "").strip()
+    if not brut:
+        return True, ""
+    parsed = urlparse(brut)
+    if parsed.scheme not in ("https",):
+        return False, "L'URL API doit utiliser HTTPS."
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False, "Hôte API invalide."
+    if host in WHATSAPP_API_HOSTS_AUTORISES:
+        return True, ""
+    # Sous-domaines Ultramsg du type instance.ultramsg.com éventuels
+    if host.endswith(".ultramsg.com") or host.endswith(".facebook.com"):
+        return True, ""
+    return False, f"Hôte non autorisé : {host}"
+
+
+def _token_clair(config) -> str:
+    from common.secrets_crypto import dechiffrer_secret
+
+    return dechiffrer_secret(getattr(config, "api_token", None) or "")
+
+
 # Clés autorisées pour les variables de template Meta / texte libre
 CLES_CONTEXTE = (
     "parent",
@@ -217,12 +253,16 @@ def get_config_pour_ecole(ecole):
 
 def _envoyer_ultramsg(config, telephone: str, message: str) -> Tuple[bool, str, str]:
     instance = (config.instance_id or "").strip()
-    token = (config.api_token or "").strip()
+    token = _token_clair(config)
     if not instance or not token:
         return False, "", "Instance ID ou token Ultramsg manquant."
 
     base = (config.api_url or "").strip().rstrip("/")
-    if not base:
+    if base:
+        ok, err = valider_api_url_whatsapp(base, "ULTRAMSG")
+        if not ok:
+            return False, "", err
+    else:
         base = f"https://api.ultramsg.com/{instance}"
     url = f"{base}/messages/chat"
     try:
@@ -313,7 +353,7 @@ def envoyer_meta_template(
 ) -> Tuple[bool, str, str]:
     """Envoie un template Meta Cloud API (body {{1}}, {{2}}, …)."""
     phone_id = (config.instance_id or "").strip()
-    token = (config.api_token or "").strip()
+    token = _token_clair(config)
     if token.lower().startswith("bearer "):
         token = token[7:].strip()
     if not phone_id or not token:
@@ -322,7 +362,11 @@ def envoyer_meta_template(
         return False, "", "Nom de template Meta manquant."
 
     base = (config.api_url or "").strip().rstrip("/")
-    if not base:
+    if base:
+        ok, err = valider_api_url_whatsapp(base, "META")
+        if not ok:
+            return False, "", err
+    else:
         version = getattr(settings, "WHATSAPP_META_API_VERSION", "v19.0")
         base = f"https://graph.facebook.com/{version}/{phone_id}"
     url = f"{base}/messages"
@@ -366,14 +410,18 @@ def _envoyer_meta(
             language=langue_template(config),
         )
     phone_id = (config.instance_id or "").strip()
-    token = (config.api_token or "").strip()
+    token = _token_clair(config)
     if token.lower().startswith("bearer "):
         token = token[7:].strip()
     if not phone_id or not token:
         return False, "", "Phone Number ID ou token Meta manquant."
 
     base = (config.api_url or "").strip().rstrip("/")
-    if not base:
+    if base:
+        ok, err = valider_api_url_whatsapp(base, "META")
+        if not ok:
+            return False, "", err
+    else:
         version = getattr(settings, "WHATSAPP_META_API_VERSION", "v19.0")
         base = f"https://graph.facebook.com/{version}/{phone_id}"
     url = f"{base}/messages"
@@ -522,6 +570,16 @@ def resume_envoi_meta(config, contexte: dict) -> str:
     return "\n".join(lignes)
 
 
+def _resume_reponse_api(reponse: str) -> str:
+    """Ne conserve qu'un extrait court (évite de stocker des jetons / corps complets)."""
+    texte = (reponse or "").strip()
+    if not texte:
+        return ""
+    if texte.startswith("{") and '"id"' in texte:
+        return texte[:240]
+    return texte[:240]
+
+
 def notifier_communication_whatsapp(communication) -> dict:
     """
     Envoie l'annonce école → parents via WhatsApp (template annonce_ecole).
@@ -596,7 +654,7 @@ def notifier_communication_whatsapp(communication) -> dict:
             message=message,
             statut="ENVOYE" if ok else "ECHEC",
             provider=canal,
-            reponse_api=reponse or "",
+            reponse_api=_resume_reponse_api(reponse),
             erreur=erreur or "",
         )
         if ok:
@@ -670,7 +728,7 @@ def notifier_paiement_whatsapp(paiement, force: bool = False):
         message=message,
         statut="ENVOYE" if ok else "ECHEC",
         provider=canal,
-        reponse_api=reponse or "",
+        reponse_api=_resume_reponse_api(reponse),
         erreur=erreur or "",
     )
     if not ok:

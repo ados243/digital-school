@@ -1,14 +1,16 @@
-"""Intentions de paiement Mobile Money (parent + webhook opérateur)."""
+﻿"""Intentions de paiement Mobile Money (parent + webhook opérateur)."""
+
+import hmac
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-
-from django.utils import timezone
 
 from common.tenant import get_user_ecole
 from finances.models import IntentionPaiementMobile, Paiement
@@ -140,35 +142,54 @@ def caisse_confirmer_mobile(request, pk):
 @csrf_exempt
 @require_POST
 def mobile_money_webhook(request):
-    """Callback opérateur : ?token= MOBILE_MONEY_WEBHOOK_TOKEN."""
+    """Callback opérateur : authentification par en-tête X-Webhook-Token uniquement."""
     attendu = (getattr(settings, "MOBILE_MONEY_WEBHOOK_TOKEN", "") or "").strip()
-    recu = (request.GET.get("token") or request.headers.get("X-Webhook-Token") or "").strip()
-    if not attendu or recu != attendu:
+    recu = (request.headers.get("X-Webhook-Token") or "").strip()
+    if not attendu or not hmac.compare_digest(recu, attendu):
         return HttpResponseForbidden("token invalide")
-    ref = (request.POST.get("reference") or request.GET.get("reference") or "").strip()
-    statut = (request.POST.get("statut") or request.GET.get("statut") or "PAYEE").upper()
+
+    ref = (request.POST.get("reference") or "").strip()
+    statut = (request.POST.get("statut") or "PAYEE").upper()
     operateur = (request.POST.get("transaction_id") or "")[:80]
-    intention = IntentionPaiementMobile.objects.filter(reference=ref).first()
-    if not intention:
-        return JsonResponse({"ok": False, "error": "reference inconnue"}, status=404)
-    if statut in ("PAYEE", "SUCCESS", "SUCCESSFUL") and intention.statut != "PAYEE" and intention.frais_id:
-        paiement = Paiement(
-            eleve=intention.inscription,
-            frais=intention.frais,
-            montant_paye=intention.montant,
-            devise=intention.devise,
-            mode_paiement="MOBILE_MONEY",
-            reference_trans=(intention.reference)[:25],
-            caissier="MOBILE_MONEY",
-            statut="VALIDE",
+    if not ref:
+        return JsonResponse({"ok": False, "error": "reference manquante"}, status=400)
+
+    with transaction.atomic():
+        intention = (
+            IntentionPaiementMobile.objects.select_for_update()
+            .filter(reference=ref)
+            .first()
         )
-        _attribuer_numero_recu(intention.ecole, paiement)
-        paiement.save()
-        intention.paiement = paiement
-        intention.statut = "PAYEE"
-        intention.reference_operateur = operateur
-        intention.save(update_fields=["paiement", "statut", "reference_operateur", "updated_at"])
-    elif statut in ("ECHEC", "FAILED"):
-        intention.statut = "ECHEC"
-        intention.save(update_fields=["statut", "updated_at"])
-    return JsonResponse({"ok": True, "reference": intention.reference, "statut": intention.statut})
+        if not intention:
+            return JsonResponse({"ok": False, "error": "reference inconnue"}, status=404)
+
+        if (
+            statut in ("PAYEE", "SUCCESS", "SUCCESSFUL")
+            and intention.statut != "PAYEE"
+            and intention.frais_id
+        ):
+            paiement = Paiement(
+                eleve=intention.inscription,
+                frais=intention.frais,
+                montant_paye=intention.montant,
+                devise=intention.devise,
+                mode_paiement="MOBILE_MONEY",
+                reference_trans=(intention.reference)[:25],
+                caissier="MOBILE_MONEY",
+                statut="VALIDE",
+            )
+            _attribuer_numero_recu(intention.ecole, paiement)
+            paiement.save()
+            intention.paiement = paiement
+            intention.statut = "PAYEE"
+            intention.reference_operateur = operateur
+            intention.save(
+                update_fields=["paiement", "statut", "reference_operateur", "updated_at"]
+            )
+        elif statut in ("ECHEC", "FAILED") and intention.statut != "PAYEE":
+            intention.statut = "ECHEC"
+            intention.save(update_fields=["statut", "updated_at"])
+
+    return JsonResponse(
+        {"ok": True, "reference": intention.reference, "statut": intention.statut}
+    )

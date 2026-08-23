@@ -51,7 +51,16 @@ _PLACEHOLDER_SECRETS = frozenset(
     }
 )
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", _INSECURE_SECRET_KEY)
+_secret_from_env = (os.environ.get("DJANGO_SECRET_KEY") or "").strip()
+if _secret_from_env:
+    SECRET_KEY = _secret_from_env
+elif _env_flag("DJANGO_DEBUG", "0"):
+    # Dev uniquement : clé locale non utilisée en production.
+    SECRET_KEY = _INSECURE_SECRET_KEY
+else:
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY doit être défini (variable d'environnement)."
+    )
 
 # Défaut production (DEBUG off). En local : copier .env.example (DJANGO_DEBUG=1).
 DEBUG = _env_flag("DJANGO_DEBUG", "0")
@@ -96,6 +105,8 @@ LOGIN_LOCKOUT_LIMIT = int(os.environ.get("LOGIN_LOCKOUT_LIMIT", "5"))
 LOGIN_LOCKOUT_MINUTES = int(os.environ.get("LOGIN_LOCKOUT_MINUTES", "15"))
 OTP_TTL_MINUTES = int(os.environ.get("OTP_TTL_MINUTES", "10"))
 OTP_MAX_ATTEMPTS = int(os.environ.get("OTP_MAX_ATTEMPTS", "5"))
+OTP_RENVOI_COOLDOWN_SECONDS = int(os.environ.get("OTP_RENVOI_COOLDOWN_SECONDS", "60"))
+OTP_RENVOI_MAX = int(os.environ.get("OTP_RENVOI_MAX", "5"))
 # 2FA WhatsApp à la connexion. Désactivé temporairement (remettre 1 pour réactiver).
 MFA_WHATSAPP_ACTIF = _env_flag("MFA_WHATSAPP", "0")
 # Code WhatsApp à l'inscription. Désactivé temporairement (remettre 1 pour réactiver).

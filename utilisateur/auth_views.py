@@ -28,6 +28,7 @@ from .security import (
     masquer_telephone,
     notifier_nouvel_appareil,
     otp_encore_valide,
+    otp_peut_renvoyer,
     ouvrir_session_connexion,
     payload_otp,
     reinitialiser_echecs,
@@ -162,6 +163,10 @@ def mfa_view(request):
 def _renvoyer_mfa(request, user, pending):
     if not user:
         return redirect('utilisateur:login')
+    ok_renvoi, err_renvoi = otp_peut_renvoyer(pending)
+    if not ok_renvoi:
+        messages.error(request, err_renvoi)
+        return redirect('utilisateur:mfa')
     tel = telephone_utilisateur(user)
     if not tel:
         messages.error(request, "Aucun numéro WhatsApp n'est associé à ce compte.")
@@ -173,6 +178,7 @@ def _renvoyer_mfa(request, user, pending):
         'backend': pending.get('backend'),
         'next': pending.get('next'),
         'contact_masque': masquer_telephone(tel),
+        'resend_count': int(pending.get('resend_count') or 0) + 1,
     })
     request.session.modified = True
     if ok:
@@ -273,6 +279,10 @@ def verifier_compte_view(request):
 
 
 def _renvoyer_signup(request, pending):
+    ok_renvoi, err_renvoi = otp_peut_renvoyer(pending)
+    if not ok_renvoi:
+        messages.error(request, err_renvoi)
+        return redirect('utilisateur:verifier_compte')
     cible = _cible_depuis_pending(pending)
     contact = contact_telephone_fiche(pending.get('profil'), cible)
     if not contact:
@@ -294,6 +304,7 @@ def _renvoyer_signup(request, pending):
         'username': pending.get('username'),
         'password_hash': pending.get('password_hash'),
         'contact_masque': masquer_telephone(contact),
+        'resend_count': int(pending.get('resend_count') or 0) + 1,
     })
     request.session.modified = True
     messages.success(request, "Un nouveau code a ete envoye par WhatsApp.")
@@ -381,6 +392,10 @@ def mot_de_passe_oublie_code_view(request):
     contact_masque = pending.get('contact_masque') or ''
     if request.method == 'POST':
         if request.POST.get('action') == 'renvoyer':
+            ok_renvoi, err_renvoi = otp_peut_renvoyer(pending)
+            if not ok_renvoi:
+                messages.error(request, err_renvoi)
+                return redirect('utilisateur:password_reset_done')
             user = Utilisateur.objects.filter(pk=pending.get('user_id')).first()
             tel = telephone_utilisateur(user)
             if user and tel:
@@ -390,6 +405,7 @@ def mot_de_passe_oublie_code_view(request):
                     request.session[SESSION_RESET] = payload_otp(code, extra={
                         'user_id': user.pk,
                         'contact_masque': masquer_telephone(tel),
+                        'resend_count': int(pending.get('resend_count') or 0) + 1,
                     })
                     request.session.modified = True
                     messages.success(request, "Un nouveau code a été envoyé par WhatsApp.")

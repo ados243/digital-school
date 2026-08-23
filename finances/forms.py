@@ -279,7 +279,20 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
         # Évite un double « Bearer » si l'utilisateur colle l'en-tête complet
         if token.lower().startswith("bearer "):
             token = token[7:].strip()
-        return token
+        from common.secrets_crypto import chiffrer_secret
+
+        return chiffrer_secret(token)
+
+    def clean_api_url(self):
+        from finances.whatsapp import valider_api_url_whatsapp
+
+        url = (self.cleaned_data.get("api_url") or "").strip()
+        if not url:
+            return ""
+        ok, err = valider_api_url_whatsapp(url, self.cleaned_data.get("provider") or "")
+        if not ok:
+            raise forms.ValidationError(err or "URL API non autorisée.")
+        return url.rstrip("/")
 
     def clean_indicatif_pays(self):
         ind = re.sub(r"\D", "", self.cleaned_data.get("indicatif_pays") or "")
@@ -623,6 +636,41 @@ class EcritureForm(FormControlMixin, forms.ModelForm):
             "libelle": "Libellé",
         }
         widgets = {"date_ecriture": forms.DateInput(attrs={"type": "date"})}
+
+    def __init__(self, *args, ecole=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if ecole is not None:
+            self.ecole = ecole
+        elif getattr(self.instance, "ecole_id", None):
+            self.ecole = self.instance.ecole
+        else:
+            self.ecole = None
+        if self.ecole is not None:
+            self.fields["journal"].queryset = JournalComptable.objects.filter(
+                ecole=self.ecole
+            ).order_by("code")
+            self.fields["piece"].queryset = PieceComptable.objects.filter(
+                ecole=self.ecole
+            ).order_by("-date", "reference")
+        else:
+            self.fields["journal"].queryset = JournalComptable.objects.none()
+            self.fields["piece"].queryset = PieceComptable.objects.none()
+
+    @staticmethod
+    def _ecole_pk(ecole):
+        return getattr(ecole, "pk", ecole)
+
+    def clean_journal(self):
+        journal = self.cleaned_data.get("journal")
+        if journal and self.ecole and journal.ecole_id != self._ecole_pk(self.ecole):
+            raise forms.ValidationError("Journal hors de votre école.")
+        return journal
+
+    def clean_piece(self):
+        piece = self.cleaned_data.get("piece")
+        if piece and self.ecole and piece.ecole_id != self._ecole_pk(self.ecole):
+            raise forms.ValidationError("Pièce comptable hors de votre école.")
+        return piece
 
 
 class EcritureLigneForm(FormControlMixin, forms.ModelForm):
