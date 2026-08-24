@@ -4,7 +4,9 @@ FROM python:3.11-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    MFA_WHATSAPP=1 \
+    INSCRIPTION_WHATSAPP=1
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
