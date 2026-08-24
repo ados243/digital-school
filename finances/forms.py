@@ -223,7 +223,7 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             "instance_id": (
                 "Inutile avec Bird. Meta : Phone number ID (chiffres), pas le numéro +243…"
             ),
-            "template_meta": "Meta : recu_paiement. Bird : bird_delivery_update.",
+            "template_meta": "Meta : recu_de_paiement. Bird : bird_delivery_update.",
             "template_relance": "Meta : relance_minerval.",
             "template_annonce": "Meta : annonce_ecole.",
             "template_otp": "Meta : code_verification.",
@@ -245,7 +245,7 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             ),
             "indicatif_pays": forms.TextInput(attrs={"placeholder": "243"}),
             "template_meta": forms.TextInput(
-                attrs={"placeholder": "ex. recu_paiement"}
+                attrs={"placeholder": "ex. recu_de_paiement"}
             ),
             "template_relance": forms.TextInput(
                 attrs={"placeholder": "ex. relance_minerval"}

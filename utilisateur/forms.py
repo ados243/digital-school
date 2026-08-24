@@ -276,21 +276,21 @@ class ChangerMotDePasseForm(FormControlMixin, PasswordChangeForm):
 
 
 class MotDePasseOublieForm(FormControlMixin, forms.Form):
-    """Identifiant uniquement : le code part sur le WhatsApp de la fiche ecole."""
+    """Identifiant ou WhatsApp : le code part sur le numéro déjà enregistré."""
 
-    email = forms.CharField(
-        label='Identifiant de connexion',
+    identifiant = forms.CharField(
+        label='Identifiant ou WhatsApp',
         max_length=254,
         widget=forms.TextInput(attrs={
             'autofocus': True,
-            'placeholder': 'Votre identifiant',
+            'placeholder': 'Identifiant ou numéro WhatsApp',
             'autocomplete': 'username',
             'spellcheck': 'false',
         }),
     )
 
-    def clean_email(self):
-        return self.cleaned_data['email'].strip()
+    def clean_identifiant(self):
+        return (self.cleaned_data.get('identifiant') or '').strip()
 
 
 class NouveauMotDePasseForm(FormControlMixin, SetPasswordForm):

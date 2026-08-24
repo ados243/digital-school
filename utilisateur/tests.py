@@ -377,3 +377,45 @@ class SecuriteAccessibiliteTests(TestCase):
         self.assertEqual(response.status_code, 200)
         sess.refresh_from_db()
         self.assertIsNone(sess.ended_at)
+
+    @patch("utilisateur.auth_views.envoyer_code_whatsapp", return_value=(True, ""))
+    @patch("utilisateur.auth_views.generer_code", return_value="123456")
+    def test_mot_de_passe_oublie_envoie_code_whatsapp(self, _code, mock_send):
+        response = self.client.post(reverse("utilisateur:password_reset"), {
+            "identifiant": "parent1",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("utilisateur:password_reset_done"))
+        mock_send.assert_called_once()
+        suivi = self.client.get(response.url)
+        self.assertEqual(suivi.status_code, 200)
+        self.assertContains(suivi, "Code de réinitialisation")
+        self.assertContains(suivi, "WhatsApp")
+
+    @patch("utilisateur.auth_views.envoyer_code_whatsapp")
+    def test_mot_de_passe_oublie_identifiant_inconnu_ne_revele_rien(self, mock_send):
+        response = self.client.post(reverse("utilisateur:password_reset"), {
+            "identifiant": "inconnu99",
+        })
+        self.assertEqual(response.status_code, 302)
+        mock_send.assert_not_called()
+        suivi = self.client.get(response.url)
+        self.assertContains(suivi, "Vérifiez WhatsApp")
+
+    @patch("utilisateur.auth_views.envoyer_code_whatsapp", return_value=(True, ""))
+    @patch("utilisateur.auth_views.generer_code", return_value="123456")
+    def test_mot_de_passe_oublie_cycle_complet(self, _code, _send):
+        self.client.post(reverse("utilisateur:password_reset"), {"identifiant": "parent1"})
+        response = self.client.post(
+            reverse("utilisateur:password_reset_done"),
+            {"code": "123456"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("utilisateur:password_reset_confirm"))
+        response = self.client.post(reverse("utilisateur:password_reset_confirm"), {
+            "new_password1": "NouveauMot12",
+            "new_password2": "NouveauMot12",
+        })
+        self.assertEqual(response.status_code, 302)
+        self.parent.refresh_from_db()
+        self.assertTrue(self.parent.check_password("NouveauMot12"))

@@ -126,6 +126,32 @@ def telephone_utilisateur(user):
     return ""
 
 
+def trouver_utilisateur_pour_reset(identifiant):
+    """Compte actif correspondant à l'identifiant ou au numéro WhatsApp."""
+    from django.db.models import Q
+
+    from .models import Utilisateur
+
+    ident = (identifiant or "").strip()
+    if not ident:
+        return None
+    user = Utilisateur.objects.filter(is_active=True, username__iexact=ident).first()
+    if user:
+        return user
+    digits = re.sub(r"\D", "", ident)
+    if len(digits) < 9:
+        return None
+    suffixe = digits[-9:]
+    candidats = Utilisateur.objects.filter(is_active=True).filter(
+        Q(telephone__icontains=suffixe) | Q(tuteur__telephone__icontains=suffixe)
+    )
+    for candidat in candidats.select_related("tuteur")[:8]:
+        tel = telephone_utilisateur(candidat)
+        if tel and re.sub(r"\D", "", tel).endswith(suffixe):
+            return candidat
+    return None
+
+
 def empreinte_appareil(request):
     brut = f"{user_agent(request).casefold()}|{client_ip(request)}"
     return hashlib.sha256(brut.encode("utf-8")).hexdigest()

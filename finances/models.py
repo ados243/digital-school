@@ -441,7 +441,7 @@ class ConfigWhatsApp(models.Model):
     template_meta = models.CharField(
         max_length=100,
         blank=True,
-        help_text="Modèle Meta reçu de paiement (ex. recu_paiement) ou slug Bird",
+        help_text="Modèle Meta reçu de paiement (ex. recu_de_paiement) ou slug Bird",
     )
     template_relance = models.CharField(
         max_length=100,
@@ -515,7 +515,7 @@ class ConfigWhatsApp(models.Model):
         return cls.objects.create(
             ecole=None,
             provider="META",
-            template_meta="recu_paiement",
+            template_meta="recu_de_paiement",
             template_relance="relance_minerval",
             template_annonce="annonce_ecole",
             template_otp="code_verification",

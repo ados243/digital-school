@@ -109,7 +109,7 @@ PAGE_LABELS = {
     'utilisateur:portail': 'Mon espace',
     'utilisateur:profil': 'Mon profil',
     'utilisateur:password_reset': 'Mot de passe oublié',
-    'utilisateur:password_reset_done': 'E-mail envoyé',
+    'utilisateur:password_reset_done': 'Code WhatsApp',
     'utilisateur:password_reset_confirm': 'Nouveau mot de passe',
     'utilisateur:password_reset_complete': 'Mot de passe mis à jour',
     'utilisateur:parent_enfant': 'Fiche enfant',

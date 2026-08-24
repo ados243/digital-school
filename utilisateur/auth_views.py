@@ -33,6 +33,7 @@ from .security import (
     payload_otp,
     reinitialiser_echecs,
     telephone_utilisateur,
+    trouver_utilisateur_pour_reset,
     verifier_otp_session,
 )
 
@@ -88,8 +89,8 @@ class ConnexionView(LoginView):
                 journaliser(self.request, action='MFA_ENVOI_ECHEC', user=user, ressource='auth')
                 messages.error(
                     self.request,
-                    "L'envoi du code WhatsApp a échoué. Vérifiez le portefeuille Bird, "
-                    "puis cliquez sur « Renvoyer le code ».",
+                    "L'envoi du code WhatsApp a échoué. Vérifiez la configuration Meta "
+                    "(modèle OTP approuvé), puis cliquez sur « Renvoyer le code ».",
                 )
             return redirect('utilisateur:mfa')
 
@@ -361,10 +362,8 @@ def mot_de_passe_oublie_view(request):
         return redirect('utilisateur:post_login')
     form = MotDePasseOublieForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
-        identifiant = form.cleaned_data['email']
-        user = Utilisateur.objects.filter(
-            is_active=True, username__iexact=identifiant
-        ).first()
+        identifiant = form.cleaned_data['identifiant']
+        user = trouver_utilisateur_pour_reset(identifiant)
         if user and user.has_usable_password():
             tel = telephone_utilisateur(user)
             if tel:
@@ -376,8 +375,14 @@ def mot_de_passe_oublie_view(request):
                         'contact_masque': masquer_telephone(tel),
                     })
                     request.session.modified = True
-                else:
-                    journaliser(request, action='RESET_ENVOI_ECHEC', ressource='auth')
+                    return redirect('utilisateur:password_reset_done')
+                journaliser(request, action='RESET_ENVOI_ECHEC', ressource='auth')
+                messages.error(
+                    request,
+                    "L'envoi du code WhatsApp a échoué. Vérifiez le modèle OTP Meta "
+                    "(code_verification), puis réessayez.",
+                )
+                return render(request, 'utilisateur/password_reset_form.html', {'form': form})
         return redirect('utilisateur:password_reset_done')
     return render(request, 'utilisateur/password_reset_form.html', {'form': form})
 

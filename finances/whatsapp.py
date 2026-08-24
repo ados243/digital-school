@@ -292,7 +292,7 @@ def nom_template(config, kind: str) -> str:
     kind = (kind or "paiement").lower()
     if kind == "paiement":
         return (getattr(config, "template_meta", None) or "").strip() or getattr(
-            settings, "WHATSAPP_META_TEMPLATE_PAIEMENT", "recu_paiement"
+            settings, "WHATSAPP_META_TEMPLATE_PAIEMENT", "recu_de_paiement"
         )
     if kind == "relance":
         return (getattr(config, "template_relance", None) or "").strip() or getattr(
@@ -317,24 +317,40 @@ def langue_template(config) -> str:
     )
 
 
+def _langues_meta_a_essayer(langue: str) -> List[str]:
+    """Meta utilise parfois `fr`, parfois `fr_FR` pour un même modèle français."""
+    premiere = (langue or "fr").strip() or "fr"
+    vues: List[str] = []
+    for code in [premiere, "fr", "fr_FR"]:
+        if code and code not in vues:
+            vues.append(code)
+    return vues
+
+
+def _erreur_template_langue_inconnue(corps: str) -> bool:
+    texte = (corps or "").lower()
+    return "132001" in texte or "does not exist in the translation" in texte
+
+
 def _construire_payload_meta_template(
     telephone: str,
     template_name: str,
     langue: str,
     body_params: List[str],
+    extra_components: Optional[List[dict]] = None,
 ) -> dict:
     params = [{"type": "text", "text": _param_texte(v)} for v in body_params]
     template_obj = {
         "name": template_name,
         "language": {"code": langue or "fr"},
     }
+    composants: List[dict] = []
     if params:
-        template_obj["components"] = [
-            {
-                "type": "body",
-                "parameters": params,
-            }
-        ]
+        composants.append({"type": "body", "parameters": params})
+    if extra_components:
+        composants.extend(extra_components)
+    if composants:
+        template_obj["components"] = composants
     return {
         "messaging_product": "whatsapp",
         "to": telephone,
@@ -350,6 +366,7 @@ def envoyer_meta_template(
     body_params: List[str],
     *,
     language: Optional[str] = None,
+    extra_components: Optional[List[dict]] = None,
 ) -> Tuple[bool, str, str]:
     """Envoie un template Meta Cloud API (body {{1}}, {{2}}, …)."""
     phone_id = (config.instance_id or "").strip()
@@ -374,23 +391,43 @@ def envoyer_meta_template(
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
-    payload = _construire_payload_meta_template(
-        telephone,
-        template_name.strip(),
-        language or langue_template(config),
-        body_params or [],
-    )
+    langues = _langues_meta_a_essayer(language or langue_template(config))
+    dernier_corps = ""
+    dernier_statut = 0
     try:
-        resp = requests.post(
-            url,
-            json=payload,
-            headers=headers,
-            timeout=getattr(settings, "WHATSAPP_TIMEOUT", 20),
-        )
-        body = resp.text[:2000]
-        if resp.ok:
-            return True, body, ""
-        return False, body, f"HTTP {resp.status_code}: {body}"
+        for code_langue in langues:
+            payload = _construire_payload_meta_template(
+                telephone,
+                template_name.strip(),
+                code_langue,
+                body_params or [],
+                extra_components=extra_components,
+            )
+            resp = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=getattr(settings, "WHATSAPP_TIMEOUT", 20),
+            )
+            dernier_corps = resp.text[:2000]
+            dernier_statut = resp.status_code
+            if resp.ok:
+                if (
+                    code_langue != langue_template(config)
+                    and getattr(config, "pk", None)
+                ):
+                    config.template_langue = code_langue
+                    try:
+                        config.save(update_fields=["template_langue"])
+                    except Exception:
+                        logger.warning(
+                            "Impossible d'enregistrer la langue Meta %s",
+                            code_langue,
+                        )
+                return True, dernier_corps, ""
+            if not _erreur_template_langue_inconnue(dernier_corps):
+                break
+        return False, dernier_corps, f"HTTP {dernier_statut}: {dernier_corps}"
     except requests.RequestException as exc:
         return False, "", str(exc)
 
@@ -451,12 +488,33 @@ def _envoyer_meta(
 
 
 def envoyer_otp_meta(config, telephone: str, code: str) -> Tuple[bool, str, str]:
-    """OTP via template Meta code_verification ({{1}} = code)."""
+    """OTP via template Meta d'authentification ({{1}} = code + bouton copier)."""
+    code = str(code).strip()
+    nom = nom_template(config, "otp")
+    bouton = [
+        {
+            "type": "button",
+            "sub_type": "url",
+            "index": "0",
+            "parameters": [{"type": "text", "text": code}],
+        }
+    ]
+    ok, reponse, erreur = envoyer_meta_template(
+        config,
+        telephone,
+        nom,
+        [code],
+        language=langue_template(config),
+        extra_components=bouton,
+    )
+    if ok:
+        return ok, reponse, erreur
+    # Modèle sans bouton URL / copy-code : nouvel essai avec le corps seulement.
     return envoyer_meta_template(
         config,
         telephone,
-        nom_template(config, "otp"),
-        [str(code).strip()],
+        nom,
+        [code],
         language=langue_template(config),
     )
 

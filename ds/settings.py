@@ -124,9 +124,9 @@ OTP_TTL_MINUTES = int(os.environ.get("OTP_TTL_MINUTES", "10"))
 OTP_MAX_ATTEMPTS = int(os.environ.get("OTP_MAX_ATTEMPTS", "5"))
 OTP_RENVOI_COOLDOWN_SECONDS = int(os.environ.get("OTP_RENVOI_COOLDOWN_SECONDS", "60"))
 OTP_RENVOI_MAX = int(os.environ.get("OTP_RENVOI_MAX", "5"))
-# 2FA WhatsApp à la connexion. Désactivé temporairement (remettre 1 pour réactiver).
+# 2FA WhatsApp à la connexion (MFA_WHATSAPP=1 dans .env).
 MFA_WHATSAPP_ACTIF = _env_flag("MFA_WHATSAPP", "0")
-# Code WhatsApp à l'inscription. Désactivé temporairement (remettre 1 pour réactiver).
+# Code WhatsApp à l'inscription (INSCRIPTION_WHATSAPP=1 dans .env).
 INSCRIPTION_WHATSAPP_ACTIF = _env_flag("INSCRIPTION_WHATSAPP", "0")
 AUDIT_VOLUME_SEUIL = int(os.environ.get("AUDIT_VOLUME_SEUIL", "40"))
 AUDIT_VOLUME_MINUTES = int(os.environ.get("AUDIT_VOLUME_MINUTES", "10"))
@@ -361,8 +361,8 @@ WHATSAPP_TIMEOUT = int(os.environ.get('WHATSAPP_TIMEOUT', '20'))
 WHATSAPP_META_API_VERSION = os.environ.get('WHATSAPP_META_API_VERSION', 'v19.0')
 # Noms des modèles Meta approuvés (surchargeables en BDD)
 WHATSAPP_META_TEMPLATE_PAIEMENT = (
-    os.environ.get("WHATSAPP_META_TEMPLATE_PAIEMENT", "recu_paiement").strip()
-    or "recu_paiement"
+    os.environ.get("WHATSAPP_META_TEMPLATE_PAIEMENT", "recu_de_paiement").strip()
+    or "recu_de_paiement"
 )
 WHATSAPP_META_TEMPLATE_RELANCE = (
     os.environ.get("WHATSAPP_META_TEMPLATE_RELANCE", "relance_minerval").strip()
@@ -377,7 +377,7 @@ WHATSAPP_META_TEMPLATE_OTP = (
     or "code_verification"
 )
 WHATSAPP_META_LANGUAGE = (
-    os.environ.get("WHATSAPP_META_LANGUAGE", "fr_FR").strip() or "fr_FR"
+    os.environ.get("WHATSAPP_META_LANGUAGE", "fr").strip() or "fr"
 )
 
 # Visioconférence Jitsi / JaaS (cours en direct)
