@@ -359,22 +359,23 @@ def _erreur_parametres_otp(corps: str) -> bool:
 
 
 def _boutons_otp(code: str) -> List[Optional[List[dict]]]:
-    """Variantes Meta AUTH : URL one-tap (code_verification), copy-code, puis corps seul."""
+    """Bouton URL one-tap exigé par code_verification (Meta #132018)."""
+    param = [{"type": "text", "text": code}]
     return [
         [
             {
                 "type": "button",
                 "sub_type": "url",
-                "index": "0",
-                "parameters": [{"type": "text", "text": code}],
+                "index": 0,
+                "parameters": param,
             }
         ],
         [
             {
                 "type": "button",
-                "sub_type": "copy_code",
+                "sub_type": "url",
                 "index": "0",
-                "parameters": [{"type": "coupon_code", "coupon_code": code}],
+                "parameters": param,
             }
         ],
         None,
@@ -426,6 +427,7 @@ def _construire_payload_meta_template(
         template_obj["components"] = composants
     return {
         "messaging_product": "whatsapp",
+        "recipient_type": "individual",
         "to": telephone,
         "type": "template",
         "template": template_obj,

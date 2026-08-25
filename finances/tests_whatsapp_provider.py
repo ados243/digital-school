@@ -58,6 +58,7 @@ class WhatsAppLangueMetaTests(TestCase):
         self.assertEqual(composants[0]["type"], "body")
         self.assertEqual(composants[1]["type"], "button")
         self.assertEqual(composants[1]["parameters"][0]["text"], "123456")
+        self.assertEqual(payload.get("recipient_type"), "individual")
 
     def test_otp_langues_incluent_anglais(self):
         self.assertEqual(
@@ -91,7 +92,9 @@ class WhatsAppLangueMetaTests(TestCase):
         payload = mock_post.call_args.kwargs["json"]
         bouton = payload["template"]["components"][1]
         self.assertEqual(bouton["sub_type"], "url")
+        self.assertEqual(bouton["index"], 0)
         self.assertEqual(bouton["parameters"][0]["text"], "654321")
+        self.assertEqual(payload.get("recipient_type"), "individual")
 
     @patch("finances.whatsapp._token_clair", return_value="tok")
     @patch("finances.whatsapp.requests.post")
