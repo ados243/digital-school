@@ -30,7 +30,7 @@ def whatsapp_config(request):
     else:
         form = ConfigWhatsAppForm(instance=config)
 
-    from .whatsapp import CLES_CONTEXTE, parser_cles_template
+    from .whatsapp import CLES_CONTEXTE, etat_credentials_meta, parser_cles_template
 
     notif_qs = NotificationWhatsApp.objects.select_related("paiement", "ecole")
     if not request.user.is_superuser and ecole:
@@ -40,6 +40,7 @@ def whatsapp_config(request):
         (f"{{{{{i}}}}}", cle)
         for i, cle in enumerate(parser_cles_template(config), start=1)
     ]
+    _phone, _tok, cred_statut = etat_credentials_meta(config)
     return render(
         request,
         "finances/whatsapp_config.html",
@@ -51,6 +52,9 @@ def whatsapp_config(request):
             "journal_multi_ecoles": request.user.is_superuser,
             "placeholders": " ".join("{" + c + "}" for c in CLES_CONTEXTE),
             "mapping_vars": mapping_vars,
+            "meta_cred_statut": cred_statut,
+            "meta_phone_id": (config.instance_id or "").strip(),
+            "meta_token_enregistre": bool((config.api_token or "").strip()),
             "exemple_template_meta": (
                 "Bonjour, paiement reçu pour {{1}}.\n"
                 "Montant : {{2}}\n"

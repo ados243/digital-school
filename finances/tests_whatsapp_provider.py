@@ -91,6 +91,27 @@ class WhatsAppLangueMetaTests(TestCase):
         self.assertIn("133010", msg)
         self.assertIn("quality rating too low", msg)
 
+    def test_etat_credentials_token_illisible(self):
+        from common.secrets_crypto import PREFIX
+        from finances.whatsapp import etat_credentials_meta, message_credentials_meta
+
+        config = ConfigWhatsApp.charger_centrale()
+        config.instance_id = "1194724093733471"
+        config.api_token = PREFIX + "pas-un-vrai-jeton-fernet"
+        phone, token, statut = etat_credentials_meta(config)
+        self.assertEqual(statut, "token_illisible")
+        self.assertEqual(token, "")
+        self.assertIn("illisible", message_credentials_meta(statut).lower())
+
+    def test_etat_credentials_token_absent(self):
+        from finances.whatsapp import etat_credentials_meta
+
+        config = ConfigWhatsApp.charger_centrale()
+        config.instance_id = "1"
+        config.api_token = ""
+        _, _, statut = etat_credentials_meta(config)
+        self.assertEqual(statut, "token_absent")
+
     @patch("finances.whatsapp._token_clair", return_value="tok")
     @patch("finances.whatsapp.requests.post")
     def test_otp_envoie_bouton_url_en_premier(self, mock_post, _token):
@@ -101,6 +122,7 @@ class WhatsAppLangueMetaTests(TestCase):
         )
         config = ConfigWhatsApp.charger_centrale()
         config.instance_id = "1194724093733471"
+        config.api_token = "tok"
         config.template_otp = "code_verification"
         config.template_langue = "fr"
         ok, _, err = envoyer_otp_meta(config, "243812903591", "654321")
@@ -146,6 +168,7 @@ class WhatsAppLangueMetaTests(TestCase):
         mock_post.side_effect = side_effect
         config = ConfigWhatsApp.charger_centrale()
         config.instance_id = "1"
+        config.api_token = "tok"
         config.template_otp = "code_verification"
         config.template_langue = "fr"
         ok, _, err = envoyer_otp_meta(config, "243812903591", "654321")
@@ -177,8 +200,9 @@ class WhatsAppLangueMetaTests(TestCase):
         mock_post.side_effect = side_effect
         config = ConfigWhatsApp.charger_centrale()
         config.instance_id = "1"
+        config.api_token = "tok"
         config.template_langue = "fr"
-        config.save(update_fields=["instance_id", "template_langue"])
+        config.save(update_fields=["instance_id", "template_langue", "api_token"])
         ok, _, _ = envoyer_otp_meta(config, "243000000", "111111")
         self.assertTrue(ok)
         config.refresh_from_db()
@@ -213,6 +237,7 @@ class WhatsAppLangueMetaTests(TestCase):
         mock_post.side_effect = side_effect
         config = ConfigWhatsApp.charger_centrale()
         config.instance_id = "1"
+        config.api_token = "tok"
         config.template_otp = "code_verification"
         config.template_langue = "fr"
         ok, _, err = envoyer_otp_meta(config, "243812903591", "654321")
@@ -229,6 +254,7 @@ class WhatsAppLangueMetaTests(TestCase):
         )
         config = ConfigWhatsApp.charger_centrale()
         config.instance_id = "1194724093733471"
+        config.api_token = "tok"
         config.api_url = "https://graph.facebook.com/v19.0/1194724093733471"
         config.template_otp = "code_verification"
         ok, _, err = envoyer_otp_meta(config, "243812903591", "654321")

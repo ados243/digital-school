@@ -55,6 +55,47 @@ def _token_clair(config) -> str:
     return dechiffrer_secret(getattr(config, "api_token", None) or "")
 
 
+def etat_credentials_meta(config) -> Tuple[str, str, str]:
+    """Retourne (phone_id, token_clair, statut).
+
+    statut : ok | phone_absent | token_absent | token_illisible
+    """
+    from common.secrets_crypto import PREFIX
+
+    phone_id = (getattr(config, "instance_id", None) or "").strip()
+    brut = (getattr(config, "api_token", None) or "").strip()
+    if not brut:
+        return phone_id, "", "token_absent"
+    token = _token_clair(config)
+    if not token:
+        if brut.startswith(PREFIX):
+            return phone_id, "", "token_illisible"
+        return phone_id, "", "token_absent"
+    if not phone_id and not (getattr(config, "api_url", None) or "").strip():
+        return phone_id, token, "phone_absent"
+    return phone_id, token, "ok"
+
+
+def message_credentials_meta(statut: str) -> str:
+    if statut == "token_illisible":
+        return (
+            "Le jeton Meta est enregistré mais illisible "
+            "(DJANGO_SECRET_KEY a probablement changé). "
+            "Recollez le jeton permanent dans Finances → WhatsApp, puis enregistrez."
+        )
+    if statut == "token_absent":
+        return (
+            "Jeton Meta manquant. Collez le jeton permanent dans "
+            "Finances → WhatsApp, puis enregistrez."
+        )
+    if statut == "phone_absent":
+        return (
+            "Phone Number ID manquant. Renseignez-le dans "
+            "Finances → WhatsApp (chiffres Meta, pas le numéro +243…)."
+        )
+    return "Phone Number ID ou token Meta manquant."
+
+
 # Clés autorisées pour les variables de template Meta / texte libre
 CLES_CONTEXTE = (
     "parent",
@@ -418,6 +459,16 @@ def message_echec_otp(erreur: str, nom_modele: str = "code_verification") -> str
             "Le Phone Number ID ou le jeton Meta est manquant. "
             "Enregistrez-les dans Finances → WhatsApp, puis renvoyez le code."
         )
+    if "illisible" in lower or "django_secret_key" in lower:
+        return (
+            "Le jeton Meta est illisible (clé secrète Django changée). "
+            "Recollez le jeton permanent dans Finances → WhatsApp, puis renvoyez le code."
+        )
+    if "jeton meta manquant" in lower:
+        return (
+            "Jeton Meta manquant. Collez le jeton permanent dans "
+            "Finances → WhatsApp, puis renvoyez le code."
+        )
     if "fournisseur meta" in lower or "utilise meta" in lower:
         return (
             "L'OTP WhatsApp utilise Meta. Choisissez le fournisseur Meta "
@@ -583,14 +634,11 @@ def envoyer_meta_template(
     poursuivre_si_params: bool = False,
 ) -> Tuple[bool, str, str]:
     """Envoie un template Meta Cloud API (body {{1}}, {{2}}, …)."""
-    phone_id = (config.instance_id or "").strip()
-    token = _token_clair(config)
+    phone_id, token, statut = etat_credentials_meta(config)
     if token.lower().startswith("bearer "):
         token = token[7:].strip()
-    if not token:
-        return False, "", "Phone Number ID ou token Meta manquant."
-    if not phone_id and not (config.api_url or "").strip():
-        return False, "", "Phone Number ID ou token Meta manquant."
+    if statut != "ok":
+        return False, "", message_credentials_meta(statut)
     if not (template_name or "").strip():
         return False, "", "Nom de template Meta manquant."
 
@@ -668,22 +716,15 @@ def _envoyer_meta(
             valeurs_template(config, contexte),
             language=langue_template(config),
         )
-    phone_id = (config.instance_id or "").strip()
-    token = _token_clair(config)
+    phone_id, token, statut = etat_credentials_meta(config)
     if token.lower().startswith("bearer "):
         token = token[7:].strip()
-    if not phone_id or not token:
-        return False, "", "Phone Number ID ou token Meta manquant."
+    if statut != "ok":
+        return False, "", message_credentials_meta(statut)
 
-    base = (config.api_url or "").strip().rstrip("/")
-    if base:
-        ok, err = valider_api_url_whatsapp(base, "META")
-        if not ok:
-            return False, "", err
-    else:
-        version = getattr(settings, "WHATSAPP_META_API_VERSION", "v19.0")
-        base = f"https://graph.facebook.com/{version}/{phone_id}"
-    url = f"{base}/messages"
+    url, err_url = _url_messages_meta(config)
+    if err_url:
+        return False, "", err_url
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",

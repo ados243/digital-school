@@ -62,6 +62,10 @@ else:
         "DJANGO_SECRET_KEY doit être défini (variable d'environnement)."
     )
 
+# Clé Fernet dédiée pour les jetons WhatsApp (optionnel).
+# Si absente, dérivée de SECRET_KEY — changer SECRET_KEY rend les jetons illisibles.
+DJANGO_FERNET_KEY = (os.environ.get("DJANGO_FERNET_KEY") or "").strip()
+
 # Défaut production (DEBUG off). En local : copier .env.example (DJANGO_DEBUG=1).
 DEBUG = _env_flag("DJANGO_DEBUG", "0")
 

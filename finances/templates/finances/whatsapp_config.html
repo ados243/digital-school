@@ -51,6 +51,28 @@
         </ol>
       </div>
 
+      {% if config.provider == 'META' %}
+      <div class="form-help" style="margin-bottom:1rem; padding:.85rem 1rem; border-radius:10px; {% if meta_cred_statut == 'ok' %}background:rgba(22,163,74,.08);{% else %}background:rgba(185,28,28,.08);{% endif %}">
+        <strong>État des identifiants Meta</strong>
+        <ul style="margin:.4rem 0 0 1.1rem; padding:0;">
+          <li>Phone Number ID :
+            {% if meta_phone_id %}<code>{{ meta_phone_id }}</code>{% else %}<span style="color:#b91c1c;">manquant</span>{% endif %}
+          </li>
+          <li>Jeton :
+            {% if meta_cred_statut == 'ok' %}
+              enregistré et lisible
+            {% elif meta_cred_statut == 'token_illisible' %}
+              <span style="color:#b91c1c;">enregistré mais illisible — recollez-le (clé Django changée)</span>
+            {% elif meta_token_enregistre %}
+              <span style="color:#b91c1c;">non utilisable</span>
+            {% else %}
+              <span style="color:#b91c1c;">absent — collez le jeton permanent</span>
+            {% endif %}
+          </li>
+        </ul>
+      </div>
+      {% endif %}
+
       <form method="post" class="form-horizontal" id="whatsapp-config-form">
         {% csrf_token %}
         <input type="hidden" name="action" value="save_config">
