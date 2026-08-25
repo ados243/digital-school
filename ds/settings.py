@@ -124,10 +124,10 @@ OTP_TTL_MINUTES = int(os.environ.get("OTP_TTL_MINUTES", "10"))
 OTP_MAX_ATTEMPTS = int(os.environ.get("OTP_MAX_ATTEMPTS", "5"))
 OTP_RENVOI_COOLDOWN_SECONDS = int(os.environ.get("OTP_RENVOI_COOLDOWN_SECONDS", "60"))
 OTP_RENVOI_MAX = int(os.environ.get("OTP_RENVOI_MAX", "5"))
-# 2FA WhatsApp à la connexion (désactiver avec MFA_WHATSAPP=0).
-MFA_WHATSAPP_ACTIF = _env_flag("MFA_WHATSAPP", "1")
-# Code WhatsApp à l'inscription (désactiver avec INSCRIPTION_WHATSAPP=0).
-INSCRIPTION_WHATSAPP_ACTIF = _env_flag("INSCRIPTION_WHATSAPP", "1")
+# 2FA WhatsApp à la connexion (réactiver avec MFA_WHATSAPP=1).
+MFA_WHATSAPP_ACTIF = _env_flag("MFA_WHATSAPP", "0")
+# Code WhatsApp à l'inscription (réactiver avec INSCRIPTION_WHATSAPP=1).
+INSCRIPTION_WHATSAPP_ACTIF = _env_flag("INSCRIPTION_WHATSAPP", "0")
 AUDIT_VOLUME_SEUIL = int(os.environ.get("AUDIT_VOLUME_SEUIL", "40"))
 AUDIT_VOLUME_MINUTES = int(os.environ.get("AUDIT_VOLUME_MINUTES", "10"))
 
