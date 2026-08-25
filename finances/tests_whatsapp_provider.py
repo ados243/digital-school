@@ -92,9 +92,14 @@ class WhatsAppLangueMetaTests(TestCase):
         payload = mock_post.call_args.kwargs["json"]
         bouton = payload["template"]["components"][1]
         self.assertEqual(bouton["sub_type"], "url")
-        self.assertEqual(bouton["index"], 0)
+        self.assertEqual(bouton["index"], "0")
         self.assertEqual(bouton["parameters"][0]["text"], "654321")
         self.assertEqual(payload.get("recipient_type"), "individual")
+        self.assertEqual(payload["template"]["language"].get("policy"), "deterministic")
+        from finances.whatsapp import _version_meta_otp
+
+        url = mock_post.call_args[0][0]
+        self.assertIn(f"/{_version_meta_otp()}/", url)
 
     @patch("finances.whatsapp._token_clair", return_value="tok")
     @patch("finances.whatsapp.requests.post")

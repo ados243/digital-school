@@ -359,23 +359,14 @@ def _erreur_parametres_otp(corps: str) -> bool:
 
 
 def _boutons_otp(code: str) -> List[Optional[List[dict]]]:
-    """Bouton URL one-tap exigé par code_verification (Meta #132018)."""
-    param = [{"type": "text", "text": code}]
+    """Bouton URL officiel Meta AUTH (copy-code est stocké comme URL côté Graph)."""
     return [
         [
             {
                 "type": "button",
                 "sub_type": "url",
-                "index": 0,
-                "parameters": param,
-            }
-        ],
-        [
-            {
-                "type": "button",
-                "sub_type": "url",
                 "index": "0",
-                "parameters": param,
+                "parameters": [{"type": "text", "text": code}],
             }
         ],
         None,
@@ -393,6 +384,12 @@ def message_echec_otp(erreur: str, nom_modele: str = "code_verification") -> str
             "(ou pas dans une langue approuvée). Créez un modèle de catégorie "
             "Authentification, collez son nom exact dans Finances → WhatsApp "
             "(Template code OTP), puis cliquez sur « Renvoyer le code »."
+        )
+    if "132018" in texte:
+        return (
+            "Le modèle OTP Meta exige un bouton URL (index 0) avec le code. "
+            "Vérifiez dans Business Manager que « Template code OTP » est bien "
+            "le modèle Authentification approuvé, puis renvoyez le code."
         )
     if "131030" in texte:
         return (
@@ -412,11 +409,15 @@ def _construire_payload_meta_template(
     langue: str,
     body_params: List[str],
     extra_components: Optional[List[dict]] = None,
+    language_policy: Optional[str] = None,
 ) -> dict:
     params = [{"type": "text", "text": _param_texte(v)} for v in body_params]
+    language_obj: dict = {"code": langue or "fr"}
+    if language_policy:
+        language_obj["policy"] = language_policy
     template_obj = {
         "name": template_name,
-        "language": {"code": langue or "fr"},
+        "language": language_obj,
     }
     composants: List[dict] = []
     if params:
@@ -434,6 +435,18 @@ def _construire_payload_meta_template(
     }
 
 
+def _version_meta_otp() -> str:
+    """Les modèles AUTH (bouton URL) sont documentés à partir de Graph v21."""
+    brut = (getattr(settings, "WHATSAPP_META_API_VERSION", "v21.0") or "v21.0").strip()
+    try:
+        majeur = int(str(brut).lstrip("vV").split(".")[0])
+    except (TypeError, ValueError):
+        majeur = 0
+    if majeur < 21:
+        return "v21.0"
+    return brut
+
+
 def envoyer_meta_template(
     config,
     telephone: str,
@@ -444,6 +457,8 @@ def envoyer_meta_template(
     extra_components: Optional[List[dict]] = None,
     persist_langue: bool = True,
     langues: Optional[List[str]] = None,
+    api_version: Optional[str] = None,
+    language_policy: Optional[str] = None,
 ) -> Tuple[bool, str, str]:
     """Envoie un template Meta Cloud API (body {{1}}, {{2}}, …)."""
     phone_id = (config.instance_id or "").strip()
@@ -461,7 +476,7 @@ def envoyer_meta_template(
         if not ok:
             return False, "", err
     else:
-        version = getattr(settings, "WHATSAPP_META_API_VERSION", "v19.0")
+        version = api_version or getattr(settings, "WHATSAPP_META_API_VERSION", "v21.0")
         base = f"https://graph.facebook.com/{version}/{phone_id}"
     url = f"{base}/messages"
     headers = {
@@ -486,6 +501,7 @@ def envoyer_meta_template(
                 code_langue,
                 body_params or [],
                 extra_components=extra_components,
+                language_policy=language_policy,
             )
             resp = requests.post(
                 url,
@@ -589,6 +605,8 @@ def envoyer_otp_meta(config, telephone: str, code: str) -> Tuple[bool, str, str]
             extra_components=extra,
             persist_langue=False,
             langues=langues,
+            api_version=_version_meta_otp(),
+            language_policy="deterministic",
         )
         if ok:
             return ok, reponse, erreur
