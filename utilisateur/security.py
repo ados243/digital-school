@@ -282,6 +282,7 @@ def envoyer_code_whatsapp(destinataire, code):
         return False, "Aucun numéro WhatsApp."
 
     digits = re.sub(r"\D", "", str(destinataire))
+    meta_erreur = ""
     try:
         from finances.models import ConfigWhatsApp
         from finances.whatsapp import (
@@ -296,15 +297,18 @@ def envoyer_code_whatsapp(destinataire, code):
             ok, _reponse, erreur = envoyer_otp_meta(config, telephone, code)
             if ok:
                 return True, ""
-            raise RuntimeError(erreur or "Échec Meta OTP")
+            meta_erreur = erreur or "Échec Meta OTP"
+            logger.warning("Envoi OTP Meta échoué vers %s : %s", destinataire, meta_erreur)
     except Exception as meta_exc:
+        meta_erreur = str(meta_exc)
         logger.warning("Envoi OTP Meta échoué vers %s : %s", destinataire, meta_exc)
 
     try:
-        from ds.bird import envoyer_otp_whatsapp
+        from ds.bird import bird_configure, envoyer_otp_whatsapp
 
-        envoyer_otp_whatsapp(destinataire, code)
-        return True, ""
+        if bird_configure():
+            envoyer_otp_whatsapp(destinataire, code)
+            return True, ""
     except Exception as exc:
         logger.warning("Envoi OTP WhatsApp échoué vers %s : %s", destinataire, exc)
         if getattr(settings, "DEBUG", False):
@@ -313,7 +317,12 @@ def envoyer_code_whatsapp(destinataire, code):
                 masquer_telephone(destinataire),
                 code,
             )
-        return False, str(exc)[:240]
+        parties = [p for p in (meta_erreur, str(exc)[:240]) if p]
+        return False, " | ".join(parties)[:400]
+
+    if meta_erreur:
+        return False, meta_erreur[:400]
+    return False, "Aucun canal WhatsApp OTP disponible (Meta / Bird)."
 
 
 def payload_otp(code, extra=None):

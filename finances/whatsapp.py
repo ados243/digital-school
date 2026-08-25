@@ -317,11 +317,17 @@ def langue_template(config) -> str:
     )
 
 
-def _langues_meta_a_essayer(langue: str) -> List[str]:
+def _langues_meta_a_essayer(
+    langue: str, extras: Optional[List[str]] = None
+) -> List[str]:
     """Meta utilise parfois `fr`, parfois `fr_FR` pour un même modèle français."""
     premiere = (langue or "fr").strip() or "fr"
     vues: List[str] = []
-    for code in [premiere, "fr", "fr_FR"]:
+    codes = [premiere, "fr", "fr_FR"]
+    if extras:
+        codes.extend(extras)
+    for code in codes:
+        code = (code or "").strip()
         if code and code not in vues:
             vues.append(code)
     return vues
@@ -330,6 +336,68 @@ def _langues_meta_a_essayer(langue: str) -> List[str]:
 def _erreur_template_langue_inconnue(corps: str) -> bool:
     texte = (corps or "").lower()
     return "132001" in texte or "does not exist in the translation" in texte
+
+
+def _erreur_parametres_otp(corps: str) -> bool:
+    """Bouton copy-code vs URL vs corps seul : le modèle AUTH n'accepte qu'une forme."""
+    texte = (corps or "").lower()
+    marqueurs = (
+        "132000",
+        "132012",
+        "131008",
+        "parameter format",
+        "number of parameters",
+        "unexpected",
+        "invalid parameter",
+    )
+    return any(m in texte for m in marqueurs)
+
+
+def _boutons_otp(code: str) -> List[Optional[List[dict]]]:
+    """Variantes Meta AUTH : copy-code (actuel), URL one-tap, puis corps seul."""
+    return [
+        [
+            {
+                "type": "button",
+                "sub_type": "copy_code",
+                "index": "0",
+                "parameters": [{"type": "coupon_code", "coupon_code": code}],
+            }
+        ],
+        [
+            {
+                "type": "button",
+                "sub_type": "url",
+                "index": "0",
+                "parameters": [{"type": "text", "text": code}],
+            }
+        ],
+        None,
+    ]
+
+
+def message_echec_otp(erreur: str, nom_modele: str = "code_verification") -> str:
+    """Message utilisateur pour un échec d'envoi OTP (sans jeton ni payload brut)."""
+    texte = erreur or ""
+    nom = (nom_modele or "code_verification").strip() or "code_verification"
+    lower = texte.lower()
+    if "132001" in texte or "does not exist in the translation" in lower:
+        return (
+            f"Le modèle WhatsApp « {nom} » n'existe pas sur ce compte Meta "
+            "(ou pas dans une langue approuvée). Créez un modèle de catégorie "
+            "Authentification, collez son nom exact dans Finances → WhatsApp "
+            "(Template code OTP), puis cliquez sur « Renvoyer le code »."
+        )
+    if "131030" in texte:
+        return (
+            "Ce numéro n'est pas autorisé à recevoir les messages du numéro "
+            "WhatsApp de test Meta. Ajoutez-le comme destinataire de test, "
+            "ou utilisez un numéro WhatsApp de production."
+        )
+    return (
+        "L'envoi du code WhatsApp a échoué. Vérifiez la configuration Meta "
+        "(modèle OTP approuvé), puis cliquez sur « Renvoyer le code »."
+    )
 
 
 def _construire_payload_meta_template(
@@ -367,6 +435,8 @@ def envoyer_meta_template(
     *,
     language: Optional[str] = None,
     extra_components: Optional[List[dict]] = None,
+    persist_langue: bool = True,
+    langues: Optional[List[str]] = None,
 ) -> Tuple[bool, str, str]:
     """Envoie un template Meta Cloud API (body {{1}}, {{2}}, …)."""
     phone_id = (config.instance_id or "").strip()
@@ -391,11 +461,18 @@ def envoyer_meta_template(
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
-    langues = _langues_meta_a_essayer(language or langue_template(config))
+    if langues:
+        langues_essai: List[str] = []
+        for code in langues:
+            code = (code or "").strip()
+            if code and code not in langues_essai:
+                langues_essai.append(code)
+    else:
+        langues_essai = _langues_meta_a_essayer(language or langue_template(config))
     dernier_corps = ""
     dernier_statut = 0
     try:
-        for code_langue in langues:
+        for code_langue in langues_essai:
             payload = _construire_payload_meta_template(
                 telephone,
                 template_name.strip(),
@@ -413,7 +490,8 @@ def envoyer_meta_template(
             dernier_statut = resp.status_code
             if resp.ok:
                 if (
-                    code_langue != langue_template(config)
+                    persist_langue
+                    and code_langue != langue_template(config)
                     and getattr(config, "pk", None)
                 ):
                     config.template_langue = code_langue
@@ -491,32 +569,31 @@ def envoyer_otp_meta(config, telephone: str, code: str) -> Tuple[bool, str, str]
     """OTP via template Meta d'authentification ({{1}} = code + bouton copier)."""
     code = str(code).strip()
     nom = nom_template(config, "otp")
-    bouton = [
-        {
-            "type": "button",
-            "sub_type": "url",
-            "index": "0",
-            "parameters": [{"type": "text", "text": code}],
-        }
-    ]
-    ok, reponse, erreur = envoyer_meta_template(
-        config,
-        telephone,
-        nom,
-        [code],
-        language=langue_template(config),
-        extra_components=bouton,
+    langues = _langues_meta_a_essayer(
+        langue_template(config), extras=["en", "en_US"]
     )
-    if ok:
-        return ok, reponse, erreur
-    # Modèle sans bouton URL / copy-code : nouvel essai avec le corps seulement.
-    return envoyer_meta_template(
-        config,
-        telephone,
-        nom,
-        [code],
-        language=langue_template(config),
-    )
+    dernier_reponse = ""
+    dernier_erreur = "Nom de template OTP manquant."
+    for extra in _boutons_otp(code):
+        ok, reponse, erreur = envoyer_meta_template(
+            config,
+            telephone,
+            nom,
+            [code],
+            language=langue_template(config),
+            extra_components=extra,
+            persist_langue=False,
+            langues=langues,
+        )
+        if ok:
+            return ok, reponse, erreur
+        dernier_reponse, dernier_erreur = reponse, erreur
+        detail = f"{erreur or ''} {reponse or ''}"
+        if _erreur_template_langue_inconnue(detail):
+            break
+        if not _erreur_parametres_otp(detail):
+            break
+    return False, dernier_reponse, dernier_erreur
 
 
 def envoyer_relance_meta(config, contexte: dict, telephone: str) -> Tuple[bool, str, str]:

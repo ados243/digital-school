@@ -226,7 +226,10 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             "template_meta": "Meta : recu_de_paiement. Bird : bird_delivery_update.",
             "template_relance": "Meta : relance_minerval.",
             "template_annonce": "Meta : annonce_ecole.",
-            "template_otp": "Meta : code_verification.",
+            "template_otp": (
+                "Meta : nom exact du modèle Authentification (souvent "
+                "code_verification). Catégorie Authentication, approuvé."
+            ),
         }
         widgets = {
             "api_token": forms.PasswordInput(

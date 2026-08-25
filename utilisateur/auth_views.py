@@ -40,6 +40,20 @@ from .security import (
 Utilisateur = get_user_model()
 
 
+def _message_echec_otp(err):
+    from finances.models import ConfigWhatsApp
+    from finances.whatsapp import message_echec_otp, nom_template
+
+    nom = "code_verification"
+    try:
+        config = ConfigWhatsApp.charger_centrale()
+        if config:
+            nom = nom_template(config, "otp")
+    except Exception:
+        pass
+    return message_echec_otp(err or "", nom)
+
+
 def _next_url(request, fallback='utilisateur:post_login'):
     nxt = request.POST.get('next') or request.GET.get('next') or ''
     if nxt and url_has_allowed_host_and_scheme(nxt, allowed_hosts={request.get_host()}):
@@ -86,12 +100,14 @@ class ConnexionView(LoginView):
                     f"Un code de vérification a été envoyé au WhatsApp {masquer_telephone(tel)}.",
                 )
             else:
-                journaliser(self.request, action='MFA_ENVOI_ECHEC', user=user, ressource='auth')
-                messages.error(
+                journaliser(
                     self.request,
-                    "L'envoi du code WhatsApp a échoué. Vérifiez la configuration Meta "
-                    "(modèle OTP approuvé), puis cliquez sur « Renvoyer le code ».",
+                    action='MFA_ENVOI_ECHEC',
+                    user=user,
+                    ressource='auth',
+                    extra={'erreur': (err or '')[:240]},
                 )
+                messages.error(self.request, _message_echec_otp(err))
             return redirect('utilisateur:mfa')
 
         return self._finaliser_connexion(user)
@@ -173,7 +189,7 @@ def _renvoyer_mfa(request, user, pending):
         messages.error(request, "Aucun numéro WhatsApp n'est associé à ce compte.")
         return redirect('utilisateur:mfa')
     code = generer_code()
-    ok, _err = envoyer_code_whatsapp(tel, code)
+    ok, err = envoyer_code_whatsapp(tel, code)
     request.session[SESSION_MFA] = payload_otp(code, extra={
         'user_id': user.pk,
         'backend': pending.get('backend'),
@@ -185,8 +201,14 @@ def _renvoyer_mfa(request, user, pending):
     if ok:
         messages.success(request, "Un nouveau code a été envoyé par WhatsApp.")
     else:
-        journaliser(request, action='MFA_ENVOI_ECHEC', user=user, ressource='auth')
-        messages.error(request, "L'envoi du code WhatsApp a échoué. Réessayez plus tard.")
+        journaliser(
+            request,
+            action='MFA_ENVOI_ECHEC',
+            user=user,
+            ressource='auth',
+            extra={'erreur': (err or '')[:240]},
+        )
+        messages.error(request, _message_echec_otp(err))
     return redirect('utilisateur:mfa')
 
 
@@ -225,12 +247,9 @@ def demarrer_verification_inscription(request, form):
         })
 
     code = generer_code()
-    ok, _err = envoyer_code_whatsapp(contact, code)
+    ok, err = envoyer_code_whatsapp(contact, code)
     if not ok:
-        form.add_error(
-            None,
-            "L'envoi du code WhatsApp a échoué. Réessayez plus tard ou contactez l'établissement.",
-        )
+        form.add_error(None, _message_echec_otp(err))
         return render(request, 'utilisateur/inscription.html', {
             'form': form,
             'inscription_whatsapp_actif': True,
@@ -290,9 +309,9 @@ def _renvoyer_signup(request, pending):
         messages.error(request, MSG_CONTACT_MANQUANT)
         return redirect('utilisateur:inscription')
     code = generer_code()
-    ok, _err = envoyer_code_whatsapp(contact, code)
+    ok, err = envoyer_code_whatsapp(contact, code)
     if not ok:
-        messages.error(request, "L'envoi du code WhatsApp a échoué. Réessayez plus tard.")
+        messages.error(request, _message_echec_otp(err))
         return redirect('utilisateur:verifier_compte')
     request.session[SESSION_SIGNUP] = payload_otp(code, extra={
         'profil': pending.get('profil'),
@@ -368,7 +387,7 @@ def mot_de_passe_oublie_view(request):
             tel = telephone_utilisateur(user)
             if tel:
                 code = generer_code()
-                ok, _err = envoyer_code_whatsapp(tel, code)
+                ok, err = envoyer_code_whatsapp(tel, code)
                 if ok:
                     request.session[SESSION_RESET] = payload_otp(code, extra={
                         'user_id': user.pk,
@@ -376,12 +395,13 @@ def mot_de_passe_oublie_view(request):
                     })
                     request.session.modified = True
                     return redirect('utilisateur:password_reset_done')
-                journaliser(request, action='RESET_ENVOI_ECHEC', ressource='auth')
-                messages.error(
+                journaliser(
                     request,
-                    "L'envoi du code WhatsApp a échoué. Vérifiez le modèle OTP Meta "
-                    "(code_verification), puis réessayez.",
+                    action='RESET_ENVOI_ECHEC',
+                    ressource='auth',
+                    extra={'erreur': (err or '')[:240]},
                 )
+                messages.error(request, _message_echec_otp(err))
                 return render(request, 'utilisateur/password_reset_form.html', {'form': form})
         return redirect('utilisateur:password_reset_done')
     return render(request, 'utilisateur/password_reset_form.html', {'form': form})
@@ -405,7 +425,7 @@ def mot_de_passe_oublie_code_view(request):
             tel = telephone_utilisateur(user)
             if user and tel:
                 code = generer_code()
-                ok, _err = envoyer_code_whatsapp(tel, code)
+                ok, err = envoyer_code_whatsapp(tel, code)
                 if ok:
                     request.session[SESSION_RESET] = payload_otp(code, extra={
                         'user_id': user.pk,
@@ -415,8 +435,13 @@ def mot_de_passe_oublie_code_view(request):
                     request.session.modified = True
                     messages.success(request, "Un nouveau code a été envoyé par WhatsApp.")
                 else:
-                    journaliser(request, action='RESET_ENVOI_ECHEC', ressource='auth')
-                    messages.error(request, "L'envoi du code WhatsApp a échoué. Réessayez plus tard.")
+                    journaliser(
+                        request,
+                        action='RESET_ENVOI_ECHEC',
+                        ressource='auth',
+                        extra={'erreur': (err or '')[:240]},
+                    )
+                    messages.error(request, _message_echec_otp(err))
             return redirect('utilisateur:password_reset_done')
         ok, err = verifier_otp_session(pending, request.POST.get('code') or '')
         request.session[SESSION_RESET] = pending
