@@ -1,4 +1,6 @@
 from unittest.mock import MagicMock, patch
+import hashlib
+import hmac
 
 from django.test import TestCase, override_settings
 
@@ -66,13 +68,54 @@ class WhatsAppLangueMetaTests(TestCase):
             ["fr", "fr_FR", "en", "en_US"],
         )
 
-    def test_message_echec_otp_132001(self):
-        msg = message_echec_otp(
-            'HTTP 404: {"error":{"code":132001,"message":"Template name does not exist in the translation"}}',
-            "code_verification",
+    def test_message_echec_envoi_meta_190(self):
+        from finances.whatsapp import message_echec_envoi_meta
+
+        msg = message_echec_envoi_meta(
+            'HTTP 401: {"error":{"message":"Authentication Error","code":190,'
+            '"type":"OAuthException","fbtrace_id":"x"}}'
         )
-        self.assertIn("code_verification", msg)
-        self.assertIn("Authentification", msg)
+        self.assertIn("190", msg)
+        self.assertIn("permanent", msg.lower())
+
+    def test_message_echec_envoi_meta_appsecret_proof(self):
+        from finances.whatsapp import message_echec_envoi_meta
+
+        msg = message_echec_envoi_meta(
+            'HTTP 400: {"error":{"message":"appsecret_proof is required but not provided.",'
+            '"code":100,"type":"GraphMethodException"}}'
+        )
+        self.assertIn("App Secret", msg)
+
+    def test_appsecret_proof_calcule(self):
+        from finances.whatsapp import _appsecret_proof
+
+        self.assertEqual(
+            _appsecret_proof("tok", "sec"),
+            hmac.new(b"sec", b"tok", hashlib.sha256).hexdigest(),
+        )
+
+    @patch("finances.whatsapp._token_clair", return_value="tok")
+    @patch("finances.whatsapp._app_secret_clair", return_value="appscrt")
+    @patch("finances.whatsapp.requests.post")
+    def test_otp_envoie_appsecret_proof(self, mock_post, _secret, _token):
+        from finances.whatsapp import _appsecret_proof, envoyer_otp_meta
+
+        mock_post.return_value = MagicMock(
+            ok=True, status_code=200, text='{"messages":[{"id":"wamid.1"}]}'
+        )
+        config = ConfigWhatsApp.charger_centrale()
+        config.instance_id = "1194724093733471"
+        config.api_token = "tok"
+        config.template_otp = "code_verification"
+        ok, _, err = envoyer_otp_meta(config, "243812903591", "654321")
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+        params = mock_post.call_args.kwargs.get("params") or {}
+        self.assertEqual(
+            params.get("appsecret_proof"),
+            _appsecret_proof("tok", "appscrt"),
+        )
 
     def test_message_echec_otp_131008(self):
         msg = message_echec_otp(

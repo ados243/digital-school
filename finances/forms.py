@@ -185,6 +185,7 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             "actif",
             "provider",
             "api_token",
+            "meta_app_secret",
             "instance_id",
             "api_url",
             "indicatif_pays",
@@ -200,6 +201,7 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
             "actif": "Activer les notifications WhatsApp",
             "provider": "Fournisseur",
             "api_token": "Token / Access token",
+            "meta_app_secret": "App Secret Meta",
             "instance_id": "Phone Number ID (Meta) ou Instance ID (Ultramsg)",
             "api_url": "URL API (optionnel)",
             "indicatif_pays": "Indicatif pays (sans +)",
@@ -218,8 +220,16 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
                 "Les codes OTP partent via Meta."
             ),
             "api_token": (
-                "Inutile avec Bird. Meta : jeton permanent (Utilisateur système). "
-                "Laisser vide pour conserver le jeton déjà enregistré."
+                "Meta : jeton permanent d'un Utilisateur système "
+                "(pas le jeton temporaire Graph Explorer, pas l'App ID). "
+                "Permissions : whatsapp_business_messaging + "
+                "whatsapp_business_management. Laisser vide pour conserver "
+                "le jeton déjà enregistré."
+            ),
+            "meta_app_secret": (
+                "Requis si Meta renvoie « appsecret_proof is required ». "
+                "Paramètres de l'app → App secret (pas le jeton EAA…). "
+                "Laisser vide pour conserver la valeur enregistrée."
             ),
             "instance_id": (
                 "Inutile avec Bird. Meta : Phone number ID (chiffres), pas le numéro +243…"
@@ -237,6 +247,14 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
                 render_value=False,
                 attrs={
                     "placeholder": "Laisser vide pour conserver le jeton actuel",
+                    "autocomplete": "new-password",
+                    "spellcheck": "false",
+                },
+            ),
+            "meta_app_secret": forms.PasswordInput(
+                render_value=False,
+                attrs={
+                    "placeholder": "Laisser vide pour conserver l'App Secret",
                     "autocomplete": "new-password",
                     "spellcheck": "false",
                 },
@@ -283,9 +301,30 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
         # Évite un double « Bearer » si l'utilisateur colle l'en-tête complet
         if token.lower().startswith("bearer "):
             token = token[7:].strip()
+        # Colle parfois l'App ID (chiffres courts) au lieu du jeton EAA…
+        if token.isdigit() or len(token) < 40:
+            raise forms.ValidationError(
+                "Ce n'est pas un jeton Meta valide. Collez le jeton permanent "
+                "(long, commence souvent par EAA…), pas l'App ID ni le Phone Number ID."
+            )
         from common.secrets_crypto import chiffrer_secret
 
         return chiffrer_secret(token)
+
+    def clean_meta_app_secret(self):
+        secret = (self.cleaned_data.get("meta_app_secret") or "").strip()
+        if not secret:
+            if self.instance and getattr(self.instance, "pk", None):
+                return self.instance.meta_app_secret
+            return secret
+        if secret.lower().startswith("eaa"):
+            raise forms.ValidationError(
+                "Ceci ressemble à un jeton d'accès (EAA…). "
+                "L'App Secret est une autre valeur (Paramètres de l'app → App secret)."
+            )
+        from common.secrets_crypto import chiffrer_secret
+
+        return chiffrer_secret(secret)
 
     def clean_api_url(self):
         from finances.whatsapp import valider_api_url_whatsapp

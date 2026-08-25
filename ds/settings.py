@@ -362,6 +362,10 @@ AWS_S3_CUSTOM_DOMAIN = os.environ.get('AWS_S3_CUSTOM_DOMAIN', '') or None
 # WhatsApp — notifications (valeurs par défaut ; config centrale en BDD)
 WHATSAPP_TIMEOUT = int(os.environ.get('WHATSAPP_TIMEOUT', '20'))
 WHATSAPP_META_API_VERSION = os.environ.get('WHATSAPP_META_API_VERSION', 'v21.0')
+# App Secret Meta (optionnel) : requis si l'app force appsecret_proof
+WHATSAPP_META_APP_SECRET = (
+    os.environ.get("WHATSAPP_META_APP_SECRET", "") or ""
+).strip()
 # Noms des modèles Meta approuvés (surchargeables en BDD)
 WHATSAPP_META_TEMPLATE_PAIEMENT = (
     os.environ.get("WHATSAPP_META_TEMPLATE_PAIEMENT", "recu_de_paiement").strip()

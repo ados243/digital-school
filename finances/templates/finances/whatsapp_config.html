@@ -38,7 +38,8 @@
         <strong>Meta Cloud API — WhatsApp Business</strong>
         <ol style="margin:.55rem 0 0 1.15rem; padding:0; display:grid; gap:.4rem;">
           <li>Fournisseur <strong>Meta</strong>, cocher « Activer », indicatif <strong>243</strong>.</li>
-          <li>Renseigner le <strong>Phone Number ID</strong> et le <strong>jeton permanent</strong>.</li>
+          <li>Renseigner le <strong>Phone Number ID</strong> et un <strong>jeton permanent</strong>
+            (Utilisateur système Meta — pas le jeton temporaire Graph Explorer, pas l'App ID).</li>
           <li>Templates approuvés :
             <code>recu_de_paiement</code>,
             <code>relance_minerval</code>,
@@ -81,6 +82,7 @@
         {% include 'includes/form_field.html' with field=form.provider %}
         <div class="wa-fields-credentials">
         {% include 'includes/form_field.html' with field=form.api_token %}
+        {% include 'includes/form_field.html' with field=form.meta_app_secret %}
         {% include 'includes/form_field.html' with field=form.instance_id %}
         {% include 'includes/form_field.html' with field=form.api_url %}
         </div>

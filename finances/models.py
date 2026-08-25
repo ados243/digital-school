@@ -423,6 +423,13 @@ class ConfigWhatsApp(models.Model):
         blank=True,
         help_text="Token Ultramsg / Access token Meta (inutile avec Bird : la clé est dans .env)",
     )
+    meta_app_secret = models.TextField(
+        blank=True,
+        help_text=(
+            "App Secret Meta (si « Require App Secret » est activé sur l'app). "
+            "Sinon WHATSAPP_META_APP_SECRET dans .env."
+        ),
+    )
     instance_id = models.CharField(
         max_length=80,
         blank=True,
@@ -533,6 +540,9 @@ class ConfigWhatsApp(models.Model):
         token = (self.api_token or "").strip()
         if token and not token.startswith(PREFIX):
             self.api_token = chiffrer_secret(token)
+        secret = (self.meta_app_secret or "").strip()
+        if secret and not secret.startswith(PREFIX):
+            self.meta_app_secret = chiffrer_secret(secret)
         return super().save(*args, **kwargs)
 
 

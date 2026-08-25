@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 import re
 from typing import List, Optional, Tuple
@@ -53,6 +55,33 @@ def _token_clair(config) -> str:
     from common.secrets_crypto import dechiffrer_secret
 
     return dechiffrer_secret(getattr(config, "api_token", None) or "")
+
+
+def _app_secret_clair(config) -> str:
+    """App Secret Meta : BDD chiffrée, sinon variable d'environnement."""
+    from common.secrets_crypto import dechiffrer_secret
+
+    brut = (getattr(config, "meta_app_secret", None) or "").strip()
+    if brut:
+        return dechiffrer_secret(brut)
+    return (getattr(settings, "WHATSAPP_META_APP_SECRET", "") or "").strip()
+
+
+def _appsecret_proof(access_token: str, app_secret: str) -> str:
+    """HMAC-SHA256(token, app_secret) exigé si « Require app secret » est activé."""
+    return hmac.new(
+        app_secret.encode("utf-8"),
+        access_token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _params_requete_meta(config, token: str) -> Tuple[Optional[dict], str]:
+    """Retourne (params query, erreur). Si App Secret présent → appsecret_proof."""
+    secret = _app_secret_clair(config)
+    if not secret:
+        return None, ""
+    return {"appsecret_proof": _appsecret_proof(token, secret)}, ""
 
 
 def etat_credentials_meta(config) -> Tuple[str, str, str]:
@@ -444,6 +473,39 @@ def extraire_erreur_meta(erreur: str) -> Tuple[str, str]:
     return code, details[:180]
 
 
+def message_echec_envoi_meta(erreur: str) -> str:
+    """Message lisible pour un échec d'envoi Meta (test / reçu), sans secret."""
+    texte = erreur or ""
+    lower = texte.lower()
+    if (
+        "190" in texte
+        or "authentication error" in lower
+        or ('"type":"oauthexception"' in lower and "401" in texte)
+    ):
+        return (
+            "Jeton Meta refusé (#190). Ce n'est pas un jeton permanent valide "
+            "pour ce Phone Number ID. Dans Meta Business Suite → Utilisateurs "
+            "système : créez/générez un jeton permanent avec les permissions "
+            "whatsapp_business_messaging et whatsapp_business_management, "
+            "liez-le au compte WhatsApp Business du numéro, collez-le dans "
+            "Finances → WhatsApp (sans « Bearer »), puis enregistrez."
+        )
+    if "appsecret_proof" in lower:
+        return (
+            "Meta exige appsecret_proof. Collez l'App Secret de l'application "
+            "(Paramètres de l'app Meta → App secret) dans Finances → WhatsApp, "
+            "enregistrez, puis relancez le test. "
+            "Ou désactivez « Require App Secret » dans les paramètres avancés de l'app."
+        )
+    if "token_illisible" in lower or "illisible" in lower:
+        return message_credentials_meta("token_illisible")
+    if "jeton meta manquant" in lower or "token_absent" in lower:
+        return message_credentials_meta("token_absent")
+    if "phone number id" in lower:
+        return message_credentials_meta("phone_absent")
+    return (texte or "erreur API")[:500]
+
+
 def message_echec_otp(erreur: str, nom_modele: str = "code_verification") -> str:
     """Message utilisateur pour un échec d'envoi OTP (sans jeton ni payload brut)."""
     texte = erreur or ""
@@ -500,9 +562,16 @@ def message_echec_otp(erreur: str, nom_modele: str = "code_verification") -> str
             "Authentification approuvé avec bouton copier le code, "
             "puis renvoyez le code."
         )
-    if "190" in texte and ("oauth" in lower or "access token" in lower):
+    if "190" in texte or "authentication error" in lower:
         return (
-            "Le jeton Meta est invalide ou expiré. Collez un jeton permanent "
+            "Jeton Meta refusé (#190) : invalide, expiré, ou non lié à ce "
+            "Phone Number ID. Générez un jeton permanent (Utilisateur système) "
+            "avec whatsapp_business_messaging, collez-le dans Finances → WhatsApp, "
+            "puis renvoyez le code."
+        )
+    if "appsecret_proof" in lower:
+        return (
+            "Meta exige l'App Secret (appsecret_proof). Renseignez « App Secret » "
             "dans Finances → WhatsApp, enregistrez, puis renvoyez le code."
         )
     code, details = extraire_erreur_meta(texte)
@@ -649,6 +718,7 @@ def envoyer_meta_template(
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
+    params, _ = _params_requete_meta(config, token)
     if langues:
         langues_essai: List[str] = []
         for code in langues:
@@ -671,6 +741,7 @@ def envoyer_meta_template(
             )
             resp = requests.post(
                 url,
+                params=params,
                 json=payload,
                 headers=headers,
                 timeout=getattr(settings, "WHATSAPP_TIMEOUT", 20),
@@ -729,6 +800,7 @@ def _envoyer_meta(
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
+    params, _ = _params_requete_meta(config, token)
     payload = {
         "messaging_product": "whatsapp",
         "to": telephone,
@@ -738,6 +810,7 @@ def _envoyer_meta(
     try:
         resp = requests.post(
             url,
+            params=params,
             json=payload,
             headers=headers,
             timeout=getattr(settings, "WHATSAPP_TIMEOUT", 20),
