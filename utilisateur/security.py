@@ -303,6 +303,22 @@ def envoyer_code_whatsapp(destinataire, code):
         if ok:
             return True, ""
         logger.warning("Envoi OTP Meta échoué vers %s : %s", destinataire, erreur)
+        try:
+            from finances.models import NotificationWhatsApp
+            from finances.whatsapp import langue_template, nom_template
+
+            NotificationWhatsApp.objects.create(
+                destinataire=(telephone or "")[-20:],
+                message=(
+                    f"OTP {nom_template(config, 'otp')} "
+                    f"({langue_template(config)})"
+                ),
+                statut="ECHEC",
+                provider="META",
+                erreur=(erreur or "")[:2000],
+            )
+        except Exception:
+            logger.warning("Journal OTP WhatsApp non enregistré", exc_info=True)
         if getattr(settings, "DEBUG", False):
             logger.info(
                 "Code MFA (DEBUG) pour %s : %s",

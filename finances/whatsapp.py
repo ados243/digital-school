@@ -459,6 +459,7 @@ def envoyer_meta_template(
     langues: Optional[List[str]] = None,
     api_version: Optional[str] = None,
     language_policy: Optional[str] = None,
+    poursuivre_si_params: bool = False,
 ) -> Tuple[bool, str, str]:
     """Envoie un template Meta Cloud API (body {{1}}, {{2}}, …)."""
     phone_id = (config.instance_id or "").strip()
@@ -526,8 +527,11 @@ def envoyer_meta_template(
                             code_langue,
                         )
                 return True, dernier_corps, ""
-            if not _erreur_template_langue_inconnue(dernier_corps):
-                break
+            if _erreur_template_langue_inconnue(dernier_corps) or (
+                poursuivre_si_params and _erreur_parametres_otp(dernier_corps)
+            ):
+                continue
+            break
         return False, dernier_corps, f"HTTP {dernier_statut}: {dernier_corps}"
     except requests.RequestException as exc:
         return False, "", str(exc)
@@ -589,24 +593,31 @@ def _envoyer_meta(
 
 
 def envoyer_otp_meta(config, telephone: str, code: str) -> Tuple[bool, str, str]:
-    """OTP via template Meta d'authentification ({{1}} = code + bouton copier)."""
+    """OTP via template Meta AUTH : corps + bouton URL (doc officielle), puis variantes."""
     code = str(code).strip()
     nom = nom_template(config, "otp")
     langues = _langues_meta_a_essayer(langue_template(config) or "fr")
+    bouton_url = _boutons_otp(code)[0]
+    # 1) payload Meta officiel  2) bouton seul si le corps n'a pas de variable
+    # 3) corps seul si le modèle n'a pas de bouton
+    variantes = (
+        ([code], bouton_url),
+        ([], bouton_url),
+        ([code], None),
+    )
     dernier_reponse = ""
     dernier_erreur = "Nom de template OTP manquant."
-    for extra in _boutons_otp(code):
+    for body_params, extra in variantes:
         ok, reponse, erreur = envoyer_meta_template(
             config,
             telephone,
             nom,
-            [code],
-            language=langue_template(config),
+            body_params,
             extra_components=extra,
             persist_langue=False,
             langues=langues,
             api_version=_version_meta_otp(),
-            language_policy="deterministic",
+            poursuivre_si_params=True,
         )
         if ok:
             return ok, reponse, erreur

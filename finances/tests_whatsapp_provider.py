@@ -95,7 +95,7 @@ class WhatsAppLangueMetaTests(TestCase):
         self.assertEqual(bouton["index"], "0")
         self.assertEqual(bouton["parameters"][0]["text"], "654321")
         self.assertEqual(payload.get("recipient_type"), "individual")
-        self.assertEqual(payload["template"]["language"].get("policy"), "deterministic")
+        self.assertNotIn("policy", payload["template"]["language"])
         from finances.whatsapp import _version_meta_otp
 
         url = mock_post.call_args[0][0]
