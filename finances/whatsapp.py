@@ -310,11 +310,14 @@ def nom_template(config, kind: str) -> str:
 
 
 def langue_template(config) -> str:
-    return (
+    lang = (
         (getattr(config, "template_langue", None) or "").strip()
         or getattr(settings, "WHATSAPP_META_LANGUAGE", "fr")
         or "fr"
     )
+    if lang.lower().startswith("en"):
+        return "fr"
+    return lang
 
 
 def _langues_meta_a_essayer(
@@ -569,9 +572,7 @@ def envoyer_otp_meta(config, telephone: str, code: str) -> Tuple[bool, str, str]
     """OTP via template Meta d'authentification ({{1}} = code + bouton copier)."""
     code = str(code).strip()
     nom = nom_template(config, "otp")
-    langues = _langues_meta_a_essayer(
-        langue_template(config), extras=["en", "en_US"]
-    )
+    langues = _langues_meta_a_essayer(langue_template(config) or "fr")
     dernier_reponse = ""
     dernier_erreur = "Nom de template OTP manquant."
     for extra in _boutons_otp(code):
@@ -642,10 +643,7 @@ def _envoyer_bird(
     if not bird_configure():
         return False, "", "BIRD_API_KEY manquant dans le fichier .env."
     slug = (getattr(config, "template_meta", None) or "").strip() or None
-    langue = (getattr(config, "template_langue", None) or "").strip() or None
-    defaut = getattr(settings, "BIRD_WHATSAPP_PAIEMENT_TEMPLATE", "bird_delivery_update")
-    if not slug or slug in ("bird_delivery_update", "bird_otp", defaut):
-        langue = getattr(settings, "BIRD_WHATSAPP_LANGUAGE", "en") or "en"
+    langue = langue_template(config)
     try:
         msg_id, status = envoyer_paiement_whatsapp(
             telephone, contexte or {}, slug=slug, language=langue
@@ -681,9 +679,7 @@ def resume_envoi_bird(config, contexte: dict) -> str:
     slug = (config.template_meta or "").strip() or getattr(
         settings, "BIRD_WHATSAPP_PAIEMENT_TEMPLATE", "bird_delivery_update"
     )
-    langue = (getattr(config, "template_langue", None) or "").strip() or getattr(
-        settings, "BIRD_WHATSAPP_LANGUAGE", "en"
-    )
+    langue = langue_template(config)
     return (
         f"Template Bird : {slug} ({langue})\n"
         f"ref = {contexte.get('numero_recu') or '—'}\n"

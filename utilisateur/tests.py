@@ -188,9 +188,8 @@ class SecuriteAccessibiliteTests(TestCase):
         self.assertEqual(eleve_user.email, "")
 
     @override_settings(INSCRIPTION_WHATSAPP_ACTIF=True)
-    @patch("ds.bird.envoyer_otp_whatsapp")
+    @patch("utilisateur.auth_views.envoyer_code_whatsapp", return_value=(True, ""))
     def test_inscription_envoie_code_vers_whatsapp_ecole(self, mock_otp):
-        mock_otp.return_value = ("msg-test", "accepted")
         response = self.client.post(reverse("utilisateur:inscription"), {
             "profil": "PARENT",
             "matricule": self.autre_tuteur.matricule,
@@ -209,7 +208,7 @@ class SecuriteAccessibiliteTests(TestCase):
         self.assertFalse(Utilisateur.objects.filter(username="parentnouveau").exists())
 
     @override_settings(INSCRIPTION_WHATSAPP_ACTIF=False)
-    @patch("ds.bird.envoyer_otp_whatsapp")
+    @patch("utilisateur.auth_views.envoyer_code_whatsapp")
     def test_inscription_sans_whatsapp_cree_le_compte(self, mock_otp):
         response = self.client.post(reverse("utilisateur:inscription"), {
             "profil": "PARENT",
@@ -257,9 +256,8 @@ class SecuriteAccessibiliteTests(TestCase):
         self.assertEqual(data["enfants"][0]["id"], self.eleve.pk)
 
     @override_settings(MFA_WHATSAPP_ACTIF=True)
-    @patch("ds.bird.envoyer_otp_whatsapp")
+    @patch("utilisateur.auth_views.envoyer_code_whatsapp", return_value=(True, ""))
     def test_connexion_parent_demande_code_whatsapp(self, mock_otp):
-        mock_otp.return_value = ("msg-mfa", "accepted")
         response = self.client.post(reverse("utilisateur:login"), {
             "username": "parent1",
             "password": "MotDePasseFort12",
@@ -270,7 +268,7 @@ class SecuriteAccessibiliteTests(TestCase):
         mock_otp.assert_called_once()
 
     @override_settings(MFA_WHATSAPP_ACTIF=True)
-    @patch("ds.bird.envoyer_otp_whatsapp", side_effect=Exception("402"))
+    @patch("utilisateur.auth_views.envoyer_code_whatsapp", return_value=(False, "402"))
     def test_connexion_mfa_echec_envoi_ne_connecte_pas(self, mock_otp):
         response = self.client.post(reverse("utilisateur:login"), {
             "username": "parent1",

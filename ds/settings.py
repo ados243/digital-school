@@ -436,14 +436,13 @@ if SENTRY_DSN:
     except ImportError:
         pass
 
-# Bird (WhatsApp : OTP + reçus de paiement). Clé dans BIRD_API_KEY, jamais dans le code.
+# Bird (e-mail transactionnel ; WhatsApp paiement optionnel). Clé dans BIRD_API_KEY.
 BIRD_API_KEY = os.environ.get("BIRD_API_KEY", "").strip()
 BIRD_FROM_EMAIL = os.environ.get("BIRD_FROM_EMAIL", "") or DEFAULT_FROM_EMAIL
-BIRD_WHATSAPP_TEMPLATE = os.environ.get("BIRD_WHATSAPP_TEMPLATE", "bird_otp").strip() or "bird_otp"
 BIRD_WHATSAPP_PAIEMENT_TEMPLATE = os.environ.get(
     "BIRD_WHATSAPP_PAIEMENT_TEMPLATE", "bird_delivery_update"
 ).strip() or "bird_delivery_update"
-BIRD_WHATSAPP_LANGUAGE = os.environ.get("BIRD_WHATSAPP_LANGUAGE", "en").strip() or "en"
+BIRD_WHATSAPP_LANGUAGE = os.environ.get("BIRD_WHATSAPP_LANGUAGE", "fr").strip() or "fr"
 
 _EMAIL_CONSOLE = "django.core.mail.backends.console.EmailBackend"
 _EMAIL_SMTP = "django.core.mail.backends.smtp.EmailBackend"

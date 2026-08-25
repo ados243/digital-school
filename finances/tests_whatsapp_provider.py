@@ -96,13 +96,13 @@ class WhatsAppLangueMetaTests(TestCase):
 
     @patch("finances.whatsapp._token_clair", return_value="tok")
     @patch("finances.whatsapp.requests.post")
-    def test_otp_ne_persiste_pas_la_langue_en(self, mock_post, _token):
+    def test_otp_ne_persiste_pas_la_langue_fr_FR(self, mock_post, _token):
         from finances.whatsapp import envoyer_otp_meta
 
         def side_effect(*args, **kwargs):
             lang = kwargs["json"]["template"]["language"]["code"]
             resp = MagicMock()
-            if lang == "en":
+            if lang == "fr_FR":
                 resp.ok = True
                 resp.status_code = 200
                 resp.text = '{"messages":[{"id":"1"}]}'
@@ -125,26 +125,9 @@ class WhatsAppLangueMetaTests(TestCase):
         config.refresh_from_db()
         self.assertEqual(config.template_langue, "fr")
 
+    def test_langue_en_devient_fr(self):
+        from finances.whatsapp import langue_template
 
-class BirdOtpLangueTests(TestCase):
-    @override_settings(BIRD_WHATSAPP_TEMPLATE="bird_otp", BIRD_WHATSAPP_LANGUAGE="fr")
-    @patch("ds.bird.envoyer_whatsapp_bird")
-    def test_bird_otp_essaie_anglais_d_abord(self, mock_send):
-        from ds.bird import envoyer_otp_whatsapp
-
-        mock_send.return_value = ("id1", "accepted")
-        envoyer_otp_whatsapp("+243812903591", "123456")
-        self.assertEqual(mock_send.call_args.kwargs["language"], "en")
-
-    @override_settings(BIRD_WHATSAPP_TEMPLATE="bird_otp", BIRD_WHATSAPP_LANGUAGE="fr")
-    @patch("ds.bird.envoyer_whatsapp_bird")
-    def test_bird_otp_retry_langue_configuree(self, mock_send):
-        from ds.bird import BirdError, envoyer_otp_whatsapp
-
-        mock_send.side_effect = [
-            BirdError("template does not exist in language"),
-            ("id1", "accepted"),
-        ]
-        envoyer_otp_whatsapp("+243812903591", "123456")
-        self.assertEqual(mock_send.call_count, 2)
-        self.assertEqual(mock_send.call_args.kwargs["language"], "fr")
+        config = ConfigWhatsApp.charger_centrale()
+        config.template_langue = "en"
+        self.assertEqual(langue_template(config), "fr")

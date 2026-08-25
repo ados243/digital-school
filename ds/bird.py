@@ -111,7 +111,7 @@ def envoyer_whatsapp_bird(to, template, components=None, language=None):
     if not slug:
         raise BirdError("Template WhatsApp manquant.")
 
-    langue = language or getattr(settings, "BIRD_WHATSAPP_LANGUAGE", "en") or "en"
+    langue = language or getattr(settings, "BIRD_WHATSAPP_LANGUAGE", "fr") or "fr"
     tpl = {"slug": slug, "language": langue}
     if components:
         tpl["components"] = components
@@ -140,45 +140,6 @@ def envoyer_whatsapp_bird(to, template, components=None, language=None):
     except ValueError:
         pass
     return data.get("id"), data.get("status") or "accepted"
-
-
-def envoyer_otp_whatsapp(to, code):
-    """Code a 6 chiffres via le template systeme bird_otp."""
-    slug = getattr(settings, "BIRD_WHATSAPP_TEMPLATE", "bird_otp") or "bird_otp"
-    code = str(code).strip()
-    components = [
-        {"type": "body", "parameters": [{"type": "text", "text": code}]},
-        {"type": "button", "parameters": [{"type": "text", "text": code}]},
-    ]
-    if slug != "bird_otp":
-        components = [{"type": "body", "parameters": [{"type": "text", "text": code}]}]
-
-    configured = (getattr(settings, "BIRD_WHATSAPP_LANGUAGE", "en") or "en").strip()
-    langues = []
-    # bird_otp n'existe en pratique qu'en anglais ; fr dans Coolify/.env le fait échouer.
-    candidats = ("en", configured) if slug == "bird_otp" else (configured or "en",)
-    for lang in candidats:
-        if lang and lang not in langues:
-            langues.append(lang)
-
-    last_exc = None
-    for lang in langues:
-        try:
-            return envoyer_whatsapp_bird(
-                to, slug, components=components, language=lang
-            )
-        except BirdError as exc:
-            last_exc = exc
-            detail = f"{exc} {getattr(exc, 'payload', '') or ''}".lower()
-            if (
-                "language" not in detail
-                and "does not exist" not in detail
-                and "template" not in detail
-            ):
-                raise
-    if last_exc:
-        raise last_exc
-    raise BirdError("Échec OTP Bird.")
 
 
 def envoyer_paiement_whatsapp(to, contexte, slug=None, language=None):

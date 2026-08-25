@@ -214,7 +214,8 @@ class ConfigWhatsAppForm(FormControlMixin, forms.ModelForm):
         help_texts = {
             "provider": (
                 "Meta Cloud API : token et Phone Number ID ci-dessous. "
-                "Bird : clé API dans .env (BIRD_API_KEY), secours OTP si Meta inactif."
+                "Bird : clé API dans .env (BIRD_API_KEY), reçus uniquement. "
+                "Les codes OTP partent via Meta."
             ),
             "api_token": (
                 "Inutile avec Bird. Meta : jeton permanent (Utilisateur système). "

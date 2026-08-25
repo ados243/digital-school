@@ -16,7 +16,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--template",
             default="",
-            help="Slug du template WhatsApp (sinon BIRD_WHATSAPP_TEMPLATE).",
+            help="Slug du template WhatsApp (sinon BIRD_WHATSAPP_PAIEMENT_TEMPLATE).",
         )
 
     def handle(self, *args, **options):
@@ -45,7 +45,11 @@ class Command(BaseCommand):
         if not numero:
             return
         from django.conf import settings
-        template = (options["template"] or settings.BIRD_WHATSAPP_TEMPLATE or "bird_otp").strip()
+        template = (
+            options["template"]
+            or settings.BIRD_WHATSAPP_PAIEMENT_TEMPLATE
+            or "bird_delivery_update"
+        ).strip()
         if template == "bird_delivery_update":
             components = [{
                 "type": "body",
@@ -54,13 +58,12 @@ class Command(BaseCommand):
                     {"type": "text", "name": "date", "text": "18 Aug 2026"},
                 ],
             }]
-            language = "en"
         else:
             components = [{
                 "type": "body",
                 "parameters": [{"type": "text", "text": "123456"}],
             }]
-            language = settings.BIRD_WHATSAPP_LANGUAGE
+        language = settings.BIRD_WHATSAPP_LANGUAGE or "fr"
         self.stdout.write(f"Envoi WhatsApp Bird vers {numero} (template {template})…")
         try:
             wa_id, wa_status = envoyer_whatsapp_bird(

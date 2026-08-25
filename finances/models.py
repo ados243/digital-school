@@ -465,7 +465,7 @@ class ConfigWhatsApp(models.Model):
         max_length=10,
         default="fr_FR",
         blank=True,
-        help_text="Code langue Meta exact (souvent fr_FR, pas fr)",
+        help_text="Code langue Meta (fr ou fr_FR)",
     )
     # Ordre des variables {{1}}, {{2}}, … du corps du template Meta
     TEMPLATE_VARS_DEFAUT = "eleve,montant_affiche,numero_recu,frais,classe,date"

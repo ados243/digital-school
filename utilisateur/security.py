@@ -274,7 +274,7 @@ def contact_telephone_fiche(profil, cible):
 
 
 def envoyer_code_whatsapp(destinataire, code):
-    """Envoie l'OTP WhatsApp. Retourne (ok, erreur). En DEBUG le code est journalisé si l'API échoue."""
+    """Envoie l'OTP via le modèle Meta d'authentification (français)."""
     import logging
 
     logger = logging.getLogger(__name__)
@@ -282,7 +282,6 @@ def envoyer_code_whatsapp(destinataire, code):
         return False, "Aucun numéro WhatsApp."
 
     digits = re.sub(r"\D", "", str(destinataire))
-    meta_erreur = ""
     try:
         from finances.models import ConfigWhatsApp
         from finances.whatsapp import (
@@ -292,23 +291,25 @@ def envoyer_code_whatsapp(destinataire, code):
         )
 
         config = ConfigWhatsApp.charger_centrale()
-        if config and config.actif and provider_effectif(config) == "META":
-            telephone = normaliser_telephone(digits, config.indicatif_pays) or digits
-            ok, _reponse, erreur = envoyer_otp_meta(config, telephone, code)
-            if ok:
-                return True, ""
-            meta_erreur = erreur or "Échec Meta OTP"
-            logger.warning("Envoi OTP Meta échoué vers %s : %s", destinataire, meta_erreur)
-    except Exception as meta_exc:
-        meta_erreur = str(meta_exc)
-        logger.warning("Envoi OTP Meta échoué vers %s : %s", destinataire, meta_exc)
-
-    try:
-        from ds.bird import bird_configure, envoyer_otp_whatsapp
-
-        if bird_configure():
-            envoyer_otp_whatsapp(destinataire, code)
+        if not config or not config.actif:
+            return False, "WhatsApp n'est pas activé."
+        if provider_effectif(config) != "META":
+            return False, (
+                "L'OTP WhatsApp utilise Meta. "
+                "Choisissez le fournisseur Meta dans Finances → WhatsApp."
+            )
+        telephone = normaliser_telephone(digits, config.indicatif_pays) or digits
+        ok, _reponse, erreur = envoyer_otp_meta(config, telephone, code)
+        if ok:
             return True, ""
+        logger.warning("Envoi OTP Meta échoué vers %s : %s", destinataire, erreur)
+        if getattr(settings, "DEBUG", False):
+            logger.info(
+                "Code MFA (DEBUG) pour %s : %s",
+                masquer_telephone(destinataire),
+                code,
+            )
+        return False, (erreur or "Échec Meta OTP")[:400]
     except Exception as exc:
         logger.warning("Envoi OTP WhatsApp échoué vers %s : %s", destinataire, exc)
         if getattr(settings, "DEBUG", False):
@@ -317,12 +318,7 @@ def envoyer_code_whatsapp(destinataire, code):
                 masquer_telephone(destinataire),
                 code,
             )
-        parties = [p for p in (meta_erreur, str(exc)[:240]) if p]
-        return False, " | ".join(parties)[:400]
-
-    if meta_erreur:
-        return False, meta_erreur[:400]
-    return False, "Aucun canal WhatsApp OTP disponible (Meta / Bird)."
+        return False, str(exc)[:400]
 
 
 def payload_otp(code, extra=None):
