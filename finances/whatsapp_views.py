@@ -165,7 +165,12 @@ def whatsapp_test(request):
     if ok:
         messages.success(request, f"Message de test envoyé à +{telephone}.")
     else:
-        messages.error(request, f"Échec d'envoi : {erreur or 'erreur API'}")
+        from .whatsapp import message_echec_envoi_meta
+
+        messages.error(
+            request,
+            f"Échec d'envoi : {message_echec_envoi_meta(erreur or 'erreur API')}",
+        )
     return redirect("finances:whatsapp_config")
 
 
