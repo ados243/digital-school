@@ -75,7 +75,7 @@ class WhatsAppLangueMetaTests(TestCase):
 
     @patch("finances.whatsapp._token_clair", return_value="tok")
     @patch("finances.whatsapp.requests.post")
-    def test_otp_envoie_copy_code_en_premier(self, mock_post, _token):
+    def test_otp_envoie_bouton_url_en_premier(self, mock_post, _token):
         from finances.whatsapp import envoyer_otp_meta
 
         mock_post.return_value = MagicMock(
@@ -90,9 +90,43 @@ class WhatsAppLangueMetaTests(TestCase):
         self.assertEqual(err, "")
         payload = mock_post.call_args.kwargs["json"]
         bouton = payload["template"]["components"][1]
-        self.assertEqual(bouton["sub_type"], "copy_code")
-        self.assertEqual(bouton["parameters"][0]["type"], "coupon_code")
-        self.assertEqual(bouton["parameters"][0]["coupon_code"], "654321")
+        self.assertEqual(bouton["sub_type"], "url")
+        self.assertEqual(bouton["parameters"][0]["text"], "654321")
+
+    @patch("finances.whatsapp._token_clair", return_value="tok")
+    @patch("finances.whatsapp.requests.post")
+    def test_otp_132018_essaie_variante_suivante(self, mock_post, _token):
+        from finances.whatsapp import envoyer_otp_meta
+
+        err_132018 = (
+            '{"error":{"code":132018,'
+            '"message":"(#132018) There is an issue with the parameters",'
+            '"error_data":{"details":"buttons: Button at index 0 must be of type Url"}}}'
+        )
+        etat = {"n": 0}
+
+        def side_effect(*args, **kwargs):
+            etat["n"] += 1
+            resp = MagicMock()
+            if etat["n"] == 1:
+                resp.ok = False
+                resp.status_code = 400
+                resp.text = err_132018
+            else:
+                resp.ok = True
+                resp.status_code = 200
+                resp.text = '{"messages":[{"id":"wamid.ok"}]}'
+            return resp
+
+        mock_post.side_effect = side_effect
+        config = ConfigWhatsApp.charger_centrale()
+        config.instance_id = "1"
+        config.template_otp = "code_verification"
+        config.template_langue = "fr"
+        ok, _, err = envoyer_otp_meta(config, "243812903591", "654321")
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+        self.assertGreaterEqual(etat["n"], 2)
 
     @patch("finances.whatsapp._token_clair", return_value="tok")
     @patch("finances.whatsapp.requests.post")

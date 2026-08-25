@@ -347,9 +347,11 @@ def _erreur_parametres_otp(corps: str) -> bool:
     marqueurs = (
         "132000",
         "132012",
+        "132018",
         "131008",
         "parameter format",
         "number of parameters",
+        "must be of type",
         "unexpected",
         "invalid parameter",
     )
@@ -357,22 +359,22 @@ def _erreur_parametres_otp(corps: str) -> bool:
 
 
 def _boutons_otp(code: str) -> List[Optional[List[dict]]]:
-    """Variantes Meta AUTH : copy-code (actuel), URL one-tap, puis corps seul."""
+    """Variantes Meta AUTH : URL one-tap (code_verification), copy-code, puis corps seul."""
     return [
-        [
-            {
-                "type": "button",
-                "sub_type": "copy_code",
-                "index": "0",
-                "parameters": [{"type": "coupon_code", "coupon_code": code}],
-            }
-        ],
         [
             {
                 "type": "button",
                 "sub_type": "url",
                 "index": "0",
                 "parameters": [{"type": "text", "text": code}],
+            }
+        ],
+        [
+            {
+                "type": "button",
+                "sub_type": "copy_code",
+                "index": "0",
+                "parameters": [{"type": "coupon_code", "coupon_code": code}],
             }
         ],
         None,
