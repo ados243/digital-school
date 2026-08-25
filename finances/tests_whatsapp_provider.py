@@ -74,6 +74,23 @@ class WhatsAppLangueMetaTests(TestCase):
         self.assertIn("code_verification", msg)
         self.assertIn("Authentification", msg)
 
+    def test_message_echec_otp_131008(self):
+        msg = message_echec_otp(
+            'HTTP 400: {"error":{"code":131008,"message":"(#131008) Required parameter is missing",'
+            '"error_data":{"details":"buttons: Button at index 0 of type Url requires a parameter"}}}',
+            "code_verification",
+        )
+        self.assertIn("code_verification", msg)
+        self.assertIn("paramètres", msg)
+
+    def test_message_echec_otp_montre_code_meta(self):
+        msg = message_echec_otp(
+            'HTTP 400: {"error":{"code":133010,"message":"(#133010) Account issue",'
+            '"error_data":{"details":"quality rating too low"}}}',
+        )
+        self.assertIn("133010", msg)
+        self.assertIn("quality rating too low", msg)
+
     @patch("finances.whatsapp._token_clair", return_value="tok")
     @patch("finances.whatsapp.requests.post")
     def test_otp_envoie_bouton_url_en_premier(self, mock_post, _token):
@@ -166,6 +183,60 @@ class WhatsAppLangueMetaTests(TestCase):
         self.assertTrue(ok)
         config.refresh_from_db()
         self.assertEqual(config.template_langue, "fr")
+
+    @patch("finances.whatsapp._token_clair", return_value="tok")
+    @patch("finances.whatsapp.requests.post")
+    def test_otp_conserve_erreur_132018_si_variantes_echouent(self, mock_post, _token):
+        from finances.whatsapp import envoyer_otp_meta
+
+        err_132018 = (
+            '{"error":{"code":132018,'
+            '"message":"(#132018) There is an issue with the parameters",'
+            '"error_data":{"details":"buttons: Button at index 0 must be of type Url"}}}'
+        )
+        err_131008 = (
+            '{"error":{"code":131008,'
+            '"message":"(#131008) Required parameter is missing"}}'
+        )
+
+        def side_effect(*args, **kwargs):
+            resp = MagicMock()
+            resp.ok = False
+            resp.status_code = 400
+            comps = (kwargs.get("json") or {}).get("template", {}).get("components") or []
+            if any(c.get("type") == "button" for c in comps):
+                resp.text = err_132018
+            else:
+                resp.text = err_131008
+            return resp
+
+        mock_post.side_effect = side_effect
+        config = ConfigWhatsApp.charger_centrale()
+        config.instance_id = "1"
+        config.template_otp = "code_verification"
+        config.template_langue = "fr"
+        ok, _, err = envoyer_otp_meta(config, "243812903591", "654321")
+        self.assertFalse(ok)
+        self.assertIn("132018", err)
+
+    @patch("finances.whatsapp._token_clair", return_value="tok")
+    @patch("finances.whatsapp.requests.post")
+    def test_otp_force_graph_v21_si_api_url_v19(self, mock_post, _token):
+        from finances.whatsapp import envoyer_otp_meta
+
+        mock_post.return_value = MagicMock(
+            ok=True, status_code=200, text='{"messages":[{"id":"wamid.1"}]}'
+        )
+        config = ConfigWhatsApp.charger_centrale()
+        config.instance_id = "1194724093733471"
+        config.api_url = "https://graph.facebook.com/v19.0/1194724093733471"
+        config.template_otp = "code_verification"
+        ok, _, err = envoyer_otp_meta(config, "243812903591", "654321")
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+        url = mock_post.call_args[0][0]
+        self.assertIn("/v21.0/", url)
+        self.assertNotIn("/v19.0/", url)
 
     def test_langue_en_devient_fr(self):
         from finances.whatsapp import langue_template

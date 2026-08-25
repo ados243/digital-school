@@ -134,12 +134,18 @@
           </div>
           <p class="form-help">
             Laisser vide pour utiliser le téléphone 1 de l'école.
-            Meta envoie le template de reçu avec des données d'exemple.
+            Le test « reçu » envoie le template de paiement ; le test OTP envoie
+            le modèle Authentification (le détail Meta s'affiche ici en cas d'échec).
           </p>
         </div>
-        <button type="submit" class="btn btn-secondary" {% if not config.actif %}disabled{% endif %}>
-          Envoyer un test
-        </button>
+        <div style="display:flex; flex-wrap:wrap; gap:.75rem;">
+          <button type="submit" name="kind" value="paiement" class="btn btn-secondary" {% if not config.actif %}disabled{% endif %}>
+            Tester le reçu
+          </button>
+          <button type="submit" name="kind" value="otp" class="btn btn-primary" {% if not config.actif %}disabled{% endif %}>
+            Tester le code OTP
+          </button>
+        </div>
       </form>
     </div>
   </div>
@@ -157,6 +163,7 @@
             <th>Destinataire</th>
             <th>Reçu</th>
             <th>Statut</th>
+            <th>Détail</th>
             <th></th>
           </tr>
         </thead>
@@ -177,9 +184,16 @@
               {% if n.statut == 'ENVOYE' %}
                 <span style="color:var(--primary); font-weight:600;">Envoyé</span>
               {% elif n.statut == 'ECHEC' %}
-                <span style="color:#b91c1c; font-weight:600;" title="{{ n.erreur }}">Échec</span>
+                <span style="color:#b91c1c; font-weight:600;">Échec</span>
               {% else %}
-                <span style="color:var(--text-muted);" title="{{ n.erreur }}">Ignoré</span>
+                <span style="color:var(--text-muted);">Ignoré</span>
+              {% endif %}
+            </td>
+            <td style="font-size:.85em; max-width:22rem; word-break:break-word;">
+              {% if n.erreur %}
+                <span style="color:#b91c1c;" title="{{ n.erreur }}">{{ n.erreur|truncatechars:160 }}</span>
+              {% else %}
+                <span style="color:var(--text-muted);">{{ n.message|truncatechars:60 }}</span>
               {% endif %}
             </td>
             <td>
@@ -192,7 +206,7 @@
           </tr>
           {% empty %}
           <tr>
-            <td colspan="{% if journal_multi_ecoles %}6{% else %}5{% endif %}" style="text-align:center; color:var(--text-muted); padding:1.5rem;">
+            <td colspan="{% if journal_multi_ecoles %}7{% else %}6{% endif %}" style="text-align:center; color:var(--text-muted); padding:1.5rem;">
               Aucune notification pour le moment.
             </td>
           </tr>

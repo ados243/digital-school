@@ -373,11 +373,56 @@ def _boutons_otp(code: str) -> List[Optional[List[dict]]]:
     ]
 
 
+def extraire_erreur_meta(erreur: str) -> Tuple[str, str]:
+    """Extrait (code Graph, détail court) d'une réponse Meta, sans secret."""
+    texte = erreur or ""
+    code = ""
+    trouve = re.search(r"\(#(\d{5,6})\)", texte)
+    if trouve:
+        code = trouve.group(1)
+    else:
+        trouve = re.search(r'"error"\s*:\s*\{[^}]{0,400}"code"\s*:\s*(\d{3,6})', texte)
+        if trouve:
+            code = trouve.group(1)
+    details = ""
+    trouve = re.search(r'"details"\s*:\s*"([^"]{1,300})"', texte)
+    if trouve:
+        details = trouve.group(1)
+    else:
+        trouve = re.search(r'"message"\s*:\s*"([^"]{1,300})"', texte)
+        if trouve:
+            details = trouve.group(1)
+    details = (
+        details.replace("\\/", "/")
+        .replace('\\"', '"')
+        .replace("\\n", " ")
+        .strip()
+    )
+    if "bearer " in details.lower() or "eaa" in details.lower():
+        details = ""
+    return code, details[:180]
+
+
 def message_echec_otp(erreur: str, nom_modele: str = "code_verification") -> str:
     """Message utilisateur pour un échec d'envoi OTP (sans jeton ni payload brut)."""
     texte = erreur or ""
     nom = (nom_modele or "code_verification").strip() or "code_verification"
     lower = texte.lower()
+    if "n'est pas activé" in lower or "pas active" in lower:
+        return (
+            "WhatsApp n'est pas activé. Cochez « Activer » dans "
+            "Finances → WhatsApp, enregistrez, puis renvoyez le code."
+        )
+    if "phone number id" in lower or "token meta manquant" in lower:
+        return (
+            "Le Phone Number ID ou le jeton Meta est manquant. "
+            "Enregistrez-les dans Finances → WhatsApp, puis renvoyez le code."
+        )
+    if "fournisseur meta" in lower or "utilise meta" in lower:
+        return (
+            "L'OTP WhatsApp utilise Meta. Choisissez le fournisseur Meta "
+            "dans Finances → WhatsApp, puis renvoyez le code."
+        )
     if "132001" in texte or "does not exist in the translation" in lower:
         return (
             f"Le modèle WhatsApp « {nom} » n'existe pas sur ce compte Meta "
@@ -396,6 +441,34 @@ def message_echec_otp(erreur: str, nom_modele: str = "code_verification") -> str
             "Ce numéro n'est pas autorisé à recevoir les messages du numéro "
             "WhatsApp de test Meta. Ajoutez-le comme destinataire de test, "
             "ou utilisez un numéro WhatsApp de production."
+        )
+    if "131008" in texte or "132000" in texte or "132012" in texte:
+        return (
+            f"Le modèle « {nom} » n'accepte pas les paramètres envoyés "
+            "(corps / bouton URL). Vérifiez dans Meta que c'est un modèle "
+            "Authentification approuvé avec bouton copier le code, "
+            "puis renvoyez le code."
+        )
+    if "190" in texte and ("oauth" in lower or "access token" in lower):
+        return (
+            "Le jeton Meta est invalide ou expiré. Collez un jeton permanent "
+            "dans Finances → WhatsApp, enregistrez, puis renvoyez le code."
+        )
+    code, details = extraire_erreur_meta(texte)
+    if code or details:
+        extra = f"Meta #{code}" if code else "Meta"
+        if details:
+            extra = f"{extra} : {details}"
+        return (
+            f"L'envoi du code WhatsApp a échoué ({extra}). "
+            f"Vérifiez le modèle « {nom} » dans Finances → WhatsApp, "
+            "puis cliquez sur « Renvoyer le code »."
+        )
+    if texte.strip() and "{" not in texte:
+        return (
+            f"L'envoi du code WhatsApp a échoué ({texte.strip()[:160]}). "
+            f"Vérifiez le modèle « {nom} » dans Finances → WhatsApp, "
+            "puis cliquez sur « Renvoyer le code »."
         )
     return (
         "L'envoi du code WhatsApp a échoué. Vérifiez la configuration Meta "
@@ -447,6 +520,54 @@ def _version_meta_otp() -> str:
     return brut
 
 
+_GRAPH_VERSION_RE = re.compile(r"/v\d+(?:\.\d+)?(?=/|$)", re.I)
+
+
+def _normaliser_version_graph(version: Optional[str]) -> str:
+    brut = (version or getattr(settings, "WHATSAPP_META_API_VERSION", "v21.0") or "v21.0").strip()
+    if not brut:
+        return "v21.0"
+    if not brut.lower().startswith("v"):
+        brut = f"v{brut}"
+    return brut
+
+
+def _url_messages_meta(config, api_version: Optional[str] = None) -> Tuple[str, str]:
+    """URL POST …/messages. Si api_version est fourni, elle remplace vXX dans api_url Graph."""
+    phone_id = (config.instance_id or "").strip()
+    custom = (config.api_url or "").strip().rstrip("/")
+    if custom.lower().endswith("/messages"):
+        custom = custom[: -len("/messages")].rstrip("/")
+    version = _normaliser_version_graph(api_version)
+
+    if custom:
+        ok, err = valider_api_url_whatsapp(custom, "META")
+        if not ok:
+            return "", err
+        if re.search(r"graph\.facebook\.com", custom, re.I):
+            if api_version:
+                if _GRAPH_VERSION_RE.search(custom):
+                    custom = _GRAPH_VERSION_RE.sub(f"/{version}", custom, count=1)
+                else:
+                    custom = re.sub(
+                        r"(https://graph\.facebook\.com)",
+                        rf"\1/{version}",
+                        custom,
+                        count=1,
+                        flags=re.I,
+                    )
+            dernier = custom.rstrip("/").rsplit("/", 1)[-1]
+            if phone_id and dernier != phone_id and (
+                dernier.lower().startswith("v") or "facebook.com" in dernier.lower()
+            ):
+                custom = f"{custom.rstrip('/')}/{phone_id}"
+        return f"{custom.rstrip('/')}/messages", ""
+
+    if not phone_id:
+        return "", "Phone Number ID ou token Meta manquant."
+    return f"https://graph.facebook.com/{version}/{phone_id}/messages", ""
+
+
 def envoyer_meta_template(
     config,
     telephone: str,
@@ -466,20 +587,16 @@ def envoyer_meta_template(
     token = _token_clair(config)
     if token.lower().startswith("bearer "):
         token = token[7:].strip()
-    if not phone_id or not token:
+    if not token:
+        return False, "", "Phone Number ID ou token Meta manquant."
+    if not phone_id and not (config.api_url or "").strip():
         return False, "", "Phone Number ID ou token Meta manquant."
     if not (template_name or "").strip():
         return False, "", "Nom de template Meta manquant."
 
-    base = (config.api_url or "").strip().rstrip("/")
-    if base:
-        ok, err = valider_api_url_whatsapp(base, "META")
-        if not ok:
-            return False, "", err
-    else:
-        version = api_version or getattr(settings, "WHATSAPP_META_API_VERSION", "v21.0")
-        base = f"https://graph.facebook.com/{version}/{phone_id}"
-    url = f"{base}/messages"
+    url, err_url = _url_messages_meta(config, api_version=api_version)
+    if err_url:
+        return False, "", err_url
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -592,21 +709,61 @@ def _envoyer_meta(
         return False, "", str(exc)
 
 
+def _score_erreur_otp(erreur: str) -> int:
+    """Plus le score est élevé, plus l'erreur est utile à afficher."""
+    t = erreur or ""
+    tl = t.lower()
+    if "132001" in t or "does not exist in the translation" in tl:
+        return 100
+    if "131030" in t:
+        return 95
+    if "132018" in t:
+        return 90
+    if "token" in tl or "phone number id" in tl:
+        return 85
+    if "131008" in t:
+        return 80
+    if "132000" in t or "132012" in t:
+        return 70
+    if t.strip():
+        return 20
+    return 0
+
+
+def _composants_otp_nommes(code: str) -> List[dict]:
+    """Variante named parameters (modèles AUTH créés avec {{code}})."""
+    return [
+        {
+            "type": "body",
+            "parameters": [
+                {"type": "text", "parameter_name": "code", "text": code}
+            ],
+        },
+        {
+            "type": "button",
+            "sub_type": "url",
+            "index": "0",
+            "parameters": [{"type": "text", "text": code}],
+        },
+    ]
+
+
 def envoyer_otp_meta(config, telephone: str, code: str) -> Tuple[bool, str, str]:
     """OTP via template Meta AUTH : corps + bouton URL (doc officielle), puis variantes."""
     code = str(code).strip()
     nom = nom_template(config, "otp")
     langues = _langues_meta_a_essayer(langue_template(config) or "fr")
     bouton_url = _boutons_otp(code)[0]
-    # 1) payload Meta officiel  2) bouton seul si le corps n'a pas de variable
-    # 3) corps seul si le modèle n'a pas de bouton
+    # 1) payload Meta officiel  2) paramètres nommés  3) bouton seul  4) corps seul
     variantes = (
         ([code], bouton_url),
+        ([], _composants_otp_nommes(code)),
         ([], bouton_url),
         ([code], None),
     )
-    dernier_reponse = ""
-    dernier_erreur = "Nom de template OTP manquant."
+    meilleur_reponse = ""
+    meilleur_erreur = "Nom de template OTP manquant."
+    meilleur_score = -1
     for body_params, extra in variantes:
         ok, reponse, erreur = envoyer_meta_template(
             config,
@@ -621,13 +778,16 @@ def envoyer_otp_meta(config, telephone: str, code: str) -> Tuple[bool, str, str]
         )
         if ok:
             return ok, reponse, erreur
-        dernier_reponse, dernier_erreur = reponse, erreur
         detail = f"{erreur or ''} {reponse or ''}"
+        score = _score_erreur_otp(detail)
+        if score > meilleur_score:
+            meilleur_score = score
+            meilleur_reponse, meilleur_erreur = reponse, erreur
         if _erreur_template_langue_inconnue(detail):
             break
         if not _erreur_parametres_otp(detail):
             break
-    return False, dernier_reponse, dernier_erreur
+    return False, meilleur_reponse, meilleur_erreur
 
 
 def envoyer_relance_meta(config, contexte: dict, telephone: str) -> Tuple[bool, str, str]:

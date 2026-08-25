@@ -109,6 +109,42 @@ def whatsapp_test(request):
     else:
         message = formater_message(config.modele_effectif(), contexte)
 
+    kind = (request.POST.get("kind") or "paiement").strip().lower()
+    if kind == "otp":
+        import secrets
+
+        from .whatsapp import envoyer_otp_meta, message_echec_otp, nom_template
+
+        if canal != "META":
+            messages.error(
+                request,
+                "L'OTP WhatsApp utilise Meta. Choisissez le fournisseur Meta, enregistrez, puis relancez le test.",
+            )
+            return redirect("finances:whatsapp_config")
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        ok, reponse, erreur = envoyer_otp_meta(config, telephone, code)
+        NotificationWhatsApp.objects.create(
+            ecole=ecole,
+            paiement=None,
+            destinataire=f"+{telephone}"[:20],
+            message=f"Test OTP {nom_template(config, 'otp')}",
+            statut="ENVOYE" if ok else "ECHEC",
+            provider="META",
+            reponse_api=(reponse or "")[:240],
+            erreur=erreur or "",
+        )
+        if ok:
+            messages.success(request, f"Code OTP de test envoyé à +{telephone}.")
+        else:
+            detail = (erreur or "erreur API")[:500]
+            messages.error(
+                request,
+                f"{message_echec_otp(erreur, nom_template(config, 'otp'))} "
+                f"Détail : {detail}",
+            )
+        return redirect("finances:whatsapp_config")
+
     ok, reponse, erreur = _envoyer_via_provider(
         config, telephone, message, contexte=contexte
     )
