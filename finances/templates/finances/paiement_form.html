@@ -351,10 +351,14 @@ Pour supprimer la boîte de dialogue Windows, ouvrez la caisse via
 
     function formatFraisLabel(f) {
         const paye = Number(f.montant_paye) || 0;
-        if (paye > 0) {
-            return `${f.libelle} — Reste : ${f.montant_restant} ${f.devise} (payé : ${f.montant_paye} / ${f.montant_total})`;
+        const prioTag = f.niveau_priorite ? `[Niveau ${f.niveau_priorite}] ` : '';
+        if (f.est_bloque) {
+            return `🔒 ${prioTag}${f.libelle} — BLOQUÉ (priorité supérieure non soldée)`;
         }
-        return `${f.libelle} — ${f.montant_total} ${f.devise} (reste à payer)`;
+        if (paye > 0) {
+            return `${prioTag}${f.libelle} — Reste : ${f.montant_restant} ${f.devise} (payé : ${f.montant_paye} / ${f.montant_total})`;
+        }
+        return `${prioTag}${f.libelle} — ${f.montant_total} ${f.devise} (reste à payer)`;
     }
 
     function getFraisForInscription(insId) {
@@ -410,14 +414,21 @@ Pour supprimer la boîte de dialogue Windows, ouvrez la caisse via
         placeholder.textContent = Object.keys(fraisDisponibles).length ? '---------' : 'Aucun frais dû';
         fraisSelect.appendChild(placeholder);
 
+        let hasPayable = false;
         Object.entries(fraisDisponibles).forEach(([id, f]) => {
             const opt = document.createElement('option');
             opt.value = id;
             opt.textContent = formatFraisLabel(f);
+            if (f.est_bloque) {
+                opt.disabled = true;
+                opt.style.color = '#94a3b8';
+            } else {
+                hasPayable = true;
+            }
             fraisSelect.appendChild(opt);
         });
 
-        if (currentValue && fraisDisponibles[currentValue]) {
+        if (currentValue && fraisDisponibles[currentValue] && !fraisDisponibles[currentValue].est_bloque) {
             fraisSelect.value = currentValue;
         }
     }
@@ -495,14 +506,19 @@ Pour supprimer la boîte de dialogue Windows, ouvrez la caisse via
 
         if (fraisSoldeInfo) {
             fraisSoldeInfo.style.display = 'block';
-            fraisSoldeInfo.innerHTML = `
+            let html = `
+                <span class="badge" style="background:rgba(0,119,197,.12); color:var(--primary); font-weight:700; margin-right:.5rem;">Niveau ${frais.niveau_priorite || 1}</span>
                 <strong>Total :</strong> ${formatAmount(total, frais.devise)}
                 · <strong>Déjà payé :</strong> ${formatAmount(paye, frais.devise)}
                 · <strong style="color: var(--primary);">Reste à payer : ${formatAmount(reste, frais.devise)}</strong>
             `;
+            if (frais.est_bloque && frais.message_blocage) {
+                html += `<div style="margin-top:.4rem; color:#b91c1c; font-weight:600; font-size:0.85rem;">🔒 ${frais.message_blocage}</div>`;
+            }
+            fraisSoldeInfo.innerHTML = html;
         }
 
-        document.getElementById('recap-solde-total').textContent = `Total du frais : ${formatAmount(total, frais.devise)}`;
+        document.getElementById('recap-solde-total').textContent = `Total du frais [Niv. ${frais.niveau_priorite || 1}] : ${formatAmount(total, frais.devise)}`;
         document.getElementById('recap-solde-paye').textContent = `Déjà payé : ${formatAmount(paye, frais.devise)}`;
         document.getElementById('recap-reste').textContent = `Reste dû : ${formatAmount(reste, frais.devise)}`;
         document.getElementById('recap-reste-apres').textContent =

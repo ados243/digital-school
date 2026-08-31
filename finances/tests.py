@@ -24,8 +24,9 @@ class WebhookMobileMoneyTests(TestCase):
     @override_settings(MOBILE_MONEY_WEBHOOK_TOKEN="secret-test")
     def test_webhook_reference_inconnue(self):
         response = self.client.post(
-            "/webhooks/mobile-money/?token=secret-test",
+            "/webhooks/mobile-money/",
             {"reference": "MM-INCONNUE"},
+            HTTP_X_WEBHOOK_TOKEN="secret-test",
         )
         self.assertEqual(response.status_code, 404)
 
@@ -355,4 +356,143 @@ class CaisseDisponibleTests(TestCase):
         self.assertTrue(ok)
         self.assertEqual(msg, "")
         self.assertEqual(dispo, Decimal("200.00"))
+
+
+class PriorisationFraisTests(TestCase):
+    def setUp(self):
+        self.ecole = faire_ecole()
+        self.annee = faire_annee()
+        self.classe = faire_classe(self.ecole)
+        self.tuteur = faire_tuteur(self.ecole)
+        self.eleve = faire_eleve(self.ecole, self.tuteur)
+        self.inscription = Inscription.objects.create(
+            eleve=self.eleve,
+            classe=self.classe,
+            annee_s=self.annee,
+        )
+        self.devise = Devise.objects.create(devise="USD")
+        self.type_inscr = TypeFrais.objects.create(
+            ecole=self.ecole, libelle="Frais d'inscription", description="Inscription"
+        )
+        self.type_minerval_t1 = TypeFrais.objects.create(
+            ecole=self.ecole, libelle="Minerval T1", description="1er trimestre"
+        )
+        self.type_minerval_t2 = TypeFrais.objects.create(
+            ecole=self.ecole, libelle="Minerval T2", description="2eme trimestre"
+        )
+
+        # Niveau 1 : Inscription (50 USD)
+        self.frais_niv1 = Frais_Scolaire.objects.create(
+            type_frais=self.type_inscr,
+            annee=self.annee,
+            section=self.classe.section,
+            montant=Decimal("50.00"),
+            devise=self.devise,
+            echeance=date(2025, 9, 1),
+            niveau_priorite=1,
+        )
+        # Niveau 2 : Minerval T1 (100 USD)
+        self.frais_niv2 = Frais_Scolaire.objects.create(
+            type_frais=self.type_minerval_t1,
+            annee=self.annee,
+            section=self.classe.section,
+            montant=Decimal("100.00"),
+            devise=self.devise,
+            echeance=date(2025, 10, 1),
+            niveau_priorite=2,
+        )
+        # Niveau 3 : Minerval T2 (100 USD)
+        self.frais_niv3 = Frais_Scolaire.objects.create(
+            type_frais=self.type_minerval_t2,
+            annee=self.annee,
+            section=self.classe.section,
+            montant=Decimal("100.00"),
+            devise=self.devise,
+            echeance=date(2026, 1, 15),
+            niveau_priorite=3,
+        )
+
+    def test_frais_bloquants_identifies_si_niveau_superieur_non_solde(self):
+        from finances.paiement_utils import frais_bloquants_pour_frais
+
+        bloquants_niv2 = frais_bloquants_pour_frais(self.ecole, self.inscription, self.frais_niv2)
+        self.assertEqual(len(bloquants_niv2), 1)
+        self.assertEqual(bloquants_niv2[0]["frais"].id, self.frais_niv1.id)
+        self.assertEqual(bloquants_niv2[0]["reste"], Decimal("50.00"))
+
+        bloquants_niv1 = frais_bloquants_pour_frais(self.ecole, self.inscription, self.frais_niv1)
+        self.assertEqual(len(bloquants_niv1), 0)
+
+    def test_frais_disponibles_avec_filtrage_priorite(self):
+        from finances.paiement_utils import frais_disponibles_pour_inscription
+
+        # Au début, seul le frais de niveau 1 est disponible
+        dispos_filtres = frais_disponibles_pour_inscription(
+            self.ecole, self.inscription, filtrer_priorite=True
+        )
+        self.assertEqual(len(dispos_filtres), 1)
+        self.assertEqual(dispos_filtres[0]["frais"].id, self.frais_niv1.id)
+
+    def test_formulaire_paiement_rejette_niveau2_si_niveau1_impaye(self):
+        from finances.forms import PaiementForm
+
+        form = PaiementForm(
+            {
+                "eleve": self.inscription.pk,
+                "frais": self.frais_niv2.pk,
+                "montant_paye": "100.00",
+                "devise": self.devise.pk,
+                "mode_paiement": "ESPECES",
+                "statut": "VALIDE",
+                "caissier": "Caissier 1",
+            },
+            ecole=self.ecole,
+        )
+        self.assertFalse(form.is_valid())
+        errors_str = " ".join([str(e) for err_list in form.errors.values() for e in err_list])
+        self.assertIn("Paiement impossible", errors_str)
+        self.assertIn("Frais d'inscription", errors_str)
+
+    def test_formulaire_paiement_autorise_niveau2_une_fois_niveau1_solde(self):
+        from finances.forms import PaiementForm
+
+        # Payer intégralement le frais de niveau 1
+        Paiement.objects.create(
+            eleve=self.inscription,
+            frais=self.frais_niv1,
+            numero_recu="REC-TEST-NIV1",
+            montant_paye=Decimal("50.00"),
+            devise=self.devise,
+            mode_paiement="ESPECES",
+            caissier="Caissier 1",
+            statut="VALIDE",
+        )
+
+        form = PaiementForm(
+            {
+                "eleve": self.inscription.pk,
+                "frais": self.frais_niv2.pk,
+                "montant_paye": "100.00",
+                "devise": self.devise.pk,
+                "mode_paiement": "ESPECES",
+                "statut": "VALIDE",
+                "caissier": "Caissier 1",
+            },
+            ecole=self.ecole,
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        paiement = form.save()
+        self.assertEqual(paiement.montant_paye, Decimal("100.00"))
+
+    def test_contexte_frais_solde_contient_info_blocage(self):
+        from finances.paiement_utils import build_frais_solde_context
+
+        ctx = build_frais_solde_context(self.ecole, [self.inscription])
+        ins_data = ctx[str(self.inscription.id)]
+
+        self.assertFalse(ins_data[str(self.frais_niv1.id)]["est_bloque"])
+        self.assertTrue(ins_data[str(self.frais_niv2.id)]["est_bloque"])
+        self.assertTrue(ins_data[str(self.frais_niv3.id)]["est_bloque"])
+        self.assertIn("Frais d'inscription", ins_data[str(self.frais_niv2.id)]["message_blocage"])
+
 

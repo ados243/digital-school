@@ -23,6 +23,7 @@ from inscription.tenant import inscriptions_for_ecole, annees_for_ecole, section
 from .tenant import frais_for_ecole
 from .paiement_utils import (
     frais_disponibles_pour_inscription,
+    frais_bloquants_pour_frais,
     frais_concerne_inscription,
     paiements_valides_par_frais,
     solde_frais,
@@ -73,7 +74,17 @@ class FraisScolaireForm(FormControlMixin, forms.ModelForm):
 
     class Meta:
         model = Frais_Scolaire
-        fields = ["type_frais", "annee", "section", "classes", "montant", "devise", "echeance", "est_obligatoire"]
+        fields = [
+            "type_frais",
+            "annee",
+            "section",
+            "classes",
+            "montant",
+            "devise",
+            "echeance",
+            "est_obligatoire",
+            "niveau_priorite",
+        ]
         labels = {
             "type_frais": "Type de frais",
             "annee": "Année scolaire",
@@ -83,14 +94,17 @@ class FraisScolaireForm(FormControlMixin, forms.ModelForm):
             "devise": "Devise",
             "echeance": "Date d'échéance",
             "est_obligatoire": "Frais obligatoire",
+            "niveau_priorite": "Niveau de priorité (ordre de paiement)",
         }
         widgets = {
             "echeance": forms.DateInput(attrs={"type": "date"}),
             "montant": forms.NumberInput(attrs={"step": "0.01", "min": "0"}),
             "classes": _InputOnlyCheckboxSelect,
+            "niveau_priorite": forms.NumberInput(attrs={"min": "1", "step": "1", "placeholder": "1"}),
         }
         help_texts = {
             "classes": "Cochez une ou plusieurs classes. Le frais ne sera dû que par leurs élèves.",
+            "niveau_priorite": "1 = priorité maximale (à solder en premier). Les frais d'un niveau ne peuvent être payés que si tous les frais de niveau supérieur sont intégralement soldés.",
         }
 
     def __init__(self, *args, ecole=None, **kwargs):
@@ -120,6 +134,15 @@ class FraisScolaireForm(FormControlMixin, forms.ModelForm):
                 self.fields["annee"].empty_label = None
         if self.instance and self.instance.pk and self.instance.est_specifique():
             self.fields["portee"].initial = self.PORTEE_CLASSES
+        if not self.is_bound and (not self.instance or not self.instance.pk):
+            self.fields["niveau_priorite"].initial = 1
+        self.fields["niveau_priorite"].required = False
+
+    def clean_niveau_priorite(self):
+        val = self.cleaned_data.get("niveau_priorite")
+        if not val or val < 1:
+            return 1
+        return val
 
     def clean(self):
         cleaned = super().clean()
@@ -603,6 +626,21 @@ class PaiementForm(FormControlMixin, forms.ModelForm):
                 raise forms.ValidationError(
                     "Le frais sélectionné ne s'applique pas à la classe ou à l'année scolaire de l'élève."
                 )
+
+            # Vérification de la priorité des frais (frais de niveau supérieur non soldés)
+            bloquants = frais_bloquants_pour_frais(
+                self.ecole, inscription, frais, exclude_paiement_id=self.exclude_paiement_id
+            )
+            if bloquants:
+                details = ", ".join(
+                    f"« {b['libelle']} » (Niveau {b['niveau_priorite']} · reste {b['reste']} {b['devise']})"
+                    for b in bloquants
+                )
+                raise forms.ValidationError(
+                    f"Paiement impossible : le frais « {frais.type_frais.libelle} » (Niveau {getattr(frais, 'niveau_priorite', 1)}) "
+                    f"ne peut pas être payé tant que les frais de niveau prioritaire supérieur ne sont pas intégralement soldés : {details}."
+                )
+
             solde = solde_frais(
                 frais,
                 inscription.id,

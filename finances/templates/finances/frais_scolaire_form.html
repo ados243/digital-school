@@ -228,6 +228,7 @@
                         </div>
                     </div>
                     <div class="form-grid-2">
+                        {% include 'includes/form_field.html' with field=form.niveau_priorite %}
                         {% include 'includes/form_field.html' with field=form.echeance %}
                         {% include 'includes/form_field.html' with field=form.montant %}
                         {% include 'includes/form_field.html' with field=form.devise %}

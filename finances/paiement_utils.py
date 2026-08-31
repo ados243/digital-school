@@ -1007,44 +1007,122 @@ def solde_frais(frais, inscription_id, paye_par_frais):
     }
 
 
-def frais_disponibles_pour_inscription(ecole, inscription, exclude_paiement_id=None):
-    """Frais encore dus pour une inscription, avec montants payé/reste."""
+def frais_bloquants_pour_frais(ecole, inscription, frais, exclude_paiement_id=None):
+    """
+    Retourne la liste des frais applicables de niveau prioritaire supérieur (< frais.niveau_priorite)
+    qui ne sont pas encore intégralement soldés pour cette inscription.
+    """
+    if not inscription or not frais:
+        return []
+
+    priorite_cible = getattr(frais, "niveau_priorite", 1) or 1
+    paye_par_frais = paiements_valides_par_frais(ecole, exclude_paiement_id)
+    frais_qs = frais_applicables_pour_inscription(ecole, inscription)
+
+    bloquants = []
+    for f in frais_qs:
+        if f.id == frais.id:
+            continue
+        p_f = getattr(f, "niveau_priorite", 1) or 1
+        if p_f < priorite_cible:
+            solde = solde_frais(f, inscription.id, paye_par_frais)
+            if not solde["est_solde"]:
+                bloquants.append({
+                    "frais": f,
+                    "libelle": getattr(f.type_frais, "libelle", str(f)),
+                    "niveau_priorite": p_f,
+                    "reste": solde["reste"],
+                    "devise": str(f.devise) if f.devise_id else "",
+                    "solde": solde,
+                })
+
+    return bloquants
+
+
+def frais_disponibles_pour_inscription(ecole, inscription, exclude_paiement_id=None, filtrer_priorite=False):
+    """
+    Frais encore dus pour une inscription, avec montants payé/reste.
+    Si filtrer_priorite=True, exclut les frais bloqués par des frais de niveau supérieur non soldés.
+    """
     if not inscription:
         return []
 
     paye_par_frais = paiements_valides_par_frais(ecole, exclude_paiement_id)
-    frais_qs = frais_applicables_pour_inscription(ecole, inscription)
+    frais_qs = frais_applicables_pour_inscription(ecole, inscription).order_by("niveau_priorite", "echeance", "id")
 
-    disponibles = []
+    dus_tous = []
     for frais in frais_qs:
         solde = solde_frais(frais, inscription.id, paye_par_frais)
         if solde["est_solde"]:
             continue
-        disponibles.append({
+        dus_tous.append({
             "frais": frais,
+            "niveau_priorite": getattr(frais, "niveau_priorite", 1) or 1,
             **solde,
         })
-    return disponibles
+
+    if not filtrer_priorite or not dus_tous:
+        return dus_tous
+
+    # Identifier le niveau de priorité minimal non soldé
+    min_priorite = min(d["niveau_priorite"] for d in dus_tous)
+    # Seuls les frais du niveau minimal en attente sont disponibles
+    return [d for d in dus_tous if d["niveau_priorite"] == min_priorite]
 
 
 def build_frais_solde_context(ecole, inscriptions_qs, exclude_paiement_id=None):
-    """Construit la structure JSON {inscription_id: {frais_id: {...}}}."""
+    """Construit la structure JSON {inscription_id: {frais_id: {...}}} avec gestion des priorités."""
     paye_par_frais = paiements_valides_par_frais(ecole, exclude_paiement_id)
     frais_qs = list(
         frais_for_ecole(ecole)
         .select_related("type_frais", "section", "annee", "devise")
         .prefetch_related("classes")
+        .order_by("niveau_priorite", "echeance", "id")
     )
 
     result = {}
     for ins in inscriptions_qs:
         result[str(ins.id)] = {}
+        # Étape 1 : calculer les soldes de tous les frais applicables
+        applicables = []
         for frais in frais_qs:
             if not frais_concerne_inscription(frais, ins):
                 continue
             solde = solde_frais(frais, ins.id, paye_par_frais)
             if solde["est_solde"]:
                 continue
+            applicables.append((frais, solde))
+
+        # Étape 2 : déterminer pour chaque frais s'il est bloqué par un niveau supérieur non soldé
+        non_soldes_priorites = {
+            frais.id: getattr(frais, "niveau_priorite", 1) or 1
+            for frais, solde in applicables
+        }
+
+        for frais, solde in applicables:
+            f_prio = getattr(frais, "niveau_priorite", 1) or 1
+            bloquants = []
+            for f_other, s_other in applicables:
+                if f_other.id != frais.id:
+                    o_prio = getattr(f_other, "niveau_priorite", 1) or 1
+                    if o_prio < f_prio:
+                        bloquants.append({
+                            "libelle": f_other.type_frais.libelle,
+                            "niveau_priorite": o_prio,
+                            "reste": str(s_other["reste"]),
+                            "devise": str(f_other.devise) if f_other.devise_id else "",
+                        })
+
+            est_bloque = bool(bloquants)
+            msg_blocage = ""
+            if est_bloque:
+                niveaux = sorted({b["niveau_priorite"] for b in bloquants})
+                noms = ", ".join(f"{b['libelle']} (reste {b['reste']} {b['devise']})" for b in bloquants)
+                msg_blocage = (
+                    f"Priorité bloquée : les frais de Niveau {', '.join(map(str, niveaux))} "
+                    f"({noms}) doivent être intégralement soldés au préalable."
+                )
+
             result[str(ins.id)][str(frais.id)] = {
                 "libelle": frais.type_frais.libelle,
                 "section": str(frais.section) if frais.section_id else frais.portee_libelle(),
@@ -1057,5 +1135,9 @@ def build_frais_solde_context(ecole, inscriptions_qs, exclude_paiement_id=None):
                 "montant_paye": str(solde["paye"]),
                 "montant_restant": str(solde["reste"]),
                 "a_avance": solde["paye"] > 0,
+                "niveau_priorite": f_prio,
+                "est_bloque": est_bloque,
+                "bloque_par": bloquants,
+                "message_blocage": msg_blocage,
             }
     return result

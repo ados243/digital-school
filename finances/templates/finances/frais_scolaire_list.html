@@ -44,6 +44,7 @@
     <table class="custom-table">
       <thead>
         <tr>
+          <th>Priorité</th>
           <th>Type</th>
           <th>Année</th>
           <th>Concerne</th>
@@ -56,6 +57,11 @@
       <tbody>
         {% for item in object_list %}
         <tr>
+          <td>
+            <span class="badge" style="background: rgba(0, 119, 197, 0.12); color: var(--primary); font-weight: 700; font-size: 0.8rem; padding: 0.25rem 0.55rem; border-radius: 6px;">
+              Niveau {{ item.niveau_priorite }}
+            </span>
+          </td>
           <td><strong>{{ item.type_frais.libelle }}</strong></td>
           <td>{{ item.annee }}</td>
           <td>
@@ -84,7 +90,7 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="7" style="text-align:center; color: var(--text-muted); padding: 2rem;">Aucun frais scolaire.</td>
+          <td colspan="8" style="text-align:center; color: var(--text-muted); padding: 2rem;">Aucun frais scolaire.</td>
         </tr>
         {% endfor %}
       </tbody>

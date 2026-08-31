@@ -84,6 +84,17 @@ class Frais_Scolaire(models.Model):
     devise = models.ForeignKey(Devise, on_delete=models.CASCADE)
     echeance = models.DateField()
     est_obligatoire = models.BooleanField(default=True)
+    niveau_priorite = models.PositiveIntegerField(
+        default=1,
+        verbose_name="Niveau de priorité",
+        help_text="Ordre de priorité de paiement (1 = priorité maximale / à payer en premier, 2 = niveau suivant, etc.).",
+        db_index=True,
+    )
+
+    class Meta:
+        ordering = ["niveau_priorite", "echeance", "id"]
+        verbose_name = "Frais scolaire"
+        verbose_name_plural = "Frais scolaires"
 
     def __str__(self):
         if self.section_id:

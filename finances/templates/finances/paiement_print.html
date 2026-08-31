@@ -200,125 +200,137 @@
   /* ─── Format POS (ticket thermique) ─────────────────────── */
   .receipt-pos {
     display: none;
-    font-family: "Segoe UI", system-ui, sans-serif;
-    font-weight: 400;
-    line-height: 1.35;
+    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    font-size: 1.0rem;
+    font-weight: 500;
+    line-height: 1.4;
     color: #000;
-  }
-  .receipt-pos,
-  .receipt-pos * {
-    font-weight: 400 !important;
   }
   .pos-bold,
   .pos-title,
   .pos-hero,
+  .pos-school,
+  .pos-student,
   .pos-row--total .pos-value,
+  .pos-row--total .pos-label,
   .pos-row--highlight .pos-value,
-  .pos-row--reste .pos-value {
-    font-weight: 700 !important;
+  .pos-row--highlight .pos-label,
+  .pos-row--reste .pos-value,
+  .pos-row--reste .pos-label {
+    font-weight: 800 !important;
   }
   .pos-center { text-align: center; }
   .pos-title {
-    font-size: 1.05rem;
-    letter-spacing: .06em;
-    margin: 0 0 .15rem;
+    font-size: 1.2rem;
+    letter-spacing: .05em;
+    margin: 0 0 .2rem;
   }
   .pos-school {
-    font-size: .95rem;
-    margin: 0 0 .1rem;
+    font-size: 1.25rem;
+    margin: 0 0 .15rem;
   }
   .pos-meta {
-    font-size: .72rem;
-    color: #444;
-    margin: 0;
+    font-size: .88rem;
+    color: #111;
+    margin: .05rem 0;
   }
   .pos-sep {
     border: none;
-    border-top: 1px dashed #000;
-    margin: .55rem 0;
-  }
-  .pos-sep--double {
-    border-top: 2px solid #000;
+    border-top: 1.5px dashed #000;
     margin: .65rem 0;
   }
+  .pos-sep--double {
+    border-top: 2.5px solid #000;
+    margin: .75rem 0;
+  }
   .pos-hero {
-    font-size: 1.15rem;
+    font-size: 1.35rem;
     font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-    margin: .1rem 0;
+    margin: .15rem 0;
   }
   .pos-badge {
     display: inline-block;
-    font-size: .68rem;
+    font-size: .82rem;
+    font-weight: 800 !important;
     letter-spacing: .08em;
-    padding: .12rem .45rem;
-    border: 1px solid #000;
-    margin-top: .25rem;
+    padding: .18rem .65rem;
+    border: 1.5px solid #000;
+    margin-top: .3rem;
+    border-radius: 4px;
   }
   .pos-badge--ok { background: #000; color: #fff; }
   .pos-badge--warn { background: #fff; color: #000; }
   .pos-badge--danger { background: #fff; color: #000; border-style: double; }
   .pos-section-label {
-    font-size: .62rem;
-    letter-spacing: .12em;
+    font-size: .85rem;
+    letter-spacing: .1em;
     text-transform: uppercase;
-    color: #555;
-    margin: .35rem 0 .15rem;
+    color: #222;
+    margin: .45rem 0 .2rem;
+    font-weight: 800 !important;
   }
   .pos-student {
-    font-size: .88rem;
-    margin: 0 0 .05rem;
+    font-size: 1.15rem;
+    margin: 0 0 .1rem;
     word-break: break-word;
   }
   .pos-row {
     display: flex;
     align-items: baseline;
-    gap: .2rem;
-    margin: .18rem 0;
-    font-size: .78rem;
+    gap: .25rem;
+    margin: .25rem 0;
+    font-size: .98rem;
   }
   .pos-label {
     flex-shrink: 0;
     max-width: 58%;
+    font-size: .95rem;
   }
   .pos-dots {
     flex: 1 1 auto;
-    border-bottom: 1px dotted #888;
+    border-bottom: 1.5px dotted #666;
     min-width: .35rem;
-    margin-bottom: .12rem;
-    opacity: .85;
+    margin-bottom: .2rem;
+    opacity: .9;
   }
   .pos-value {
     flex-shrink: 0;
     font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-    font-size: .8rem;
+    font-size: 1.02rem;
+    font-weight: 700;
     text-align: right;
     white-space: nowrap;
   }
   .pos-row--highlight {
-    margin: .35rem 0;
-    font-size: .88rem;
+    margin: .45rem 0;
+    font-size: 1.15rem;
   }
   .pos-row--highlight .pos-value {
-    font-size: 1rem;
+    font-size: 1.35rem;
+    font-weight: 900 !important;
   }
   .pos-row--total .pos-label,
   .pos-row--total .pos-value {
-    font-size: .88rem;
+    font-size: 1.12rem;
+    font-weight: 800 !important;
   }
+  .pos-row--reste .pos-label,
   .pos-row--reste .pos-value {
-    font-size: .95rem;
+    font-size: 1.18rem;
+    font-weight: 900 !important;
   }
   .pos-footer {
     text-align: center;
-    font-size: .65rem;
-    color: #444;
-    margin-top: .65rem;
-    line-height: 1.45;
+    font-size: .82rem;
+    color: #222;
+    margin-top: .85rem;
+    line-height: 1.5;
   }
   .pos-caissier {
     text-align: center;
-    font-size: .72rem;
-    margin-top: .45rem;
+    font-size: .92rem;
+    margin-top: .55rem;
+    font-weight: 600;
   }
 
   /* Visibilité A4 vs POS à l'écran */
@@ -331,23 +343,27 @@
 
   /* Largeur écran selon format choisi */
   .receipt[data-format="a4"] { max-width: 800px; }
-  .receipt[data-format="80mm"] { max-width: 320px; }
-  .receipt[data-format="58mm"] { max-width: 240px; }
+  .receipt[data-format="80mm"] { max-width: 360px; }
+  .receipt[data-format="58mm"] { max-width: 280px; }
   .receipt[data-format="auto"] { max-width: 800px; }
 
   .receipt[data-format="80mm"] .receipt__inner,
   .receipt[data-format="58mm"] .receipt__inner {
-    padding: .85rem .65rem;
+    padding: 1rem .85rem;
   }
 
-  /* Ticket 58 mm : texte un peu plus compact */
-  .receipt[data-format="58mm"] .pos-title { font-size: .92rem; }
-  .receipt[data-format="58mm"] .pos-school { font-size: .85rem; }
-  .receipt[data-format="58mm"] .pos-hero { font-size: 1rem; }
-  .receipt[data-format="58mm"] .pos-row { font-size: .72rem; }
-  .receipt[data-format="58mm"] .pos-value { font-size: .74rem; }
-  .receipt[data-format="58mm"] .pos-row--highlight .pos-value { font-size: .92rem; }
-  .receipt[data-format="58mm"] .pos-student { font-size: .82rem; }
+  /* Ticket 58 mm : proportions adaptées */
+  .receipt[data-format="58mm"] .pos-title { font-size: 1.05rem; }
+  .receipt[data-format="58mm"] .pos-school { font-size: 1.1rem; }
+  .receipt[data-format="58mm"] .pos-hero { font-size: 1.18rem; }
+  .receipt[data-format="58mm"] .pos-row { font-size: .88rem; }
+  .receipt[data-format="58mm"] .pos-label { font-size: .85rem; }
+  .receipt[data-format="58mm"] .pos-value { font-size: .92rem; }
+  .receipt[data-format="58mm"] .pos-row--highlight .pos-value { font-size: 1.15rem; }
+  .receipt[data-format="58mm"] .pos-student { font-size: 1.02rem; }
+  .receipt[data-format="58mm"] .pos-meta { font-size: .8rem; }
+  .receipt[data-format="58mm"] .pos-footer { font-size: .75rem; }
+  .receipt[data-format="58mm"] .pos-caissier { font-size: .85rem; }
 
   /* ─── Impression ─────────────────────────────────────────── */
   @media print {
@@ -390,6 +406,7 @@
     .receipt__copy-label {
       color: #000 !important;
       margin-bottom: .35rem;
+      font-size: .9rem !important;
     }
 
     /* A4 : layout classique */
@@ -407,8 +424,13 @@
     body.receipt-print-80mm .receipt-pos,
     body.receipt-print-58mm .receipt-pos { display: block !important; }
 
+    body.receipt-print-auto,
+    body.receipt-print-80mm {
+      font-size: 14px;
+    }
+
     body.receipt-print-58mm {
-      font-size: 11px;
+      font-size: 12.5px;
     }
   }
 
