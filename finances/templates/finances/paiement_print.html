@@ -51,8 +51,8 @@
     color: #000;
     font-weight: 700;
   }
-  .receipt,
-  .receipt * {
+  .receipt-a4,
+  .receipt-a4 * {
     font-weight: 700 !important;
   }
   .receipt__inner { padding: 1.5rem; }
@@ -197,34 +197,159 @@
     display: none !important;
   }
 
+  /* ─── Format POS (ticket thermique) ─────────────────────── */
+  .receipt-pos {
+    display: none;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-weight: 400;
+    line-height: 1.35;
+    color: #000;
+  }
+  .receipt-pos,
+  .receipt-pos * {
+    font-weight: 400 !important;
+  }
+  .pos-bold,
+  .pos-title,
+  .pos-hero,
+  .pos-row--total .pos-value,
+  .pos-row--highlight .pos-value,
+  .pos-row--reste .pos-value {
+    font-weight: 700 !important;
+  }
+  .pos-center { text-align: center; }
+  .pos-title {
+    font-size: 1.05rem;
+    letter-spacing: .06em;
+    margin: 0 0 .15rem;
+  }
+  .pos-school {
+    font-size: .95rem;
+    margin: 0 0 .1rem;
+  }
+  .pos-meta {
+    font-size: .72rem;
+    color: #444;
+    margin: 0;
+  }
+  .pos-sep {
+    border: none;
+    border-top: 1px dashed #000;
+    margin: .55rem 0;
+  }
+  .pos-sep--double {
+    border-top: 2px solid #000;
+    margin: .65rem 0;
+  }
+  .pos-hero {
+    font-size: 1.15rem;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    margin: .1rem 0;
+  }
+  .pos-badge {
+    display: inline-block;
+    font-size: .68rem;
+    letter-spacing: .08em;
+    padding: .12rem .45rem;
+    border: 1px solid #000;
+    margin-top: .25rem;
+  }
+  .pos-badge--ok { background: #000; color: #fff; }
+  .pos-badge--warn { background: #fff; color: #000; }
+  .pos-badge--danger { background: #fff; color: #000; border-style: double; }
+  .pos-section-label {
+    font-size: .62rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #555;
+    margin: .35rem 0 .15rem;
+  }
+  .pos-student {
+    font-size: .88rem;
+    margin: 0 0 .05rem;
+    word-break: break-word;
+  }
+  .pos-row {
+    display: flex;
+    align-items: baseline;
+    gap: .2rem;
+    margin: .18rem 0;
+    font-size: .78rem;
+  }
+  .pos-label {
+    flex-shrink: 0;
+    max-width: 58%;
+  }
+  .pos-dots {
+    flex: 1 1 auto;
+    border-bottom: 1px dotted #888;
+    min-width: .35rem;
+    margin-bottom: .12rem;
+    opacity: .85;
+  }
+  .pos-value {
+    flex-shrink: 0;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: .8rem;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .pos-row--highlight {
+    margin: .35rem 0;
+    font-size: .88rem;
+  }
+  .pos-row--highlight .pos-value {
+    font-size: 1rem;
+  }
+  .pos-row--total .pos-label,
+  .pos-row--total .pos-value {
+    font-size: .88rem;
+  }
+  .pos-row--reste .pos-value {
+    font-size: .95rem;
+  }
+  .pos-footer {
+    text-align: center;
+    font-size: .65rem;
+    color: #444;
+    margin-top: .65rem;
+    line-height: 1.45;
+  }
+  .pos-caissier {
+    text-align: center;
+    font-size: .72rem;
+    margin-top: .45rem;
+  }
+
+  /* Visibilité A4 vs POS à l'écran */
+  .receipt-pos { display: none; }
+  .receipt-a4 { display: block; }
+  .receipt[data-format="80mm"] .receipt-a4,
+  .receipt[data-format="58mm"] .receipt-a4 { display: none; }
+  .receipt[data-format="80mm"] .receipt-pos,
+  .receipt[data-format="58mm"] .receipt-pos { display: block; }
+
   /* Largeur écran selon format choisi */
   .receipt[data-format="a4"] { max-width: 800px; }
   .receipt[data-format="80mm"] { max-width: 320px; }
   .receipt[data-format="58mm"] { max-width: 240px; }
   .receipt[data-format="auto"] { max-width: 800px; }
 
-  .receipt[data-format="80mm"] .receipt__grid,
-  .receipt[data-format="58mm"] .receipt__grid {
-    grid-template-columns: 1fr;
+  .receipt[data-format="80mm"] .receipt__inner,
+  .receipt[data-format="58mm"] .receipt__inner {
+    padding: .85rem .65rem;
   }
-  .receipt[data-format="80mm"] .receipt__header,
-  .receipt[data-format="58mm"] .receipt__header {
-    flex-direction: column;
-  }
-  .receipt[data-format="80mm"] .receipt__title,
-  .receipt[data-format="58mm"] .receipt__title {
-    text-align: left;
-  }
-  .receipt[data-format="80mm"] .receipt__signs,
-  .receipt[data-format="58mm"] .receipt__signs {
-    flex-direction: column;
-  }
-  .receipt[data-format="58mm"] .receipt__inner { padding: .75rem; }
-  .receipt[data-format="58mm"] .receipt__school h2 { font-size: 1rem; }
-  .receipt[data-format="58mm"] .receipt__title h1 { font-size: 1.1rem; }
-  .receipt[data-format="58mm"] .receipt__table { font-size: .75rem; }
 
-  /* ─── Impression : s’adapte à l’imprimante ─────────────── */
+  /* Ticket 58 mm : texte un peu plus compact */
+  .receipt[data-format="58mm"] .pos-title { font-size: .92rem; }
+  .receipt[data-format="58mm"] .pos-school { font-size: .85rem; }
+  .receipt[data-format="58mm"] .pos-hero { font-size: 1rem; }
+  .receipt[data-format="58mm"] .pos-row { font-size: .72rem; }
+  .receipt[data-format="58mm"] .pos-value { font-size: .74rem; }
+  .receipt[data-format="58mm"] .pos-row--highlight .pos-value { font-size: .92rem; }
+  .receipt[data-format="58mm"] .pos-student { font-size: .82rem; }
+
+  /* ─── Impression ─────────────────────────────────────────── */
   @media print {
     .sidebar,
     .top-header,
@@ -267,33 +392,21 @@
       margin-bottom: .35rem;
     }
 
-    /* Format A4 */
+    /* A4 : layout classique */
+    body.receipt-print-a4 .receipt-a4 { display: block !important; }
+    body.receipt-print-a4 .receipt-pos { display: none !important; }
     body.receipt-print-a4 .receipt__grid { grid-template-columns: 1fr 1fr; }
     body.receipt-print-a4 .receipt__header { flex-direction: row; }
     body.receipt-print-a4 .receipt__title { text-align: right; }
 
-    /* Ticket 80mm / 58mm / auto étroit */
-    body.receipt-print-80mm .receipt__grid,
-    body.receipt-print-58mm .receipt__grid,
-    body.receipt-print-auto .receipt__grid {
-      grid-template-columns: 1fr;
-    }
-    body.receipt-print-80mm .receipt__header,
-    body.receipt-print-58mm .receipt__header,
-    body.receipt-print-auto .receipt__header {
-      flex-direction: column;
-    }
-    body.receipt-print-80mm .receipt__title,
-    body.receipt-print-58mm .receipt__title,
-    body.receipt-print-auto .receipt__title {
-      text-align: left;
-    }
-    body.receipt-print-80mm .receipt__signs,
-    body.receipt-print-58mm .receipt__signs,
-    body.receipt-print-auto .receipt__signs {
-      flex-direction: column;
-      gap: 1.25rem;
-    }
+    /* POS : ticket thermique */
+    body.receipt-print-auto .receipt-a4,
+    body.receipt-print-80mm .receipt-a4,
+    body.receipt-print-58mm .receipt-a4 { display: none !important; }
+    body.receipt-print-auto .receipt-pos,
+    body.receipt-print-80mm .receipt-pos,
+    body.receipt-print-58mm .receipt-pos { display: block !important; }
+
     body.receipt-print-58mm {
       font-size: 11px;
     }
@@ -310,7 +423,7 @@
 {% if autoprint %}
 <div class="receipt-autoprint-banner no-print" id="receipt-autoprint-banner">
   <strong>Impression automatique — {{ copies }} exemplaire{{ copies|pluralize }}</strong>
-  <p>Reçu {{ paiement.numero_recu }} · format de l’imprimante par défaut</p>
+  <p>Reçu {{ paiement.numero_recu }} · format ticket POS</p>
 </div>
 {% endif %}
 
@@ -323,7 +436,7 @@
 
   <div class="format-group">
     <label>Format imprimante</label>
-    <button type="button" class="receipt-format-btn is-active" data-format="auto">Auto</button>
+    <button type="button" class="receipt-format-btn is-active" data-format="auto">Auto (POS)</button>
     <button type="button" class="receipt-format-btn" data-format="a4">A4</button>
     <button type="button" class="receipt-format-btn" data-format="80mm">Ticket 80 mm</button>
     <button type="button" class="receipt-format-btn" data-format="58mm">Ticket 58 mm</button>
@@ -336,120 +449,238 @@
     {% if exemplaire %}
     <div class="receipt__copy-label">{{ exemplaire }}</div>
     {% endif %}
-    <header class="receipt__header">
-      <div class="receipt__school">
-        <h2>{{ ecole.ecole|default:request.user.ecole.ecole|default:"Digital School" }}</h2>
-        {% if ecole %}
-        <p>{{ ecole.adresse }}</p>
-        <p>{% if ecole.telephone1 %}Tél : {{ ecole.telephone1 }}{% endif %}</p>
-        {% endif %}
-        <p style="margin-top:.35rem;">Facture / Reçu de paiement</p>
-        <p>Date : {{ paiement.date_encodage|date:"d/m/Y H:i" }}</p>
-      </div>
-      <div class="receipt__title">
-        <h1>FACTURE</h1>
-        <div class="receipt__number">N° {{ paiement.numero_recu }}</div>
-        <p style="margin-top:.4rem;">
-          {% if paiement.statut == 'VALIDE' %}
-            <span class="badge badge-success">VALIDÉ</span>
-          {% elif paiement.statut == 'ANNULE' %}
-            <span class="badge badge-danger">ANNULÉ</span>
-          {% else %}
-            <span class="badge badge-warning">EN ATTENTE</span>
-          {% endif %}
-        </p>
-      </div>
-    </header>
 
-    <div class="receipt__grid">
-      <div class="receipt__block">
-        <h4>Élève</h4>
-        <p>Nom : <strong>{{ paiement.eleve.eleve.nom }} {{ paiement.eleve.eleve.Post_nom|default_if_none:"" }} {{ paiement.eleve.eleve.prenom }}</strong></p>
-        <p>Classe : <strong>{{ paiement.eleve.classe.classe }}</strong></p>
-        <p>Matricule : <strong>{{ paiement.eleve.eleve.matricule }}</strong></p>
+    {# ── Layout A4 ─────────────────────────────────────── #}
+    <div class="receipt-a4">
+      <header class="receipt__header">
+        <div class="receipt__school">
+          <h2>{{ ecole.ecole|default:request.user.ecole.ecole|default:"Digital School" }}</h2>
+          {% if ecole %}
+          <p>{{ ecole.adresse }}</p>
+          <p>{% if ecole.telephone1 %}Tél : {{ ecole.telephone1 }}{% endif %}</p>
+          {% endif %}
+          <p style="margin-top:.35rem;">Facture / Reçu de paiement</p>
+          <p>Date : {{ paiement.date_encodage|date:"d/m/Y H:i" }}</p>
+        </div>
+        <div class="receipt__title">
+          <h1>FACTURE</h1>
+          <div class="receipt__number">N° {{ paiement.numero_recu }}</div>
+          <p style="margin-top:.4rem;">
+            {% if paiement.statut == 'VALIDE' %}
+              <span class="badge badge-success">VALIDÉ</span>
+            {% elif paiement.statut == 'ANNULE' %}
+              <span class="badge badge-danger">ANNULÉ</span>
+            {% else %}
+              <span class="badge badge-warning">EN ATTENTE</span>
+            {% endif %}
+          </p>
+        </div>
+      </header>
+
+      <div class="receipt__grid">
+        <div class="receipt__block">
+          <h4>Élève</h4>
+          <p>Nom : <strong>{{ paiement.eleve.eleve.nom }} {{ paiement.eleve.eleve.Post_nom|default_if_none:"" }} {{ paiement.eleve.eleve.prenom }}</strong></p>
+          <p>Classe : <strong>{{ paiement.eleve.classe.classe }}</strong></p>
+          <p>Matricule : <strong>{{ paiement.eleve.eleve.matricule }}</strong></p>
+        </div>
+        <div class="receipt__block">
+          <h4>Paiement</h4>
+          <p>Frais : <strong>{{ paiement.frais.type_frais.libelle }}</strong></p>
+          <p>Année : <strong>{{ paiement.frais.annee.anne_scolaire }}</strong></p>
+          {% if paiement.reference_trans %}
+          <p>Réf. : <strong style="font-family:monospace;">{{ paiement.reference_trans }}</strong></p>
+          {% endif %}
+        </div>
       </div>
-      <div class="receipt__block">
-        <h4>Paiement</h4>
-        <p>Frais : <strong>{{ paiement.frais.type_frais.libelle }}</strong></p>
-        <p>Année : <strong>{{ paiement.frais.annee.anne_scolaire }}</strong></p>
-        <p>Mode : <strong>{{ paiement.get_mode_paiement_display }}</strong></p>
-        {% if paiement.reference_trans %}
-        <p>Réf. : <strong style="font-family:monospace;">{{ paiement.reference_trans }}</strong></p>
-        {% endif %}
+
+      <table class="receipt__table">
+        <thead>
+          <tr>
+            <th>Désignation</th>
+            <th>Devise</th>
+            <th class="num">Montant</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <strong>{{ paiement.frais.type_frais.libelle }}</strong>
+              {% if paiement.frais.type_frais.description %}
+              <br><small style="color:var(--text-muted);">{{ paiement.frais.type_frais.description }}</small>
+              {% endif %}
+            </td>
+            <td>{{ paiement.devise.devise }}</td>
+            <td class="num">{{ solde.total }}</td>
+          </tr>
+          <tr>
+            <td colspan="2">Déjà payé (avant ce reçu)</td>
+            <td class="num">{{ solde.deja_paye }}</td>
+          </tr>
+          <tr>
+            <td colspan="2">Montant de ce reçu</td>
+            <td class="num" style="color:var(--primary);">{{ solde.ce_paiement }}</td>
+          </tr>
+          {% if paiement.taux_change and paiement.montant_origine %}
+          <tr>
+            <td colspan="2">
+              Reçu en {{ paiement.devise_origine.devise|default:"CDF" }} :
+              {{ paiement.montant_origine }}
+              · Taux : 1 USD = {{ paiement.taux_change }} CDF
+            </td>
+            <td class="num">{{ solde.ce_paiement }} {{ paiement.devise.devise }}</td>
+          </tr>
+          {% endif %}
+          <tr class="receipt__total">
+            <td colspan="2">TOTAL PAYÉ</td>
+            <td class="num">{{ solde.total_paye }} {{ paiement.devise.devise }}</td>
+          </tr>
+          <tr>
+            <td colspan="2"><strong>RESTE À PAYER</strong></td>
+            <td class="num">
+              {% if solde.reste_apres > 0 %}
+                {{ solde.reste_apres }} {{ paiement.devise.devise }}
+              {% else %}
+                Soldé
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="receipt__signs">
+        <div class="receipt__sign">
+          <p>Caissier : <strong>{{ paiement.caissier }}</strong></p>
+          <div class="receipt__sign-line"></div>
+        </div>
       </div>
+
+      <footer class="receipt__footer">
+        Document généré automatiquement par Digital School.<br>
+        Conservez cette facture / ce reçu.
+      </footer>
     </div>
 
-    <table class="receipt__table">
-      <thead>
-        <tr>
-          <th>Désignation</th>
-          <th>Devise</th>
-          <th class="num">Montant</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            <strong>{{ paiement.frais.type_frais.libelle }}</strong>
-            {% if paiement.frais.type_frais.description %}
-            <br><small style="color:var(--text-muted);">{{ paiement.frais.type_frais.description }}</small>
-            {% endif %}
-          </td>
-          <td>{{ paiement.devise.devise }}</td>
-          <td class="num">{{ solde.total }}</td>
-        </tr>
-        <tr>
-          <td colspan="2">Déjà payé (avant ce reçu)</td>
-          <td class="num">{{ solde.deja_paye }}</td>
-        </tr>
-        <tr>
-          <td colspan="2">Montant de ce reçu</td>
-          <td class="num" style="color:var(--primary);">{{ solde.ce_paiement }}</td>
-        </tr>
-        {% if paiement.taux_change and paiement.montant_origine %}
-        <tr>
-          <td colspan="2">
-            Reçu en {{ paiement.devise_origine.devise|default:"CDF" }} :
-            {{ paiement.montant_origine }}
-            · Taux : 1 USD = {{ paiement.taux_change }} CDF
-          </td>
-          <td class="num">{{ solde.ce_paiement }} {{ paiement.devise.devise }}</td>
-        </tr>
+    {# ── Layout POS (ticket thermique) ───────────────────── #}
+    <div class="receipt-pos">
+      <div class="pos-center">
+        <p class="pos-school pos-bold">{{ ecole.ecole|default:request.user.ecole.ecole|default:"Digital School" }}</p>
+        {% if ecole %}
+        {% if ecole.adresse %}<p class="pos-meta">{{ ecole.adresse }}</p>{% endif %}
+        {% if ecole.telephone1 %}<p class="pos-meta">Tél : {{ ecole.telephone1 }}</p>{% endif %}
         {% endif %}
-        <tr class="receipt__total">
-          <td colspan="2">TOTAL PAYÉ</td>
-          <td class="num">{{ solde.total_paye }} {{ paiement.devise.devise }}</td>
-        </tr>
-        <tr>
-          <td colspan="2"><strong>RESTE À PAYER</strong></td>
-          <td class="num">
-            {% if solde.reste_apres > 0 %}
-              {{ solde.reste_apres }} {{ paiement.devise.devise }}
-            {% else %}
-              Soldé
-            {% endif %}
-          </td>
-        </tr>
-      </tbody>
-    </table>
+      </div>
 
-    <div class="receipt__signs">
-      <div class="receipt__sign">
-        <p>Signature Élève / Parent</p>
-        <div class="receipt__sign-line"></div>
+      <hr class="pos-sep">
+
+      <div class="pos-center">
+        <p class="pos-title pos-bold">REÇU DE PAIEMENT</p>
+        <p class="pos-hero">N° {{ paiement.numero_recu }}</p>
+        <p class="pos-meta">{{ paiement.date_encodage|date:"d/m/Y · H:i" }}</p>
+        {% if paiement.statut == 'VALIDE' %}
+          <span class="pos-badge pos-badge--ok">VALIDÉ</span>
+        {% elif paiement.statut == 'ANNULE' %}
+          <span class="pos-badge pos-badge--danger">ANNULÉ</span>
+        {% else %}
+          <span class="pos-badge pos-badge--warn">EN ATTENTE</span>
+        {% endif %}
       </div>
-      <div class="receipt__sign">
-        <p>Caissier : <strong>{{ paiement.caissier }}</strong></p>
-        <div class="receipt__sign-line"></div>
+
+      <hr class="pos-sep">
+
+      <p class="pos-section-label">Élève</p>
+      <p class="pos-student pos-bold">{{ paiement.eleve.eleve.nom }} {{ paiement.eleve.eleve.Post_nom|default_if_none:"" }} {{ paiement.eleve.eleve.prenom }}</p>
+      <div class="pos-row">
+        <span class="pos-label">Classe</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ paiement.eleve.classe.classe }}</span>
       </div>
+      <div class="pos-row">
+        <span class="pos-label">Matricule</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ paiement.eleve.eleve.matricule }}</span>
+      </div>
+
+      <hr class="pos-sep">
+
+      <p class="pos-section-label">Frais scolaires</p>
+      <div class="pos-row">
+        <span class="pos-label">{{ paiement.frais.type_frais.libelle }}</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ paiement.frais.annee.anne_scolaire }}</span>
+      </div>
+      {% if paiement.reference_trans %}
+      <div class="pos-row">
+        <span class="pos-label">Référence</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ paiement.reference_trans }}</span>
+      </div>
+      {% endif %}
+
+      <hr class="pos-sep">
+
+      <div class="pos-row">
+        <span class="pos-label">Total frais</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ solde.total }} {{ paiement.devise.devise }}</span>
+      </div>
+      <div class="pos-row">
+        <span class="pos-label">Déjà payé</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ solde.deja_paye }} {{ paiement.devise.devise }}</span>
+      </div>
+
+      <hr class="pos-sep--double">
+
+      <div class="pos-row pos-row--highlight">
+        <span class="pos-label pos-bold">Montant reçu</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ solde.ce_paiement }} {{ paiement.devise.devise }}</span>
+      </div>
+
+      {% if paiement.taux_change and paiement.montant_origine %}
+      <div class="pos-row">
+        <span class="pos-label">Versé en {{ paiement.devise_origine.devise|default:"CDF" }}</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ paiement.montant_origine }}</span>
+      </div>
+      <div class="pos-row">
+        <span class="pos-label">Taux 1 USD</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ paiement.taux_change }} CDF</span>
+      </div>
+      {% endif %}
+
+      <hr class="pos-sep">
+
+      <div class="pos-row pos-row--total">
+        <span class="pos-label">Total payé</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">{{ solde.total_paye }} {{ paiement.devise.devise }}</span>
+      </div>
+      <div class="pos-row pos-row--reste">
+        <span class="pos-label">Reste à payer</span>
+        <span class="pos-dots"></span>
+        <span class="pos-value">
+          {% if solde.reste_apres > 0 %}
+            {{ solde.reste_apres }} {{ paiement.devise.devise }}
+          {% else %}
+            SOLDÉ
+          {% endif %}
+        </span>
+      </div>
+
+      <hr class="pos-sep--double">
+
+      <p class="pos-caissier">Caissier : <span class="pos-bold">{{ paiement.caissier }}</span></p>
+
+      <p class="pos-footer">
+        Merci · Conservez ce reçu<br>
+        Digital School
+      </p>
     </div>
 
     <div class="receipt__cut">- - - - - - coupure - - - - - -</div>
-
-    <footer class="receipt__footer">
-      Document généré automatiquement par Digital School.<br>
-      Conservez cette facture / ce reçu.
-    </footer>
   </div>
 </article>
 {% endfor %}
@@ -495,7 +726,6 @@
   }
 
   function detectPrinterFormat() {
-    // Encaissement auto : toujours le format natif de l'imprimante (pilote Windows)
     if (autoprint) return 'auto';
     try {
       if (window.matchMedia('(max-width: 240px)').matches) return '58mm';
@@ -517,7 +747,6 @@
   });
 
   function doPrint() {
-    // Force le format imprimante (size: auto) juste avant l'envoi
     applyFormat('auto');
     if (pageStyle) pageStyle.textContent = PAGE_CSS.auto;
     window.print();
@@ -532,7 +761,6 @@
   var printBtn = document.getElementById('btn-print-receipt');
   if (printBtn) {
     printBtn.addEventListener('click', function () {
-      // Réimpression manuelle : 2 ex. déjà dans la page si copies=2
       doPrint();
     });
   }
@@ -540,7 +768,6 @@
   if (autoprint) {
     body.classList.add('receipt-autoprinting');
     window.addEventListener('afterprint', goNext);
-    // Impression immédiate (avec Chrome/Edge --kiosk-printing : aucun dialogue)
     function startSilentPrint() {
       doPrint();
       setTimeout(goNext, 4000);
