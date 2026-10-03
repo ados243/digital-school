@@ -354,6 +354,7 @@ class SecuriteAccessibiliteTests(TestCase):
         self.assertIsNotNone(sess.ended_at)
         self.assertFalse(sess.revoquee)
 
+    @override_settings(SESSION_IDLE_SECONDS=7200)
     def test_session_reste_ouverte_avant_deux_heures(self):
         Utilisateur.objects.create_user(
             username="eleve_actif",
