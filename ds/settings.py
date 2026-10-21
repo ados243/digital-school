@@ -95,8 +95,8 @@ if DEBUG:
 # Cookies / en-têtes — toujours (dev + prod)
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-# Fermeture après 15 min d'inactivité (cookie + sessions de connexion).
-SESSION_IDLE_SECONDS = int(os.environ.get("SESSION_IDLE_SECONDS", "900"))
+# Fermeture après 2h d'inactivité (cookie + sessions de connexion).
+SESSION_IDLE_SECONDS = int(os.environ.get("SESSION_IDLE_SECONDS", "7200"))
 SESSION_COOKIE_AGE = SESSION_IDLE_SECONDS
 SESSION_SAVE_EVERY_REQUEST = True
 CSRF_COOKIE_HTTPONLY = True

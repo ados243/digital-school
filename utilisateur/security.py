@@ -434,12 +434,12 @@ def valider_matricule(valeur):
 
 
 def duree_inactivite_session():
-    secondes = int(getattr(settings, "SESSION_IDLE_SECONDS", 900) or 900)
+    secondes = int(getattr(settings, "SESSION_IDLE_SECONDS", 7200) or 7200)
     return timedelta(seconds=max(60, secondes))
 
 
 def cloturer_sessions_inactives(utilisateur=None, maintenant=None):
-    """Ferme les sessions sans activité depuis SESSION_IDLE_SECONDS (défaut 15 min)."""
+    """Ferme les sessions sans activité depuis SESSION_IDLE_SECONDS (défaut 2 h)."""
     from django.contrib.sessions.models import Session as DjangoSession
 
     from .models import SessionConnexion

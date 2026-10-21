@@ -224,11 +224,16 @@ class SessionConnexionMiddleware:
             if motif == "inactivite":
                 from django.conf import settings
 
-                secondes = int(getattr(settings, "SESSION_IDLE_SECONDS", 900) or 900)
+                secondes = int(getattr(settings, "SESSION_IDLE_SECONDS", 7200) or 7200)
                 minutes = max(1, secondes // 60)
+                if minutes >= 60 and minutes % 60 == 0:
+                    heures = minutes // 60
+                    duree = f"{heures} heure{'s' if heures > 1 else ''}"
+                else:
+                    duree = f"{minutes} minute{'s' if minutes > 1 else ''}"
                 messages.warning(
                     request,
-                    f"Votre session a été fermée après {minutes} minute{'s' if minutes > 1 else ''} d'inactivité.",
+                    f"Votre session a été fermée après {duree} d'inactivité.",
                 )
             else:
                 messages.warning(
