@@ -18,6 +18,7 @@ from .periodes_utils import (
 )
 from inscription.models import Classe, Section, Annee_Scolaire, Inscription, Cycle
 from common.tenant import get_user_ecole
+from finances.tenant import paiements_for_ecole
 
 
 def _peut_editer_calendrier_national(user):
@@ -61,6 +62,41 @@ def pedagogie_dashboard(request):
         else Section.objects.none()
     )
 
+    # Récupérer les paiements validés pour l'année courante et les répartir
+    # par classe et par type de frais afin d'afficher la liste des élèves ayant payé.
+    paiements_par_classe_type = {}
+    try:
+        if annee:
+            paiements_qs = (
+                paiements_for_ecole(ecole)
+                .filter(statut='VALIDE', eleve__annee_s=annee)
+                .select_related('eleve', 'eleve__eleve', 'eleve__classe', 'frais__type_frais')
+            )
+        else:
+            paiements_qs = (
+                paiements_for_ecole(ecole)
+                .filter(statut='VALIDE')
+                .select_related('eleve', 'eleve__eleve', 'eleve__classe', 'frais__type_frais')
+            )
+
+        tmp = defaultdict(lambda: defaultdict(dict))
+        for p in paiements_qs:
+            classe_id = getattr(p.eleve, 'classe_id', None)
+            if classe_id is None:
+                continue
+            type_lib = (p.frais.type_frais.libelle if p.frais_id and p.frais.type_frais_id else 'Autres')
+            ins = p.eleve
+            # conserver unique par inscription
+            by_type = tmp[classe_id].setdefault(type_lib, {})
+            by_type[ins.id] = ins
+
+        # Convertir en structure simple pour template : {classe_id: {type_lib: [inscriptions]}}
+        paiements_par_classe_type = {
+            cl_id: {t: list(dic.values()) for t, dic in types.items()} for cl_id, types in tmp.items()
+        }
+    except Exception:
+        paiements_par_classe_type = {}
+
     sections_data = {}
     total_inscrits = 0
     classes_completes = 0
@@ -82,6 +118,7 @@ def pedagogie_dashboard(request):
                 'inscrits': inscrits,
                 'percent': percent,
                 'is_full': is_full,
+                'paiements_par_type': paiements_par_classe_type.get(c.id, {}),
             })
         sections_data[s] = {
             'matieres': sec_matieres,
@@ -106,6 +143,7 @@ def pedagogie_dashboard(request):
         'matieres': matieres,
         'classes': classes,
         'calendrier_encours': calendrier_encours,
+        'paiements_par_classe_type': paiements_par_classe_type,
     }
     return render(request, 'pedagogie/dashboard.html', context)
 

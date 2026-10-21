@@ -211,6 +211,21 @@
                                         <strong style="color: {% if c.is_full %}var(--danger){% else %}var(--primary){% endif %};">{{ c.inscrits }}/{{ c.obj.capacite_max }}</strong> élèves
                                         {% if c.is_full %}<span style="color: var(--danger); font-weight: 600;"> — COMPLÈTE</span>{% endif %}
                                     </div>
+                                    {% if c.paiements_par_type %}
+                                    <div style="font-size:0.75rem; margin-top:0.5rem; color:var(--text-muted);">
+                                        <strong style="color:var(--primary);">Élèves ayant payé :</strong>
+                                        <div style="margin-top:0.25rem;">
+                                            {% for type_lib, inscriptions in c.paiements_par_type.items %}
+                                                <div style="margin-bottom:0.25rem;">
+                                                    <strong>{{ type_lib }}:</strong>
+                                                    {% for ins in inscriptions %}
+                                                        {{ ins.eleve.nom }} {{ ins.eleve.Post_nom }} {{ ins.eleve.prenom }}{% if not forloop.last %}, {% endif %}
+                                                    {% endfor %}
+                                                </div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="font-size: 0.8rem; font-weight: 600;">{{ c.percent }}%</div>
