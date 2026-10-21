@@ -1,10 +1,11 @@
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from functools import wraps
 from io import BytesIO
 
 from django.db import transaction
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -162,7 +163,7 @@ from .models import (
     EcritureLigne,
 )
 from .whatsapp_views import whatsapp_config, whatsapp_test, whatsapp_renvoyer  # noqa: F401
-from inscription.models import Classe
+from inscription.models import Annee_Scolaire, Classe, Section, Inscription
 from inscription.tenant import (
     inscriptions_for_ecole,
     annees_for_ecole,
@@ -721,6 +722,508 @@ def classe_paiements(request, classe_id):
         "print_mode": request.GET.get("print") == "1",
     }
     return render(request, "finances/classe_paiements.html", context)
+
+
+def _export_situation_paiements_excel(ecole, annee, classes_data, stats_globales, filtres_info):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+
+    wb = Workbook()
+
+    header_font = Font(bold=True, color="FFFFFF", size=10)
+    header_fill = PatternFill("solid", fgColor="1E3A8A")
+    total_fill = PatternFill("solid", fgColor="F3F4F6")
+
+    thin = Border(
+        left=Side(style="thin", color="D1D5DB"),
+        right=Side(style="thin", color="D1D5DB"),
+        top=Side(style="thin", color="D1D5DB"),
+        bottom=Side(style="thin", color="D1D5DB"),
+    )
+    thick_bottom = Border(
+        left=Side(style="thin", color="D1D5DB"),
+        right=Side(style="thin", color="D1D5DB"),
+        top=Side(style="thin", color="D1D5DB"),
+        bottom=Side(style="medium", color="1E3A8A"),
+    )
+
+    sold_fill = PatternFill("solid", fgColor="DCFCE7")
+    part_fill = PatternFill("solid", fgColor="FEF3C7")
+    impaye_fill = PatternFill("solid", fgColor="FEE2E2")
+
+    # ==========================================
+    # FEUILLE 1 : Situation de tous les élèves
+    # ==========================================
+    ws1 = wb.active
+    ws1.title = "Situation par élève"
+
+    ecole_nom = getattr(ecole, "nom", "Digital School")
+    ws1["A1"] = f"{ecole_nom} — SITUATION DES PAIEMENTS DES ÉLÈVES"
+    ws1["A1"].font = Font(bold=True, size=13, color="1E3A8A")
+    ws1["A2"] = f"Année scolaire : {annee}  |  Exporté le : {timezone.now().strftime('%d/%m/%Y %H:%M')}"
+    ws1["A2"].font = Font(italic=True, size=9, color="4B5563")
+
+    filtres_desc = []
+    if filtres_info.get("section_nom"):
+        filtres_desc.append(f"Section : {filtres_info['section_nom']}")
+    if filtres_info.get("classe_nom"):
+        filtres_desc.append(f"Classe : {filtres_info['classe_nom']}")
+    if filtres_info.get("type_frais_nom"):
+        filtres_desc.append(f"Type de frais : {filtres_info['type_frais_nom']}")
+    if filtres_info.get("statut_nom"):
+        filtres_desc.append(f"Statut : {filtres_info['statut_nom']}")
+    if filtres_info.get("q"):
+        filtres_desc.append(f"Recherche : '{filtres_info['q']}'")
+    ws1["A3"] = "Filtres : " + (" | ".join(filtres_desc) if filtres_desc else "Tous les élèves / Tous les frais")
+    ws1["A3"].font = Font(size=9, color="374151")
+
+    headers1 = [
+        "N°",
+        "Classe",
+        "Section",
+        "Matricule",
+        "Nom de l'élève",
+        "Post-nom",
+        "Prénom",
+        "Type(s) de frais",
+        "Montant dû",
+        "Montant payé",
+        "Reste à payer",
+        "Devise",
+        "Statut",
+    ]
+    start_row = 5
+    for col_idx, h in enumerate(headers1, start=1):
+        cell = ws1.cell(row=start_row, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = thin
+    ws1.row_dimensions[start_row].height = 24
+
+    r = start_row + 1
+    num_eleve = 1
+
+    for c_data in classes_data:
+        cl = c_data["classe"]
+        for el in c_data["eleves"]:
+            eleve_obj = el["eleve"]
+            frais_str = ", ".join(f["libelle"] for f in el["frais_details"]) or "Aucun frais"
+
+            dev_items = list(el["totaux_devises"].items())
+            if not dev_items:
+                dev_items = [("USD", {"du": Decimal("0"), "paye": Decimal("0"), "reste": Decimal("0")})]
+
+            for idx, (dev_code, t) in enumerate(dev_items):
+                is_first = (idx == 0)
+                row_vals = [
+                    num_eleve if is_first else "",
+                    cl.classe if is_first else "",
+                    str(cl.section) if is_first else "",
+                    (eleve_obj.matricule or "") if is_first else "",
+                    eleve_obj.nom if is_first else "",
+                    (eleve_obj.Post_nom or "") if is_first else "",
+                    eleve_obj.prenom if is_first else "",
+                    frais_str if is_first else "",
+                    float(t["du"]),
+                    float(t["paye"]),
+                    float(t["reste"]),
+                    dev_code,
+                    el["statut_label"] if is_first else "",
+                ]
+                for c_idx, val in enumerate(row_vals, start=1):
+                    cell = ws1.cell(row=r, column=c_idx, value=val)
+                    cell.border = thin
+                    if c_idx in (9, 10, 11):
+                        cell.alignment = Alignment(horizontal="right")
+                        cell.number_format = "#,##0.00"
+                    elif c_idx in (1, 12, 13):
+                        cell.alignment = Alignment(horizontal="center")
+                        if c_idx == 13 and is_first:
+                            if el["statut"] == "SOLDE":
+                                cell.fill = sold_fill
+                            elif el["statut"] == "PARTIEL":
+                                cell.fill = part_fill
+                            elif el["statut"] == "NON_PAYE":
+                                cell.fill = impaye_fill
+                r += 1
+            num_eleve += 1
+
+    # Ligne des totaux généraux ws1
+    r += 1
+    for dev_code, tot in stats_globales["totaux_devises"].items():
+        cell_lbl = ws1.cell(row=r, column=8, value=f"Total général ({dev_code})")
+        cell_lbl.font = Font(bold=True)
+        cell_lbl.fill = total_fill
+        cell_lbl.border = thick_bottom
+
+        c_du = ws1.cell(row=r, column=9, value=float(tot["du"]))
+        c_du.font = Font(bold=True)
+        c_du.number_format = "#,##0.00"
+        c_du.fill = total_fill
+        c_du.border = thick_bottom
+
+        c_paye = ws1.cell(row=r, column=10, value=float(tot["paye"]))
+        c_paye.font = Font(bold=True)
+        c_paye.number_format = "#,##0.00"
+        c_paye.fill = total_fill
+        c_paye.border = thick_bottom
+
+        c_reste = ws1.cell(row=r, column=11, value=float(tot["reste"]))
+        c_reste.font = Font(bold=True)
+        c_reste.number_format = "#,##0.00"
+        c_reste.fill = total_fill
+        c_reste.border = thick_bottom
+
+        c_dev = ws1.cell(row=r, column=12, value=dev_code)
+        c_dev.font = Font(bold=True)
+        c_dev.alignment = Alignment(horizontal="center")
+        c_dev.fill = total_fill
+        c_dev.border = thick_bottom
+        r += 1
+
+    # ==========================================
+    # FEUILLE 2 : Récapitulatif par classe
+    # ==========================================
+    ws2 = wb.create_sheet("Récapitulatif par classe")
+    ws2["A1"] = f"{ecole_nom} — RÉCAPITULATIF PAR CLASSE"
+    ws2["A1"].font = Font(bold=True, size=13, color="1E3A8A")
+    ws2["A2"] = f"Année scolaire : {annee}  |  Exporté le : {timezone.now().strftime('%d/%m/%Y %H:%M')}"
+    ws2["A2"].font = Font(italic=True, size=9, color="4B5563")
+
+    headers2 = [
+        "Section",
+        "Classe",
+        "Effectif",
+        "Soldés",
+        "Partiels",
+        "Non payés",
+        "Devise",
+        "Total dû",
+        "Total payé",
+        "Reste à recouvrer",
+        "Taux recouvrement",
+    ]
+    start_row_2 = 4
+    for col_idx, h in enumerate(headers2, start=1):
+        cell = ws2.cell(row=start_row_2, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = thin
+    ws2.row_dimensions[start_row_2].height = 24
+
+    r2 = start_row_2 + 1
+    for c_data in classes_data:
+        cl = c_data["classe"]
+        dev_items = list(c_data["totaux_devises"].items())
+        if not dev_items:
+            dev_items = [("USD", {"du": Decimal("0"), "paye": Decimal("0"), "reste": Decimal("0"), "taux": 0.0})]
+
+        for idx, (dev_code, t) in enumerate(dev_items):
+            is_first = (idx == 0)
+            row_vals = [
+                str(cl.section) if is_first else "",
+                cl.classe if is_first else "",
+                c_data["nb_eleves"] if is_first else "",
+                c_data["nb_soldes"] if is_first else "",
+                c_data["nb_partiels"] if is_first else "",
+                c_data["nb_non_payes"] if is_first else "",
+                dev_code,
+                float(t["du"]),
+                float(t["paye"]),
+                float(t["reste"]),
+                f"{t.get('taux', 0)} %",
+            ]
+            for c_idx, val in enumerate(row_vals, start=1):
+                cell = ws2.cell(row=r2, column=c_idx, value=val)
+                cell.border = thin
+                if c_idx in (8, 9, 10):
+                    cell.alignment = Alignment(horizontal="right")
+                    cell.number_format = "#,##0.00"
+                elif c_idx in (3, 4, 5, 6, 7, 11):
+                    cell.alignment = Alignment(horizontal="center")
+            r2 += 1
+
+    for ws in (ws1, ws2):
+        for col in ws.columns:
+            max_len = 0
+            col_letter = col[0].column_letter
+            for cell in col:
+                if cell.value is not None:
+                    max_len = max(max_len, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = min(max(max_len + 3, 11), 40)
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    annee_slug = slugify(getattr(annee, "annee", "annee")) or "annee"
+    filename = f"situation_paiements_{annee_slug}_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+def situation_paiements(request):
+    """
+    Sortie de la situation des paiements de tous les élèves :
+    filtrable par classe, section, type de frais, statut de paiement,
+    avec récapitulatif par classe, totaux par devise, export Excel et impression.
+    """
+    ecole = get_user_ecole(request)
+
+    annee_id = request.GET.get("annee")
+    if annee_id:
+        annee = Annee_Scolaire.objects.filter(pk=annee_id).first()
+    else:
+        annee = Annee_Scolaire.objects.filter(est_encoure=True).first()
+    if not annee:
+        annee = Annee_Scolaire.objects.order_by("-date_debut").first()
+
+    section_id = request.GET.get("section")
+    classe_id = request.GET.get("classe")
+    type_frais_id = request.GET.get("type_frais")
+    statut_filtre = (request.GET.get("statut") or "").strip().upper()
+    q = (request.GET.get("q") or "").strip()
+
+    annees = Annee_Scolaire.objects.all().order_by("-date_debut")
+    sections = Section.objects.all().order_by("cycle__cycle", "section")
+    classes_qs = Classe.objects.filter(ecole=ecole).select_related("section").order_by("section__section", "classe")
+    if section_id:
+        classes_qs = classes_qs.filter(section_id=section_id)
+    types_frais = type_frais_for_ecole(ecole).order_by("libelle")
+
+    selected_section = Section.objects.filter(pk=section_id).first() if section_id else None
+    selected_classe = Classe.objects.filter(pk=classe_id, ecole=ecole).first() if classe_id else None
+    selected_type_frais = TypeFrais.objects.filter(pk=type_frais_id, ecole=ecole).first() if type_frais_id else None
+
+    # Inscriptions
+    inscriptions_qs = (
+        inscriptions_for_ecole(ecole)
+        .filter(annee_s=annee)
+        .select_related("eleve", "classe", "classe__section", "annee_s")
+        .order_by("classe__section__section", "classe__classe", "eleve__nom", "eleve__prenom")
+    )
+    if selected_section:
+        inscriptions_qs = inscriptions_qs.filter(classe__section=selected_section)
+    if selected_classe:
+        inscriptions_qs = inscriptions_qs.filter(classe=selected_classe)
+    if q:
+        inscriptions_qs = inscriptions_qs.filter(
+            Q(eleve__nom__icontains=q)
+            | Q(eleve__Post_nom__icontains=q)
+            | Q(eleve__prenom__icontains=q)
+            | Q(eleve__matricule__icontains=q)
+        )
+
+    # Frais scolaires applicables pour l'année
+    frais_qs = (
+        frais_for_ecole(ecole)
+        .filter(annee=annee)
+        .select_related("type_frais", "section", "devise")
+        .prefetch_related("classes")
+        .order_by("type_frais__libelle")
+    )
+    if selected_type_frais:
+        frais_qs = frais_qs.filter(type_frais=selected_type_frais)
+    frais_list = list(frais_qs)
+    frais_by_id = {f.id: f for f in frais_list}
+
+    # Précalcul des cibles pour chaque frais
+    frais_targets = {}
+    for f in frais_list:
+        c_ids = {c.id for c in f.classes.all()}
+        frais_targets[f.id] = (c_ids, f.section_id)
+
+    # Paiements validés
+    paiements_qs = paiements_for_ecole(ecole).filter(statut="VALIDE", eleve__annee_s=annee)
+    if selected_type_frais:
+        paiements_qs = paiements_qs.filter(frais__type_frais=selected_type_frais)
+
+    paye_par_frais = {}
+    for row in paiements_qs.values("eleve_id", "frais_id").annotate(total=Sum("montant_paye")):
+        paye_par_frais[(row["eleve_id"], row["frais_id"])] = _decimal(row["total"])
+
+    # Traitement des élèves
+    classes_dict = {}
+
+    for ins in inscriptions_qs:
+        app_frais = []
+        for f in frais_list:
+            c_ids, sec_id = frais_targets[f.id]
+            if c_ids:
+                if ins.classe_id in c_ids:
+                    app_frais.append(f)
+            elif sec_id and ins.classe and ins.classe.section_id == sec_id:
+                app_frais.append(f)
+
+        extra_frais_ids = {
+            f_id for (e_id, f_id), montant in paye_par_frais.items()
+            if e_id == ins.id and montant > 0 and f_id not in {f.id for f in app_frais}
+        }
+        for ef_id in extra_frais_ids:
+            if ef_id in frais_by_id:
+                app_frais.append(frais_by_id[ef_id])
+
+        totaux_eleve = defaultdict(lambda: {"du": Decimal("0"), "paye": Decimal("0"), "reste": Decimal("0")})
+        frais_details = []
+
+        for f in app_frais:
+            du = _decimal(f.montant)
+            dev = str(f.devise.devise if f.devise_id else "USD")
+            paye = paye_par_frais.get((ins.id, f.id), Decimal("0"))
+            reste = max(du - paye, Decimal("0"))
+            est_solde = (reste <= Decimal("0"))
+            totaux_eleve[dev]["du"] += du
+            totaux_eleve[dev]["paye"] += paye
+            totaux_eleve[dev]["reste"] += reste
+            frais_details.append({
+                "frais": f,
+                "libelle": f.type_frais.libelle if f.type_frais_id else str(f),
+                "montant_du": du,
+                "paye": paye,
+                "reste": reste,
+                "devise": dev,
+                "est_solde": est_solde,
+                "est_partiel": (paye > 0 and reste > 0),
+                "est_non_paye": (paye == 0),
+            })
+
+        if not frais_details:
+            statut = "SANS_FRAIS"
+            statut_label = "Sans frais fixé"
+            statut_badge = "secondary"
+        elif all(item["est_solde"] for item in frais_details):
+            statut = "SOLDE"
+            statut_label = "Soldé"
+            statut_badge = "success"
+        elif any(item["paye"] > 0 for item in frais_details):
+            statut = "PARTIEL"
+            statut_label = "Partiel"
+            statut_badge = "warning"
+        else:
+            statut = "NON_PAYE"
+            statut_label = "Non payé"
+            statut_badge = "danger"
+
+        if statut_filtre and statut != statut_filtre:
+            continue
+
+        cl = ins.classe
+        if cl.id not in classes_dict:
+            classes_dict[cl.id] = {
+                "classe": cl,
+                "section": cl.section,
+                "eleves": [],
+                "nb_soldes": 0,
+                "nb_partiels": 0,
+                "nb_non_payes": 0,
+                "totaux_devises": defaultdict(lambda: {"du": Decimal("0"), "paye": Decimal("0"), "reste": Decimal("0")}),
+            }
+
+        cd = classes_dict[cl.id]
+        cd["eleves"].append({
+            "inscription": ins,
+            "eleve": ins.eleve,
+            "frais_details": frais_details,
+            "totaux_devises": dict(totaux_eleve),
+            "statut": statut,
+            "statut_label": statut_label,
+            "statut_badge": statut_badge,
+        })
+        if statut == "SOLDE":
+            cd["nb_soldes"] += 1
+        elif statut == "PARTIEL":
+            cd["nb_partiels"] += 1
+        elif statut == "NON_PAYE":
+            cd["nb_non_payes"] += 1
+
+        for dev, t in totaux_eleve.items():
+            cd["totaux_devises"][dev]["du"] += t["du"]
+            cd["totaux_devises"][dev]["paye"] += t["paye"]
+            cd["totaux_devises"][dev]["reste"] += t["reste"]
+
+    classes_data = []
+    for c_id, cd in classes_dict.items():
+        cd["nb_eleves"] = len(cd["eleves"])
+        for dev, vals in cd["totaux_devises"].items():
+            du = vals["du"]
+            paye = vals["paye"]
+            vals["taux"] = round((paye / du) * 100, 1) if du > 0 else (100.0 if paye > 0 else 0.0)
+        cd["totaux_devises"] = dict(cd["totaux_devises"])
+        classes_data.append(cd)
+
+    classes_data.sort(key=lambda x: (str(x["classe"].section), str(x["classe"].classe)))
+
+    eleves_liste = []
+    for cd in classes_data:
+        for el in cd["eleves"]:
+            el_item = dict(el)
+            el_item["classe_obj"] = cd["classe"]
+            eleves_liste.append(el_item)
+
+    stats_globales = {
+        "total_eleves": len(eleves_liste),
+        "total_soldes": sum(cd["nb_soldes"] for cd in classes_data),
+        "total_partiels": sum(cd["nb_partiels"] for cd in classes_data),
+        "total_non_payes": sum(cd["nb_non_payes"] for cd in classes_data),
+        "totaux_devises": defaultdict(lambda: {"du": Decimal("0"), "paye": Decimal("0"), "reste": Decimal("0")}),
+    }
+    for cd in classes_data:
+        for dev, vals in cd["totaux_devises"].items():
+            stats_globales["totaux_devises"][dev]["du"] += vals["du"]
+            stats_globales["totaux_devises"][dev]["paye"] += vals["paye"]
+            stats_globales["totaux_devises"][dev]["reste"] += vals["reste"]
+
+    for dev, vals in stats_globales["totaux_devises"].items():
+        du = vals["du"]
+        paye = vals["paye"]
+        vals["taux"] = round((paye / du) * 100, 1) if du > 0 else (100.0 if paye > 0 else 0.0)
+    stats_globales["totaux_devises"] = dict(stats_globales["totaux_devises"])
+
+    statut_noms = {
+        "SOLDE": "Soldé",
+        "PARTIEL": "Partiellement payé",
+        "NON_PAYE": "Non payé",
+    }
+    filtres_info = {
+        "annee": annee,
+        "section": selected_section,
+        "section_nom": str(selected_section) if selected_section else "",
+        "classe": selected_classe,
+        "classe_nom": str(selected_classe) if selected_classe else "",
+        "type_frais": selected_type_frais,
+        "type_frais_nom": getattr(selected_type_frais, "libelle", "") if selected_type_frais else "",
+        "statut": statut_filtre,
+        "statut_nom": statut_noms.get(statut_filtre, ""),
+        "q": q,
+    }
+
+    if request.GET.get("export") == "excel":
+        return _export_situation_paiements_excel(ecole, annee, classes_data, stats_globales, filtres_info)
+
+    query_params = request.GET.copy()
+    query_params.pop("export", None)
+    filter_query = query_params.urlencode()
+
+    context = {
+        "annee": annee,
+        "annees": annees,
+        "sections": sections,
+        "classes": classes_qs,
+        "types_frais": types_frais,
+        "classes_data": classes_data,
+        "eleves_liste": eleves_liste,
+        "stats_globales": stats_globales,
+        "filtres_info": filtres_info,
+        "filter_query": filter_query,
+        "print_mode": request.GET.get("print") == "1",
+    }
+    return render(request, "finances/situation_paiements.html", context)
 
 
 # -------------------------

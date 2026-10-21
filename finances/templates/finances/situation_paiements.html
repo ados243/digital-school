@@ -1,0 +1,677 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Situation des paiements des élèves{% endblock %}
+
+{% block page_title %}Situation des paiements des élèves{% endblock %}
+{% block page_subtitle %}
+  Liste complète des élèves avec situation financière par classe et par type de frais · {{ stats_globales.total_eleves }} élève{{ stats_globales.total_eleves|pluralize }} répertorié{{ stats_globales.total_eleves|pluralize }}.
+{% endblock %}
+
+{% block header_actions %}
+<div class="no-print" style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+  <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}export=excel" class="btn btn-primary" style="background:#15803d; border-color:#15803d; font-weight:600; display:inline-flex; align-items:center; gap:0.4rem;">
+    📊 Exporter sous Excel (.xlsx)
+  </a>
+  <button type="button" class="btn btn-secondary" onclick="window.print();" style="display:inline-flex; align-items:center; gap:0.35rem;">
+    🖨️ Imprimer la liste
+  </button>
+  <a href="{% url 'finances:dashboard' %}" class="btn btn-secondary">
+    ← Synthèse finances
+  </a>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filters-card {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  }
+  .filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    align-items: flex-end;
+  }
+  .filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .filter-field label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .filter-field select,
+  .filter-field input {
+    height: 38px;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: #fff;
+    color: var(--text-main);
+  }
+  .filter-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .view-switch {
+    display: inline-flex;
+    background: #f1f5f9;
+    padding: 0.25rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 1rem;
+  }
+  .view-switch button {
+    background: none;
+    border: none;
+    padding: 0.45rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .view-switch button.is-active {
+    background: #ffffff;
+    color: var(--primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .kpi-recouvrement {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  .progress-bar-bg {
+    flex: 1;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 999px;
+    transition: width 0.3s ease;
+  }
+
+  .frais-pill {
+    display: inline-flex;
+    flex-direction: column;
+    padding: 0.2rem 0.45rem;
+    background: #f8fafc;
+    border-radius: 6px;
+    margin: 0.15rem 0.25rem 0.15rem 0;
+    font-size: 0.78rem;
+    border: 1px solid #e2e8f0;
+  }
+  .frais-pill.is-solde {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+  }
+  .frais-pill.is-partiel {
+    background: #fffbeb;
+    border-color: #fde68a;
+  }
+  .frais-pill.is-non-paye {
+    background: #fef2f2;
+    border-color: #fecaca;
+  }
+
+  .classe-card {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 1.75rem;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  }
+  .classe-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.85rem 1.25rem;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border);
+  }
+  .classe-card__title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .classe-card__title h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-main);
+  }
+
+  .print-header {
+    display: none;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #0f172a;
+  }
+
+  @media print {
+    body {
+      background: #fff !important;
+      color: #000 !important;
+    }
+    .no-print, .ds-taskbar, .top-header, .header-actions, .messages-container, .skip-link, .filters-card, .view-switch {
+      display: none !important;
+    }
+    .main-content {
+      margin-left: 0 !important;
+      padding: 0 !important;
+    }
+    .print-header {
+      display: block !important;
+    }
+    .custom-table {
+      font-size: 0.75rem !important;
+    }
+    .custom-table th, .custom-table td {
+      padding: 0.35rem 0.5rem !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+    .badge {
+      border: 1px solid #64748b !important;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- En-tête d'impression institutionnelle -->
+<div class="print-header">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+    <div>
+      <h2 style="margin:0 0 0.25rem 0; font-size:1.3rem; text-transform:uppercase; color:#0f172a;">
+        {{ nom_ecole|default:"Digital School" }}
+      </h2>
+      <div style="font-size:1.05rem; font-weight:700; color:#1e3a8a;">
+        SITUATION DES PAIEMENTS DES ÉLÈVES
+      </div>
+      <div style="font-size:0.85rem; color:#475569; margin-top:0.25rem;">
+        Année scolaire : <strong>{{ annee }}</strong>
+        {% if filtres_info.section %} · Section : <strong>{{ filtres_info.section }}</strong>{% endif %}
+        {% if filtres_info.classe %} · Classe : <strong>{{ filtres_info.classe.classe }}</strong>{% endif %}
+        {% if filtres_info.type_frais %} · Frais : <strong>{{ filtres_info.type_frais.libelle }}</strong>{% endif %}
+        {% if filtres_info.statut_nom %} · Statut : <strong>{{ filtres_info.statut_nom }}</strong>{% endif %}
+      </div>
+    </div>
+    <div style="text-align:right; font-size:0.8rem; color:#475569;">
+      <div>Date d'émission : <strong>{% now "d/m/Y H:i" %}</strong></div>
+      <div>Effectif répertorié : <strong>{{ stats_globales.total_eleves }} élève{{ stats_globales.total_eleves|pluralize }}</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtres interactifs -->
+<div class="filters-card no-print">
+  <form method="get" action="{% url 'finances:situation_paiements' %}">
+    <div class="filters-grid">
+      <div class="filter-field">
+        <label for="id_annee">Année scolaire</label>
+        <select name="annee" id="id_annee" onchange="this.form.submit()">
+          {% for a in annees %}
+          <option value="{{ a.id }}" {% if a.id == annee.id %}selected{% endif %}>
+            {{ a.annee }} {% if a.est_encoure %}(En cours){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="id_section">Section</label>
+        <select name="section" id="id_section" onchange="this.form.submit()">
+          <option value="">Toutes les sections</option>
+          {% for sec in sections %}
+          <option value="{{ sec.id }}" {% if filtres_info.section.id == sec.id %}selected{% endif %}>
+            {{ sec.section }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="id_classe">Classe</label>
+        <select name="classe" id="id_classe" onchange="this.form.submit()">
+          <option value="">Toutes les classes</option>
+          {% for c in classes %}
+          <option value="{{ c.id }}" {% if filtres_info.classe.id == c.id %}selected{% endif %}>
+            {{ c.classe }} ({{ c.section.section }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="id_type_frais">Type de frais</label>
+        <select name="type_frais" id="id_type_frais" onchange="this.form.submit()">
+          <option value="">Tous les types de frais</option>
+          {% for tf in types_frais %}
+          <option value="{{ tf.id }}" {% if filtres_info.type_frais.id == tf.id %}selected{% endif %}>
+            {{ tf.libelle }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="id_statut">Statut de paiement</label>
+        <select name="statut" id="id_statut" onchange="this.form.submit()">
+          <option value="">Tous les statuts</option>
+          <option value="SOLDE" {% if filtres_info.statut == 'SOLDE' %}selected{% endif %}>Soldé</option>
+          <option value="PARTIEL" {% if filtres_info.statut == 'PARTIEL' %}selected{% endif %}>Partiellement payé</option>
+          <option value="NON_PAYE" {% if filtres_info.statut == 'NON_PAYE' %}selected{% endif %}>Non payé / Impayé</option>
+        </select>
+      </div>
+
+      <div class="filter-field">
+        <label for="id_q">Recherche élève</label>
+        <input type="text" name="q" id="id_q" value="{{ filtres_info.q }}" placeholder="Nom, matricule...">
+      </div>
+
+      <div class="filter-actions">
+        <button type="submit" class="btn btn-primary" style="height:38px;">🔍 Filtrer</button>
+        <a href="{% url 'finances:situation_paiements' %}" class="btn btn-secondary" style="height:38px; display:inline-flex; align-items:center;">Effacer</a>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Synthèse KPI -->
+<section class="kpi-grid">
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Effectif filtré</div>
+      <div class="kpi-value">{{ stats_globales.total_eleves }}</div>
+    </div>
+    <div class="kpi-footer">📚 Élèves inscrits correspondants</div>
+  </div>
+
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Élèves soldés</div>
+      <div class="kpi-value" style="color:var(--success, #16a34a);">{{ stats_globales.total_soldes }}</div>
+    </div>
+    <div class="kpi-footer">
+      {% if stats_globales.total_eleves > 0 %}
+        ✅ {% widthratio stats_globales.total_soldes stats_globales.total_eleves 100 %}% de l'effectif
+      {% else %}
+        ✅ 0%
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Paiements partiels</div>
+      <div class="kpi-value" style="color:#d97706;">{{ stats_globales.total_partiels }}</div>
+    </div>
+    <div class="kpi-footer">
+      {% if stats_globales.total_eleves > 0 %}
+        ⏳ {% widthratio stats_globales.total_partiels stats_globales.total_eleves 100 %}% en cours
+      {% else %}
+        ⏳ 0%
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <div>
+      <div class="kpi-title">Non payés / Dettes</div>
+      <div class="kpi-value" style="color:var(--danger, #dc2626);">{{ stats_globales.total_non_payes }}</div>
+    </div>
+    <div class="kpi-footer">
+      {% if stats_globales.total_eleves > 0 %}
+        ⚠️ {% widthratio stats_globales.total_non_payes stats_globales.total_eleves 100 %}% aucun versement
+      {% else %}
+        ⚠️ 0%
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Cartes financières par devise -->
+  {% for dev_code, tot in stats_globales.totaux_devises.items %}
+  <div class="kpi-card" style="grid-column: span 2;">
+    <div>
+      <div class="kpi-title">Recouvrement global — {{ dev_code }}</div>
+      <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:0.25rem;">
+        <span style="font-size:1.2rem; font-weight:700; color:var(--primary);">
+          {{ tot.paye }} <span style="font-size:0.85rem; color:var(--text-muted);">/ {{ tot.du }} {{ dev_code }}</span>
+        </span>
+        <span class="badge {% if tot.taux >= 80 %}badge-success{% elif tot.taux >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+          {{ tot.taux }}%
+        </span>
+      </div>
+      <div class="kpi-recouvrement">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" style="width: {{ tot.taux }}%;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="kpi-footer" style="display:flex; justify-content:space-between;">
+      <span>Reste à recouvrer : <strong style="color:var(--danger, #dc2626);">{{ tot.reste }} {{ dev_code }}</strong></span>
+      <span>Dû : <strong>{{ tot.du }} {{ dev_code }}</strong></span>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+
+<!-- Barre de contrôle de la vue (Liste continue vs Groupé par classe) -->
+<div class="no-print" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
+  <div class="view-switch">
+    <button type="button" id="btn-view-list" class="is-active" onclick="switchView('list')">
+      📋 Liste continue de tous les élèves ({{ eleves_liste|length }})
+    </button>
+    <button type="button" id="btn-view-classes" onclick="switchView('classes')">
+      🏫 Vue groupée par classe ({{ classes_data|length }})
+    </button>
+  </div>
+
+  <div style="display:flex; gap:0.5rem; align-items:center;">
+    <a href="?{% if filter_query %}{{ filter_query }}&{% endif %}export=excel" class="btn btn-primary btn-sm" style="background:#15803d; border-color:#15803d; font-weight:600;">
+      📊 Télécharger la liste en Excel (.xlsx)
+    </a>
+  </div>
+</div>
+
+<!-- ================================================================= -->
+<!-- VUE 1 : GRANDE LISTE CONTINUE DE TOUS LES ÉLÈVES (PAR DÉFAUT)    -->
+<!-- ================================================================= -->
+<div id="container-view-list" class="panel" style="background:#fff; border-radius:12px; border:1px solid var(--border); overflow:hidden; box-shadow:0 1px 3px rgba(15,23,42,0.05);">
+  <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+    <div>
+      <h3 style="margin:0; font-size:1.1rem;">Liste générale de situation des élèves</h3>
+      <span style="font-size:0.85rem; color:var(--text-muted);">
+        {% if filtres_info.classe %}Classe {{ filtres_info.classe.classe }}{% else %}Toutes les classes répertoriées{% endif %}
+        {% if filtres_info.type_frais %} · Frais : {{ filtres_info.type_frais.libelle }}{% endif %}
+      </span>
+    </div>
+    <span class="badge badge-secondary" style="font-size:0.85rem;">
+      {{ eleves_liste|length }} élève{{ eleves_liste|length|pluralize }}
+    </span>
+  </div>
+
+  <div class="panel-body table-responsive" style="padding:0;">
+    <table class="custom-table" style="margin-bottom:0;">
+      <thead>
+        <tr>
+          <th style="width:40px; text-align:center;">N°</th>
+          <th style="width:130px;">Classe</th>
+          <th style="width:100px;">Matricule</th>
+          <th style="min-width:180px;">Nom & Prénom de l'élève</th>
+          <th>Type(s) de frais & Barème</th>
+          <th style="text-align:right; width:120px;">Montant Dû</th>
+          <th style="text-align:right; width:120px;">Montant Payé</th>
+          <th style="text-align:right; width:120px;">Reste à payer</th>
+          <th style="text-align:center; width:100px;">Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for el in eleves_liste %}
+        <tr>
+          <td style="text-align:center; color:var(--text-muted); font-size:0.85rem;">
+            {{ forloop.counter }}
+          </td>
+          <td>
+            <strong>{{ el.classe_obj.classe }}</strong>
+            <div style="font-size:0.75rem; color:var(--text-muted);">{{ el.classe_obj.section.section }}</div>
+          </td>
+          <td>
+            <span style="font-family:monospace; font-weight:700; color:var(--primary);">
+              {{ el.eleve.matricule|default:"—" }}
+            </span>
+          </td>
+          <td>
+            <strong>{{ el.eleve.nom }} {{ el.eleve.Post_nom }}</strong> {{ el.eleve.prenom }}
+          </td>
+          <td>
+            {% for f in el.frais_details %}
+              <div class="frais-pill {% if f.est_solde %}is-solde{% elif f.est_partiel %}is-partiel{% else %}is-non-paye{% endif %}">
+                <span style="font-weight:600;">{{ f.libelle }}</span>
+                <span style="color:var(--text-muted); font-size:0.75rem;">
+                  Dû: {{ f.montant_du }} {{ f.devise }} · Payé: {{ f.paye }} {{ f.devise }}
+                  {% if not f.est_solde %}
+                  · <strong style="color:var(--danger, #dc2626);">Reste: {{ f.reste }} {{ f.devise }}</strong>
+                  {% else %}
+                  · <strong style="color:var(--success, #16a34a);">Soldé</strong>
+                  {% endif %}
+                </span>
+              </div>
+            {% empty %}
+              <span style="color:var(--text-muted); font-size:0.8rem; font-style:italic;">
+                Aucun barème applicable
+              </span>
+            {% endfor %}
+          </td>
+          <td style="text-align:right; font-family:monospace; font-weight:600;">
+            {% for dev, t in el.totaux_devises.items %}
+              <div>{{ t.du }} <span style="font-size:0.75rem; color:var(--text-muted);">{{ dev }}</span></div>
+            {% empty %}
+              0
+            {% endfor %}
+          </td>
+          <td style="text-align:right; font-family:monospace; font-weight:700; color:var(--primary);">
+            {% for dev, t in el.totaux_devises.items %}
+              <div>{{ t.paye }} <span style="font-size:0.75rem; color:var(--text-muted);">{{ dev }}</span></div>
+            {% empty %}
+              0
+            {% endfor %}
+          </td>
+          <td style="text-align:right; font-family:monospace; font-weight:700;">
+            {% for dev, t in el.totaux_devises.items %}
+              <div style="{% if t.reste > 0 %}color:var(--danger, #dc2626);{% else %}color:var(--success, #16a34a);{% endif %}">
+                {{ t.reste }} <span style="font-size:0.75rem; color:var(--text-muted);">{{ dev }}</span>
+              </div>
+            {% empty %}
+              0
+            {% endfor %}
+          </td>
+          <td style="text-align:center;">
+            <span class="badge {{ el.statut_badge }}">
+              {{ el.statut_label }}
+            </span>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="9" style="text-align:center; padding:3rem 1rem; color:var(--text-muted);">
+            <div style="font-size:2rem; margin-bottom:0.5rem;">📋</div>
+            <strong>Aucun élève trouvé</strong>
+            <p style="margin-top:0.25rem;">Modifiez vos critères de filtre ou réinitialisez la recherche.</p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if eleves_liste %}
+      <tfoot style="background:#f8fafc; font-weight:700; border-top:2px solid var(--border);">
+        <tr>
+          <td colspan="5" style="text-align:right; padding:0.75rem 1rem;">
+            TOTAL GÉNÉRAL :
+          </td>
+          <td style="text-align:right; font-family:monospace; font-size:0.95rem;">
+            {% for dev, tot in stats_globales.totaux_devises.items %}
+              <div>{{ tot.du }} <span style="font-size:0.75rem; color:var(--text-muted);">{{ dev }}</span></div>
+            {% endfor %}
+          </td>
+          <td style="text-align:right; font-family:monospace; font-size:0.95rem; color:var(--primary);">
+            {% for dev, tot in stats_globales.totaux_devises.items %}
+              <div>{{ tot.paye }} <span style="font-size:0.75rem; color:var(--text-muted);">{{ dev }}</span></div>
+            {% endfor %}
+          </td>
+          <td style="text-align:right; font-family:monospace; font-size:0.95rem; color:var(--danger, #dc2626);">
+            {% for dev, tot in stats_globales.totaux_devises.items %}
+              <div>{{ tot.reste }} <span style="font-size:0.75rem; color:var(--text-muted);">{{ dev }}</span></div>
+            {% endfor %}
+          </td>
+          <td style="text-align:center;">
+            <span class="badge badge-secondary">Fin de liste</span>
+          </td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+<!-- ================================================================= -->
+<!-- VUE 2 : GROUPÉE PAR CLASSE (ACCESSIBLE VIA LE BOUTON D'ONGLET)   -->
+<!-- ================================================================= -->
+<div id="container-view-classes" style="display:none;">
+  {% for c_data in classes_data %}
+  <div class="classe-card">
+    <div class="classe-card__header">
+      <div class="classe-card__title">
+        <h3>Classe {{ c_data.classe.classe }}</h3>
+        <span style="font-size:0.85rem; color:var(--text-muted); font-weight:500;">
+          (Section {{ c_data.classe.section.section }})
+        </span>
+        <a href="{% url 'finances:classe_paiements' c_data.classe.id %}" class="btn btn-secondary btn-sm no-print" title="Historique caisse de la classe">
+          📋 Caisse
+        </a>
+      </div>
+
+      <div class="classe-card__stats">
+        <span class="badge badge-secondary">Effectif : <strong>{{ c_data.nb_eleves }}</strong></span>
+        <span class="badge badge-success">Soldés : <strong>{{ c_data.nb_soldes }}</strong></span>
+        <span class="badge badge-warning">Partiels : <strong>{{ c_data.nb_partiels }}</strong></span>
+        <span class="badge badge-danger">Non payés : <strong>{{ c_data.nb_non_payes }}</strong></span>
+        
+        {% for dev, t in c_data.totaux_devises.items %}
+        <span style="background:#e0e7ff; color:#1e3a8a; padding:0.2rem 0.5rem; border-radius:6px; font-weight:600; font-size:0.8rem;">
+          {{ dev }} : {{ t.paye }} / {{ t.du }} ({{ t.taux }}%) · Reste : {{ t.reste }}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="custom-table" style="margin-bottom:0;">
+        <thead>
+          <tr>
+            <th style="width:40px; text-align:center;">N°</th>
+            <th style="width:110px;">Matricule</th>
+            <th style="min-width:180px;">Élève</th>
+            <th>Détail des frais</th>
+            <th style="text-align:right;">Total Dû</th>
+            <th style="text-align:right;">Total Payé</th>
+            <th style="text-align:right;">Reste à payer</th>
+            <th style="text-align:center; width:100px;">Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for el in c_data.eleves %}
+          <tr>
+            <td style="text-align:center; color:var(--text-muted); font-size:0.85rem;">
+              {{ forloop.counter }}
+            </td>
+            <td>
+              <span style="font-family:monospace; font-weight:700; color:var(--primary);">
+                {{ el.eleve.matricule|default:"—" }}
+              </span>
+            </td>
+            <td>
+              <strong>{{ el.eleve.nom }} {{ el.eleve.Post_nom }}</strong> {{ el.eleve.prenom }}
+            </td>
+            <td>
+              {% for f in el.frais_details %}
+                <div class="frais-pill {% if f.est_solde %}is-solde{% elif f.est_partiel %}is-partiel{% else %}is-non-paye{% endif %}">
+                  <span style="font-weight:600;">{{ f.libelle }}</span>
+                  <span style="color:var(--text-muted); font-size:0.75rem;">
+                    Dû: {{ f.montant_du }} {{ f.devise }} · Payé: {{ f.paye }} {{ f.devise }}
+                    {% if not f.est_solde %}
+                    · <strong style="color:var(--danger, #dc2626);">Reste: {{ f.reste }} {{ f.devise }}</strong>
+                    {% else %}
+                    · <strong style="color:var(--success, #16a34a);">Soldé</strong>
+                    {% endif %}
+                  </span>
+                </div>
+              {% empty %}
+                <span style="color:var(--text-muted); font-size:0.8rem; font-style:italic;">
+                  Aucun barème applicable
+                </span>
+              {% endfor %}
+            </td>
+            <td style="text-align:right; font-family:monospace; font-weight:600;">
+              {% for dev, t in el.totaux_devises.items %}
+                <div>{{ t.du }} <span style="font-size:0.75rem; color:var(--text-muted);">{{ dev }}</span></div>
+              {% empty %}
+                0
+              {% endfor %}
+            </td>
+            <td style="text-align:right; font-family:monospace; font-weight:700; color:var(--primary);">
+              {% for dev, t in el.totaux_devises.items %}
+                <div>{{ t.paye }} <span style="font-size:0.75rem; color:var(--text-muted);">{{ dev }}</span></div>
+              {% empty %}
+                0
+              {% endfor %}
+            </td>
+            <td style="text-align:right; font-family:monospace; font-weight:700;">
+              {% for dev, t in el.totaux_devises.items %}
+                <div style="{% if t.reste > 0 %}color:var(--danger, #dc2626);{% else %}color:var(--success, #16a34a);{% endif %}">
+                  {{ t.reste }} <span style="font-size:0.75rem; color:var(--text-muted);">{{ dev }}</span>
+                </div>
+              {% empty %}
+                0
+              {% endfor %}
+            </td>
+            <td style="text-align:center;">
+              <span class="badge {{ el.statut_badge }}">
+                {{ el.statut_label }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  function switchView(mode) {
+    const listBtn = document.getElementById('btn-view-list');
+    const classesBtn = document.getElementById('btn-view-classes');
+    const listContainer = document.getElementById('container-view-list');
+    const classesContainer = document.getElementById('container-view-classes');
+
+    if (mode === 'list') {
+      listBtn.classList.add('is-active');
+      classesBtn.classList.remove('is-active');
+      listContainer.style.display = 'block';
+      classesContainer.style.display = 'none';
+    } else {
+      classesBtn.classList.add('is-active');
+      listBtn.classList.remove('is-active');
+      classesContainer.style.display = 'block';
+      listContainer.style.display = 'none';
+    }
+  }
+</script>
+{% endblock %}

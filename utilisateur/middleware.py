@@ -48,6 +48,7 @@ PREFIXES_CAISSIER = PREFIXES_COMMUNS + (
     '/finances/paiements',
     '/finances/cloture',
     '/finances/relances',
+    '/finances/situation-paiements',
 )
 
 # Trésorier / Comptable : module finances (trésorerie) complet.

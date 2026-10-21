@@ -6,6 +6,7 @@
 {% block page_subtitle %}Caisse réelle, paiements et minerval par classe.{% endblock %}
 
 {% block header_actions %}
+<a href="{% url 'finances:situation_paiements' %}" class="btn btn-secondary">📊 Situation des paiements</a>
 <a href="{% url 'finances:budget_annuel' %}" class="btn btn-secondary">📐 Budget</a>
 <a href="{% url 'finances:relances_impayes' %}" class="btn btn-primary">Relancer le minerval</a>
 {% endblock %}

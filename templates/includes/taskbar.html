@@ -20,6 +20,7 @@
             <ul class="ds-taskbar-flyout">
                 <li><a href="{% url 'finances:paiement_list' %}" class="{% if request.resolver_match.url_name == 'paiement_list' %}is-active{% endif %}">📋 Liste des paiements</a></li>
                 <li><a href="{% url 'finances:paiement_create' %}" class="{% if request.resolver_match.url_name == 'paiement_create' %}is-active{% endif %}">➕ Encaisser un paiement</a></li>
+                <li><a href="{% url 'finances:situation_paiements' %}" class="{% if request.resolver_match.url_name == 'situation_paiements' %}is-active{% endif %}">📊 Situation des paiements</a></li>
                 <li><a href="{% url 'finances:relances_impayes' %}" class="{% if 'relance' in request.resolver_match.url_name %}is-active{% endif %}">📣 Relances minerval</a></li>
                 <li><a href="{% url 'finances:demandes_modification_list' %}" class="{% if 'demande' in request.resolver_match.url_name %}is-active{% endif %}">✏️ Demandes de correction</a></li>
                 <li><a href="{% url 'finances:cloture_caisse' %}" class="{% if request.resolver_match.url_name == 'cloture_caisse' %}is-active{% endif %}">🔒 Clôture de journée</a></li>
@@ -37,6 +38,7 @@
                 <li><a href="{% url 'finances:frais_scolaire_list' %}" class="{% if 'frais-scolaires' in request.path or 'frais_scolaire' in request.resolver_match.url_name %}is-active{% endif %}">📋 Frais scolaires</a></li>
                 <li><a href="{% url 'finances:budget_annuel' %}" class="{% if request.resolver_match.url_name == 'budget_annuel' %}is-active{% endif %}">📐 Budget</a></li>
                 <li><a href="{% url 'finances:paiement_list' %}" class="{% if 'paiement' in request.resolver_match.url_name and 'demande' not in request.resolver_match.url_name %}is-active{% endif %}">💳 Paiements élèves</a></li>
+                <li><a href="{% url 'finances:situation_paiements' %}" class="{% if request.resolver_match.url_name == 'situation_paiements' %}is-active{% endif %}">📊 Situation des paiements</a></li>
                 <li><a href="{% url 'finances:relances_impayes' %}" class="{% if 'relance' in request.resolver_match.url_name %}is-active{% endif %}">📣 Relances minerval</a></li>
                 <li><a href="{% url 'finances:demandes_modification_list' %}" class="{% if 'demande' in request.resolver_match.url_name %}is-active{% endif %}">✏️ Demandes de correction</a></li>
                 <li><a href="{% url 'finances:taux_change_list' %}" class="{% if 'taux' in request.path %}is-active{% endif %}">💱 Taux de change</a></li>
@@ -129,7 +131,8 @@
                 <li><a href="{% url 'finances:dashboard' %}" class="{% if request.resolver_match.namespace == 'finances' and request.resolver_match.url_name == 'dashboard' %}is-active{% endif %}">📊 Synthèse</a></li>
                 <li><a href="{% url 'finances:frais_scolaire_list' %}" class="{% if 'frais-scolaires' in request.path or 'frais_scolaire' in request.resolver_match.url_name %}is-active{% endif %}">📋 Frais scolaires</a></li>
                 <li><a href="{% url 'finances:budget_annuel' %}" class="{% if request.resolver_match.url_name == 'budget_annuel' %}is-active{% endif %}">📐 Budget</a></li>
-                <li><a href="{% url 'finances:paiement_list' %}" class="{% if 'paiement' in request.resolver_match.url_name and 'demande' not in request.resolver_match.url_name %}is-active{% endif %}">💳 Paiements élèves</a></li>
+                <li><a href="{% url 'finances:paiement_list' %}" class="{% if 'paiement' in request.resolver_match.url_name and 'demande' not in request.resolver_match.url_name and 'situation' not in request.resolver_match.url_name %}is-active{% endif %}">💳 Paiements élèves</a></li>
+                <li><a href="{% url 'finances:situation_paiements' %}" class="{% if request.resolver_match.url_name == 'situation_paiements' %}is-active{% endif %}">📊 Situation des paiements</a></li>
                 <li><a href="{% url 'finances:relances_impayes' %}" class="{% if 'relance' in request.resolver_match.url_name %}is-active{% endif %}">📣 Relances minerval</a></li>
                 <li><a href="{% url 'finances:demandes_modification_list' %}" class="{% if 'demande' in request.resolver_match.url_name %}is-active{% endif %}">✏️ Demandes de correction</a></li>
                 <li><a href="{% url 'finances:taux_change_list' %}" class="{% if 'taux' in request.path %}is-active{% endif %}">💱 Taux de change</a></li>
