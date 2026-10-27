@@ -1,1 +1,384 @@
-{% extends 'finances/paiement_form.html' %}
+{% extends 'base.html' %}
+
+{% block title %}Corriger le paiement{{ paiement.numero_recu|default:paiement.pk }}{% endblock %}
+
+{% block page_title %}Correction du paiement{% endblock %}
+{% block page_subtitle %}
+  Modifiez uniquement les détails du règlement. L'élève et le frais ne peuvent pas être changés.
+{% endblock %}
+
+{% block header_actions %}
+  <a href="{% url 'finances:demandes_modification_list' %}" class="btn btn-secondary">← Retour aux demandes</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .correction-locked {
+    background: var(--bg-subtle, #f8fafc);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+  .correction-locked__label {
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-muted);
+    margin-bottom: .65rem;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+  }
+  .correction-locked__label::after {
+    content: '🔒';
+    font-size: .85rem;
+  }
+  .correction-locked__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: .75rem 1.5rem;
+  }
+  .correction-locked__item span {
+    display: block;
+    font-size: .75rem;
+    color: var(--text-muted);
+    margin-bottom: .15rem;
+  }
+  .correction-locked__item strong {
+    font-size: 1rem;
+  }
+  .demande-box {
+    background: rgba(245, 158, 11, .06);
+    border: 1px solid rgba(245, 158, 11, .35);
+    border-radius: 10px;
+    padding: .9rem 1.1rem;
+    margin-bottom: 1.5rem;
+  }
+  .demande-box__title {
+    font-size: .72rem;
+    font-weight: 700;
+    color: #b45309;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: .4rem;
+  }
+  .demande-box p { margin: 0; white-space: pre-wrap; line-height: 1.5; }
+  .demande-box__meta {
+    margin-top: .5rem !important;
+    font-size: .82rem;
+    color: var(--text-muted);
+  }
+  .correction-form-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 680px;
+  }
+  .correction-form-card__head {
+    padding: .85rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+    font-size: .9rem;
+    background: var(--bg-subtle, #f8fafc);
+    color: var(--primary);
+  }
+  .correction-form-card__body {
+    padding: 1.25rem;
+  }
+  .correction-form-card__footer {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    background: var(--bg-subtle, #f8fafc);
+  }
+  .conversion-panel {
+    background: rgba(0, 119, 197, .05);
+    border: 1px solid rgba(0, 119, 197, .2);
+    border-radius: 8px;
+    padding: .9rem 1rem;
+    margin: .75rem 0 1rem;
+  }
+  .conversion-panel__title {
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: .6rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75rem 1.25rem;
+  }
+  @media (max-width: 540px) {
+    .form-grid-2 { grid-template-columns: 1fr; }
+    .correction-locked__grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 720px;">
+
+  {# ── Demande du caissier ── #}
+  {% if demande_modification %}
+  <div class="demande-box">
+    <div class="demande-box__title">📋 Commentaire du caissier — {{ demande_modification.demande_par }}</div>
+    <p>{{ demande_modification.motif }}</p>
+    <p class="demande-box__meta">
+      Demandée le {{ demande_modification.date_demande|date:"d/m/Y H:i" }}.
+      Après enregistrement, la demande sera marquée comme <strong>traitée</strong>.
+    </p>
+  </div>
+  {% endif %}
+
+  {# ── Informations verrouillées (élève + frais) ── #}
+  <div class="correction-locked">
+    <div class="correction-locked__label">Paiement concerné — infos non modifiables</div>
+    <div class="correction-locked__grid">
+      <div class="correction-locked__item">
+        <span>Reçu N°</span>
+        <strong style="font-family:monospace; color:var(--primary);">{{ paiement.numero_recu|default:"En attente" }}</strong>
+      </div>
+      <div class="correction-locked__item">
+        <span>Élève</span>
+        <strong>{{ paiement.eleve.eleve.prenom }} {{ paiement.eleve.eleve.nom }}</strong>
+      </div>
+      <div class="correction-locked__item">
+        <span>Classe</span>
+        <strong>{{ paiement.eleve.classe.classe }}</strong>
+      </div>
+      <div class="correction-locked__item">
+        <span>Frais</span>
+        <strong>{{ paiement.frais.type_frais.libelle }}</strong>
+      </div>
+      <div class="correction-locked__item">
+        <span>Montant du frais</span>
+        <strong>{{ paiement.frais.montant }} {{ paiement.frais.devise }}</strong>
+      </div>
+      <div class="correction-locked__item">
+        <span>Année scolaire</span>
+        <strong>{{ paiement.frais.annee.anne_scolaire }}</strong>
+      </div>
+    </div>
+  </div>
+
+  {# ── Formulaire de correction ── #}
+  <div class="correction-form-card">
+    <div class="correction-form-card__head">✏️ Modifier les détails du règlement</div>
+    <div class="correction-form-card__body">
+      <form method="post" id="correction-form">
+        {% csrf_token %}
+        {% include 'includes/form_errors.html' %}
+
+        {# Montant + conversion CDF #}
+        <div class="form-grid-2" style="margin-bottom:.75rem;">
+          <div class="form-field{% if form.montant_paye.errors %} form-field--invalid{% endif %}">
+            <div class="form-field__row">
+              <label class="form-field__label" for="{{ form.montant_paye.id_for_label }}" id="label-montant-paye">
+                {{ form.montant_paye.label }}<span class="form-required">*</span>
+              </label>
+              <div class="form-field__content">
+                <div class="form-field__control">{{ form.montant_paye }}</div>
+                {% if form.montant_paye.errors %}<p class="form-error">{{ form.montant_paye.errors|striptags }}</p>{% endif %}
+              </div>
+            </div>
+          </div>
+          {% include 'includes/form_field.html' with field=form.devise %}
+        </div>
+
+        {# Panneau conversion CDF ↔ USD #}
+        <div class="conversion-panel">
+          <div class="conversion-panel__title">
+            <span>💱 Paiement en francs congolais (CDF)</span>
+            <label style="font-size:.82rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:.4rem; text-transform:none;">
+              {{ form.payer_en_francs }} {{ form.payer_en_francs.label }}
+            </label>
+          </div>
+          <div id="conversion-fields" style="display:none;">
+            <div class="form-grid-2">
+              {% include 'includes/form_field.html' with field=form.montant_en_francs %}
+              {% include 'includes/form_field.html' with field=form.taux_saisi %}
+            </div>
+            <div id="conversion-result" class="form-info-box" style="margin-top:.5rem;"></div>
+          </div>
+          {% if not taux_courant %}
+          <p style="margin:.4rem 0 0; font-size:.82rem; color:#b45309;">
+            ⚠ Aucun taux école défini — saisissez-le manuellement si nécessaire.
+          </p>
+          {% else %}
+          <p style="margin:.4rem 0 0; font-size:.82rem; color:var(--text-muted);">
+            Taux actuel : <strong style="font-family:monospace;">1 USD = {{ taux_courant }} CDF</strong>
+            {% if taux_courant_obj %}(effet {{ taux_courant_obj.date_effet|date:"d/m/Y" }}){% endif %}
+          </p>
+          {% endif %}
+        </div>
+
+        {# Mode + référence #}
+        <div class="form-grid-2" style="margin-bottom:.75rem;">
+          {% include 'includes/form_field.html' with field=form.mode_paiement %}
+          <div id="reference-group">
+            {% include 'includes/form_field.html' with field=form.reference_trans field_help="Obligatoire pour chèque, virement et mobile money." %}
+          </div>
+        </div>
+
+        {# Caissier + statut #}
+        <div class="form-grid-2">
+          {% include 'includes/form_field.html' with field=form.caissier %}
+          {% include 'includes/form_field.html' with field=form.statut field_help="Un paiement « Validé » met à jour les écritures comptables." %}
+        </div>
+
+        <div class="correction-form-card__footer">
+          <a href="{% url 'finances:demandes_modification_list' %}" class="btn btn-secondary">Annuler</a>
+          <button type="submit" class="btn btn-primary btn-lg">💾 Enregistrer la correction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var payerEnFrancs = document.getElementById('id_payer_en_francs');
+  var conversionFields = document.getElementById('conversion-fields');
+  var montantFrancsInput = document.getElementById('id_montant_en_francs');
+  var tauxSaisiInput = document.getElementById('id_taux_saisi');
+  var conversionResult = document.getElementById('conversion-result');
+  var montantInput = document.getElementById('id_montant_paye');
+  var deviseSelect = document.getElementById('id_devise');
+  var modeSelect = document.getElementById('id_mode_paiement');
+  var referenceGroup = document.getElementById('reference-group');
+  var syncingConversion = false;
+
+  function parseAmount(raw) {
+    if (raw === null || raw === undefined || raw === '') return null;
+    var n = Number(String(raw).replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function formatAmount(val, devise) {
+    var n = parseAmount(val);
+    var s = (n !== null) ? n.toFixed(2) : '—';
+    return devise ? s + ' ' + devise : s;
+  }
+
+  function selectedDeviseCode() {
+    if (!deviseSelect) return '';
+    var text = (deviseSelect.options[deviseSelect.selectedIndex] && deviseSelect.options[deviseSelect.selectedIndex].text || '').toUpperCase();
+    if (text.includes('CDF')) return 'CDF';
+    if (text.includes('USD')) return 'USD';
+    return '';
+  }
+
+  function isPaiementEnCdf() {
+    return (payerEnFrancs && payerEnFrancs.checked) || selectedDeviseCode() === 'CDF';
+  }
+
+  function updateConversion() {
+    if (!conversionFields) return;
+    var enCdf = isPaiementEnCdf();
+    conversionFields.style.display = enCdf ? 'block' : 'none';
+
+    if (!enCdf) {
+      if (conversionResult) conversionResult.innerHTML = '';
+      return;
+    }
+
+    // Forcer la devise sur CDF si pas déjà
+    if (deviseSelect && selectedDeviseCode() !== 'CDF' && !syncingConversion) {
+      for (var i = 0; i < deviseSelect.options.length; i++) {
+        if ((deviseSelect.options[i].text || '').toUpperCase().includes('CDF')) {
+          syncingConversion = true;
+          deviseSelect.selectedIndex = i;
+          syncingConversion = false;
+          break;
+        }
+      }
+    }
+
+    var cdf = montantFrancsInput ? parseAmount(montantFrancsInput.value) : null;
+    if (cdf === null && montantInput) cdf = parseAmount(montantInput.value);
+    var taux = tauxSaisiInput ? parseAmount(tauxSaisiInput.value) : null;
+
+    if (cdf === null || taux === null || taux <= 0) {
+      if (conversionResult) {
+        conversionResult.innerHTML = '<span style="color:var(--text-muted);">Saisissez le montant en CDF et le taux pour voir l\'équivalent en dollars.</span>';
+      }
+      return;
+    }
+    var usd = Math.round((cdf / taux) * 100) / 100;
+    if (conversionResult) {
+      conversionResult.innerHTML =
+        '<strong>' + formatAmount(cdf, 'CDF') + '</strong>' +
+        ' ÷ taux <strong>' + taux + '</strong>' +
+        ' = <strong style="color:var(--primary);">' + formatAmount(usd, 'USD') + '</strong>' +
+        ' — ce montant USD sera crédité sur le frais';
+    }
+  }
+
+  function toggleReferenceField() {
+    if (!modeSelect || !referenceGroup) return;
+    var isCash = modeSelect.value === 'ESPECES';
+    referenceGroup.style.opacity = isCash ? '0.65' : '1';
+  }
+
+  if (payerEnFrancs) {
+    payerEnFrancs.addEventListener('change', updateConversion);
+  }
+  if (deviseSelect) {
+    deviseSelect.addEventListener('change', function () {
+      if (syncingConversion) return;
+      if (selectedDeviseCode() === 'CDF' && payerEnFrancs) {
+        payerEnFrancs.checked = true;
+      }
+      updateConversion();
+    });
+  }
+  if (montantFrancsInput) {
+    montantFrancsInput.addEventListener('input', function () {
+      if (!syncingConversion && montantInput) {
+        syncingConversion = true;
+        montantInput.value = montantFrancsInput.value;
+        syncingConversion = false;
+      }
+      updateConversion();
+    });
+  }
+  if (tauxSaisiInput) {
+    tauxSaisiInput.addEventListener('input', updateConversion);
+  }
+  if (modeSelect) {
+    modeSelect.addEventListener('change', toggleReferenceField);
+  }
+
+  // Avant submit : s'assurer que montant_en_francs est rempli si CDF
+  var form = document.getElementById('correction-form');
+  if (form) {
+    form.addEventListener('submit', function () {
+      if (deviseSelect) deviseSelect.disabled = false;
+      if (isPaiementEnCdf() && montantFrancsInput && montantInput) {
+        var cdf = parseAmount(montantInput.value);
+        if (cdf !== null) montantFrancsInput.value = cdf.toFixed(2);
+        if (payerEnFrancs) payerEnFrancs.checked = true;
+      }
+    });
+  }
+
+  // Init
+  updateConversion();
+  toggleReferenceField();
+})();
+</script>
+{% endblock %}

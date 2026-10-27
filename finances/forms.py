@@ -688,6 +688,197 @@ class PaiementForm(FormControlMixin, forms.ModelForm):
         return paiement
 
 
+class PaiementCorrectionForm(FormControlMixin, forms.ModelForm):
+    """
+    Formulaire de correction d'un paiement existant.
+    L'élève et le frais sont verrouillés : seuls le montant, la devise,
+    le mode, la référence, le caissier et le statut sont modifiables.
+    Le mécanisme de conversion CDF↔USD est conservé.
+    """
+    payer_en_francs = forms.BooleanField(
+        required=False,
+        label="Payer en francs (CDF)",
+        help_text="Cochez si le paiement a été reçu en CDF alors que le frais est en USD.",
+    )
+    montant_en_francs = forms.DecimalField(
+        required=False,
+        min_value=Decimal("0.01"),
+        max_digits=20,
+        decimal_places=2,
+        label="Montant reçu en CDF",
+        widget=forms.NumberInput(
+            attrs={"step": "0.01", "min": "0", "placeholder": "0.00", "id": "id_montant_en_francs"}
+        ),
+    )
+    taux_saisi = forms.DecimalField(
+        required=False,
+        min_value=Decimal("0.0001"),
+        max_digits=18,
+        decimal_places=4,
+        label="Taux de change (CDF / 1 USD)",
+        widget=forms.NumberInput(
+            attrs={"step": "0.0001", "min": "0.0001", "placeholder": "Ex: 2850", "id": "id_taux_saisi"}
+        ),
+    )
+
+    class Meta:
+        model = Paiement
+        fields = [
+            "montant_paye",
+            "devise",
+            "mode_paiement",
+            "reference_trans",
+            "caissier",
+            "statut",
+        ]
+        labels = {
+            "montant_paye": "Montant encaissé",
+            "devise": "Devise",
+            "mode_paiement": "Mode de paiement",
+            "reference_trans": "Référence transaction",
+            "caissier": "Caissier",
+            "statut": "Statut du paiement",
+        }
+        widgets = {
+            "montant_paye": forms.NumberInput(
+                attrs={"step": "0.01", "min": "0", "placeholder": "0.00", "id": "id_montant_paye"}
+            ),
+            "devise": forms.Select(attrs={"id": "id_devise"}),
+            "mode_paiement": forms.Select(attrs={"id": "id_mode_paiement"}),
+            "reference_trans": forms.TextInput(
+                attrs={"placeholder": "N° chèque, ID Mobile Money.", "id": "id_reference_trans"}
+            ),
+            "caissier": forms.TextInput(attrs={"placeholder": "Nom du caissier"}),
+        }
+
+    def __init__(self, *args, ecole=None, exclude_paiement_id=None, taux_courant=None, **kwargs):
+        self.ecole = ecole
+        self.exclude_paiement_id = exclude_paiement_id
+        self.taux_courant = taux_courant
+        self._conversion_appliquee = False
+        super().__init__(*args, **kwargs)
+
+        self.fields["montant_paye"].required = False
+        self.fields["reference_trans"].required = False
+
+        if not self.is_bound:
+            if self.instance.pk and self.instance.taux_change:
+                self.fields["taux_saisi"].initial = self.instance.taux_change
+                if self.instance.montant_origine is not None:
+                    self.fields["montant_en_francs"].initial = self.instance.montant_origine
+                    self.fields["payer_en_francs"].initial = True
+            elif taux_courant is not None:
+                self.fields["taux_saisi"].initial = taux_courant
+
+    def clean(self):
+        cleaned_data = super().clean()
+        montant = cleaned_data.get("montant_paye")
+        devise = cleaned_data.get("devise")
+        mode = cleaned_data.get("mode_paiement")
+        reference = cleaned_data.get("reference_trans")
+        payer_en_francs = cleaned_data.get("payer_en_francs")
+        montant_en_francs = cleaned_data.get("montant_en_francs")
+        taux_saisi = cleaned_data.get("taux_saisi")
+
+        # Récupérer frais et inscription depuis l'instance (verrouillés)
+        frais = self.instance.frais if self.instance.pk else None
+        inscription = self.instance.eleve if self.instance.pk else None
+
+        devise_code = str(getattr(devise, "devise", "") or "").upper()
+        frais_code = str(getattr(getattr(frais, "devise", None), "devise", "") or "").upper() if frais else ""
+
+        paiement_en_cdf = bool(payer_en_francs) or devise_code == "CDF"
+
+        if paiement_en_cdf and not montant_en_francs and montant is not None and montant > 0:
+            montant_en_francs = montant
+            cleaned_data["montant_en_francs"] = montant_en_francs
+            cleaned_data["payer_en_francs"] = True
+            payer_en_francs = True
+
+        if paiement_en_cdf and frais and frais_code == "USD":
+            if not montant_en_francs or montant_en_francs <= 0:
+                if montant is not None and montant > 0 and devise_code == "CDF":
+                    montant_en_francs = montant
+                    cleaned_data["montant_en_francs"] = montant_en_francs
+                else:
+                    self.add_error(
+                        "montant_en_francs" if payer_en_francs else "montant_paye",
+                        "Indiquez le montant reçu en francs (CDF).",
+                    )
+            if not taux_saisi or taux_saisi <= 0:
+                self.add_error("taux_saisi", "Indiquez le taux de change (CDF pour 1 USD).")
+            if montant_en_francs and taux_saisi and taux_saisi > 0:
+                try:
+                    montant = convertir_montant(montant_en_francs, taux_saisi, "CDF", "USD")
+                    cleaned_data["montant_paye"] = montant
+                    usd = Devise.objects.filter(devise="USD").first()
+                    if usd:
+                        cleaned_data["devise"] = usd
+                    self._conversion_appliquee = True
+                    cleaned_data["_montant_origine"] = montant_en_francs
+                    cleaned_data["_taux_change"] = taux_saisi
+                    cleaned_data["_devise_origine"] = Devise.objects.filter(devise="CDF").first()
+                except ValueError as exc:
+                    self.add_error("taux_saisi", str(exc))
+        elif payer_en_francs and frais and frais_code == "CDF":
+            if not montant_en_francs or montant_en_francs <= 0:
+                self.add_error("montant_en_francs", "Indiquez le montant reçu en francs.")
+            else:
+                montant = _decimal(montant_en_francs)
+                cleaned_data["montant_paye"] = montant
+                cleaned_data["devise"] = frais.devise
+                self._conversion_appliquee = True
+                cleaned_data["_montant_origine"] = montant_en_francs
+                cleaned_data["_taux_change"] = taux_saisi
+                cleaned_data["_devise_origine"] = frais.devise
+
+        # Vérification montant vs solde (en tenant compte de la correction en cours)
+        if frais and inscription:
+            solde = solde_frais(
+                frais,
+                inscription.id,
+                paiements_valides_par_frais(self.ecole, self.exclude_paiement_id),
+            )
+            montant_a_comparer = cleaned_data.get("montant_paye")
+            if montant_a_comparer is not None and montant_a_comparer > solde["reste"]:
+                self.add_error(
+                    "montant_paye",
+                    f"Le montant ({montant_a_comparer} {frais.devise}) "
+                    f"ne peut pas dépasser le reste à payer ({solde['reste']} {frais.devise}).",
+                )
+
+        montant = cleaned_data.get("montant_paye")
+        if montant is not None and montant <= 0:
+            self.add_error("montant_paye", "Le montant encaissé doit être supérieur à zéro.")
+        elif montant is None and not paiement_en_cdf:
+            self.add_error("montant_paye", "Indiquez le montant encaissé.")
+
+        if mode and mode != "ESPECES" and not reference:
+            self.add_error(
+                "reference_trans",
+                "Indiquez une référence pour les paiements par chèque, virement ou mobile money.",
+            )
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        paiement = super().save(commit=False)
+        # Élève et frais ne changent pas — on ne les touche pas
+        if self._conversion_appliquee:
+            paiement.taux_change = self.cleaned_data.get("_taux_change")
+            paiement.montant_origine = self.cleaned_data.get("_montant_origine")
+            paiement.devise_origine = self.cleaned_data.get("_devise_origine")
+        elif not self.cleaned_data.get("payer_en_francs"):
+            devise = self.cleaned_data.get("devise")
+            if not (devise and str(devise.devise).upper() == "CDF"):
+                paiement.taux_change = None
+                paiement.montant_origine = None
+                paiement.devise_origine = None
+        if commit:
+            paiement.save()
+        return paiement
+
+
 class CompteComptableForm(FormControlMixin, forms.ModelForm):
     class Meta:
         model = CompteComptable

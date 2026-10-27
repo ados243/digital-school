@@ -135,6 +135,7 @@ from .forms import (
     TypeFraisForm,
     FraisScolaireForm,
     PaiementForm,
+    PaiementCorrectionForm,
     TauxChangeForm,
     DemandeModificationPaiementForm,
     # HOADA
@@ -2675,8 +2676,18 @@ def _hoada_auto_post_salary_to_entries(paie):
 
 @modification_paiement_required
 def paiement_update(request, pk):
+    """
+    Correction d'un paiement existant suite à une demande ouverte.
+    Seuls le montant, la devise, le mode, la référence, le caissier
+    et le statut sont modifiables — l'élève et le frais sont verrouillés.
+    La modification se répercute sur les écritures comptables, le grand
+    livre, la balance et les frais d'inscription.
+    """
     ecole = get_user_ecole(request)
-    obj = get_object_or_404(paiements_for_ecole(ecole), pk=pk)
+    obj = get_object_or_404(paiements_for_ecole(ecole).select_related(
+        "eleve", "eleve__eleve", "eleve__classe", "frais", "frais__type_frais",
+        "devise", "devise_origine",
+    ), pk=pk)
     demande = _demande_modification_ouverte(obj)
     if not demande:
         messages.error(
@@ -2688,10 +2699,11 @@ def paiement_update(request, pk):
 
     taux_obj = TauxChange.courant_pour_ecole(ecole)
     taux_courant = taux_obj.taux if taux_obj else None
+
     if request.method == "POST":
         old_statut = obj.statut
         ancien_numero_recu = obj.numero_recu
-        form = PaiementForm(
+        form = PaiementCorrectionForm(
             request.POST,
             instance=obj,
             ecole=ecole,
@@ -2699,7 +2711,7 @@ def paiement_update(request, pk):
             taux_courant=taux_courant,
         )
         if form.is_valid():
-            # Seul un caissier peut valider / exécuter un paiement.
+            # Seul un caissier peut valider (passer à VALIDE) un paiement.
             if (
                 old_statut != "VALIDE"
                 and form.cleaned_data.get("statut") == "VALIDE"
@@ -2709,13 +2721,17 @@ def paiement_update(request, pk):
                     request,
                     "Seul un caissier peut effectuer (valider) un paiement.",
                 )
-                context = _paiement_form_context(
-                    request, ecole, form, is_update=True, paiement=obj
-                )
-                context["demande_modification"] = demande
-                return render(request, "finances/paiement_update_form.html", context)
+                return render(request, "finances/paiement_update_form.html", {
+                    "form": form,
+                    "paiement": obj,
+                    "demande_modification": demande,
+                    "taux_courant": taux_courant,
+                    "taux_courant_obj": taux_obj,
+                    "is_update": True,
+                })
 
             updated = form.save()
+
             # Clôturer la demande après correction
             demande.statut = "TRAITEE"
             demande.traite_par = _nom_acteur(request.user)
@@ -2726,7 +2742,7 @@ def paiement_update(request, pk):
                 update_fields=["statut", "traite_par", "date_traitement", "reponse_admin"]
             )
 
-            # Resynchroniser la comptabilité (écritures, grand livre, balance, caisse)
+            # ── Répercussion 1 : écritures comptables (grand livre, balance, caisse) ──
             ecriture_ok = False
             try:
                 ecriture_ok = _hoada_sync_payment_after_correction(
@@ -2735,7 +2751,7 @@ def paiement_update(request, pk):
             except Exception:
                 ecriture_ok = False
 
-            # Sync frais d'inscription (également via signal, on sécurise ici)
+            # ── Répercussion 2 : frais d'inscription (soldes, situation paiements) ──
             try:
                 from .paiement_utils import sync_frais_inscription_depuis_paiement
                 sync_frais_inscription_depuis_paiement(updated)
@@ -2757,20 +2773,27 @@ def paiement_update(request, pk):
             else:
                 messages.success(
                     request,
-                    f"Paiement {updated.numero_recu} corrigé (statut {updated.statut}). "
-                    "Les écritures comptables liées ont été retirées si nécessaire.",
+                    f"Paiement {updated.numero_recu or updated.pk} corrigé "
+                    f"(statut : {updated.get_statut_display()}). "
+                    "Les écritures comptables liées ont été mises à jour.",
                 )
             return redirect("finances:demandes_modification_list")
     else:
-        form = PaiementForm(
+        form = PaiementCorrectionForm(
             instance=obj,
             ecole=ecole,
             exclude_paiement_id=obj.pk,
             taux_courant=taux_courant,
         )
-    context = _paiement_form_context(request, ecole, form, is_update=True, paiement=obj)
-    context["demande_modification"] = demande
-    return render(request, "finances/paiement_update_form.html", context)
+
+    return render(request, "finances/paiement_update_form.html", {
+        "form": form,
+        "paiement": obj,
+        "demande_modification": demande,
+        "taux_courant": taux_courant,
+        "taux_courant_obj": taux_obj,
+        "is_update": True,
+    })
 
 
 

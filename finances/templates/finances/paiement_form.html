@@ -533,9 +533,8 @@ Pour supprimer la boîte de dialogue Windows, ouvrez la caisse via
             return;
         }
         const reste = parseAmount(frais.montant_restant);
-        // Ne pas préremplir / plafonner si on est déjà en mode CDF
+        // Ne pas préremplir le montant encaissé : le champ reste vide
         if (!isPaiementEnCdf()) {
-            montantInput.value = reste === null ? frais.montant_total : frais.montant_restant;
             montantInput.max = reste === null ? frais.montant_total : frais.montant_restant;
             if (frais.devise_id) {
                 deviseSelect.value = String(frais.devise_id);
