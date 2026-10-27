@@ -18,18 +18,162 @@
     {% endif %}
 {% endblock %}
 
+{% block extra_css %}
+<style>
+  .filter-bar {
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: flex-end;
+  }
+  .filter-bar .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+  }
+  .filter-bar label {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .filter-bar input[type="date"],
+  .filter-bar select {
+    height: 36px;
+    padding: 0 .65rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: .875rem;
+    background: #fff;
+    color: var(--text);
+  }
+  .filter-bar .filter-actions {
+    display: flex;
+    gap: .5rem;
+    align-items: flex-end;
+    margin-left: auto;
+  }
+  .totaux-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .totaux-bar .total-chip {
+    background: var(--primary, #2563eb);
+    color: #fff;
+    border-radius: 8px;
+    padding: .35rem .9rem;
+    font-size: .85rem;
+    font-weight: 700;
+    font-family: monospace;
+  }
+  .totaux-bar .total-label {
+    font-size: .8rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+  .list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+    margin-bottom: .75rem;
+  }
+  .list-toolbar .list-toolbar-right {
+    margin-left: auto;
+    display: flex;
+    gap: .5rem;
+  }
+  @media print {
+    .filter-bar, .filter-chips, .list-toolbar, .no-print { display: none !important; }
+    .sidebar, .top-header, .messages-container, .page-header .header-actions { display: none !important; }
+    .main-content { margin: 0 !important; padding: 0 !important; }
+    .custom-table { font-size: .8rem; }
+    .panel { border: none; box-shadow: none; }
+    .badge { border: 1px solid #000 !important; }
+    .print-header { display: block !important; }
+    .totaux-print { display: block !important; }
+    .table-actions { display: none !important; }
+  }
+  .print-header { display: none; margin-bottom: 1rem; }
+  .totaux-print { display: none; margin-top: 1rem; font-size: .9rem; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="filter-chips">
+
+{# ── En-tête impression (invisible à l'écran) ── #}
+<div class="print-header">
+  <h2 style="margin:0 0 .25rem;">Paiements & Reçus</h2>
+  {% if filter_date_debut or filter_date_fin %}
+  <p style="margin:0; font-size:.85rem; color:#555;">
+    Période :
+    {% if filter_date_debut %}du {{ filter_date_debut }}{% endif %}
+    {% if filter_date_fin %} au {{ filter_date_fin }}{% endif %}
+  </p>
+  {% endif %}
+  <p style="margin:.15rem 0 0; font-size:.8rem; color:#888;">Imprimé le {% now "d/m/Y H:i" %}</p>
+</div>
+
+{# ── Filtres de statut (chips) ── #}
+<div class="filter-chips no-print">
     <a href="{% url 'finances:paiement_list' %}" class="btn {% if not request.GET.statut %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Tous</a>
-    <a href="{% url 'finances:paiement_list' %}?statut=EN_ATTENTE" class="btn {% if request.GET.statut == 'EN_ATTENTE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">En attente</a>
-    <a href="{% url 'finances:paiement_list' %}?statut=VALIDE" class="btn {% if request.GET.statut == 'VALIDE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Validés</a>
+    <a href="{% url 'finances:paiement_list' %}?statut=EN_ATTENTE{% if filter_date_debut %}&date_debut={{ filter_date_debut }}{% endif %}{% if filter_date_fin %}&date_fin={{ filter_date_fin }}{% endif %}" class="btn {% if request.GET.statut == 'EN_ATTENTE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">En attente</a>
+    <a href="{% url 'finances:paiement_list' %}?statut=VALIDE{% if filter_date_debut %}&date_debut={{ filter_date_debut }}{% endif %}{% if filter_date_fin %}&date_fin={{ filter_date_fin }}{% endif %}" class="btn {% if request.GET.statut == 'VALIDE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Validés</a>
     <a href="{% url 'finances:demandes_modification_list' %}" class="btn btn-secondary btn-sm">
       Demandes de correction{% if nb_demandes_ouvertes %} ({{ nb_demandes_ouvertes }}){% endif %}
     </a>
 </div>
 
+{# ── Barre de filtres par date ── #}
+<form method="get" action="{% url 'finances:paiement_list' %}" class="filter-bar no-print">
+  {% if filter_statut %}<input type="hidden" name="statut" value="{{ filter_statut }}">{% endif %}
+  <div class="filter-group">
+    <label for="id_date_debut">Date début</label>
+    <input type="date" id="id_date_debut" name="date_debut" value="{{ filter_date_debut }}">
+  </div>
+  <div class="filter-group">
+    <label for="id_date_fin">Date fin</label>
+    <input type="date" id="id_date_fin" name="date_fin" value="{{ filter_date_fin }}">
+  </div>
+  <div class="filter-actions">
+    <button type="submit" class="btn btn-primary btn-sm">🔍 Filtrer</button>
+    {% if filter_date_debut or filter_date_fin %}
+    <a href="{% url 'finances:paiement_list' %}{% if filter_statut %}?statut={{ filter_statut }}{% endif %}" class="btn btn-secondary btn-sm">✕ Réinitialiser</a>
+    {% endif %}
+  </div>
+</form>
+
+{# ── Totaux par devise ── #}
+{% if totaux_par_devise %}
+<div class="totaux-bar no-print">
+  <span class="total-label">Total encaissé :</span>
+  {% for t in totaux_par_devise %}
+  <span class="total-chip">{{ t.total|floatformat:2 }} {{ t.devise__devise }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Totaux impression ── #}
+{% if totaux_par_devise %}
+<div class="totaux-print">
+  <strong>Total encaissé :</strong>
+  {% for t in totaux_par_devise %}{{ t.total|floatformat:2 }} {{ t.devise__devise }}{% if not forloop.last %} | {% endif %}{% endfor %}
+</div>
+{% endif %}
+
 {% if intentions_mobile %}
-<div class="panel" style="margin-bottom:1.25rem;">
+<div class="panel no-print" style="margin-bottom:1.25rem;">
     <div class="panel-header">
         <h3>Demandes Mobile Money en attente</h3>
     </div>
@@ -75,6 +219,22 @@
     <div class="panel-header">
         <h3>{% if filtre_perso %}Mes paiements{% else %}Historique des paiements{% endif %}</h3>
     </div>
+
+    {# ── Barre d'outils : impression & export ── #}
+    <div class="list-toolbar no-print" style="padding: .75rem 1rem 0;">
+      <span style="font-size:.82rem; color:var(--text-muted);">
+        {{ object_list|length }} paiement{{ object_list|length|pluralize }}
+        {% if filter_date_debut or filter_date_fin %}
+          · filtrés{% if filter_date_debut %} à partir du {{ filter_date_debut }}{% endif %}{% if filter_date_fin %} jusqu'au {{ filter_date_fin }}{% endif %}
+        {% endif %}
+      </span>
+      <div class="list-toolbar-right">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ Imprimer</button>
+        <a href="?{% if filter_statut %}statut={{ filter_statut }}&{% endif %}{% if filter_date_debut %}date_debut={{ filter_date_debut }}&{% endif %}{% if filter_date_fin %}date_fin={{ filter_date_fin }}&{% endif %}export=excel"
+           class="btn btn-secondary btn-sm">📥 Exporter Excel</a>
+      </div>
+    </div>
+
     <div class="panel-body table-responsive" style="padding: 0;">
         <table class="custom-table">
             <thead>
@@ -87,7 +247,7 @@
                     <th>Mode</th>
                     <th>Statut</th>
                     <th>Date</th>
-                    <th style="text-align: right; padding-right: 1.5rem;">Actions</th>
+                    <th style="text-align: right; padding-right: 1.5rem;" class="no-print">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -129,7 +289,7 @@
                         {% endif %}
                     </td>
                     <td>{{ item.date_encodage|date:"d/m/Y" }}</td>
-                    <td style="text-align: right; padding-right: 1.5rem;">
+                    <td style="text-align: right; padding-right: 1.5rem;" class="no-print">
                         <div class="table-actions">
                             {% if item.statut == 'VALIDE' and item.numero_recu %}
                                 <a href="{% url 'finances:paiement_print' item.id %}" class="btn btn-secondary btn-sm" title="Imprimer le reçu">🖨️</a>
@@ -158,6 +318,16 @@
                 {% endfor %}
             </tbody>
         </table>
+
+        {# ── Totaux en bas du tableau (impression) ── #}
+        {% if totaux_par_devise %}
+        <div style="padding: .75rem 1.25rem; border-top: 2px solid var(--border);">
+          <strong>Total encaissé (validés) :</strong>
+          {% for t in totaux_par_devise %}
+            <span style="font-family:monospace; font-weight:700; margin-left:.5rem;">{{ t.total|floatformat:2 }} {{ t.devise__devise }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -1443,6 +1443,107 @@ def taux_change_list(request):
     )
 
 
+def _export_paiement_list_excel(ecole, qs, totaux_par_devise, filtres):
+    """Génère un fichier Excel de la liste des paiements avec totaux."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Paiements & Reçus"
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="2563EB")
+    total_fill = PatternFill("solid", fgColor="EFF6FF")
+    thin = Border(
+        left=Side(style="thin", color="D0D5DD"),
+        right=Side(style="thin", color="D0D5DD"),
+        top=Side(style="thin", color="D0D5DD"),
+        bottom=Side(style="thin", color="D0D5DD"),
+    )
+
+    # En-tête du document
+    ecole_nom = getattr(ecole, "ecole", None) or getattr(ecole, "nom", "Digital School")
+    ws["A1"] = f"{ecole_nom} — Paiements & Reçus"
+    ws["A1"].font = Font(bold=True, size=14, color="1E3A8A")
+    ws["A2"] = f"Exporté le : {timezone.now().strftime('%d/%m/%Y à %H:%M')}"
+    ws["A2"].font = Font(italic=True, size=9, color="4B5563")
+
+    # Filtres appliqués
+    filtres_desc = []
+    if filtres.get("date_debut"):
+        filtres_desc.append(f"Du : {filtres['date_debut'].strftime('%d/%m/%Y')}")
+    if filtres.get("date_fin"):
+        filtres_desc.append(f"Au : {filtres['date_fin'].strftime('%d/%m/%Y')}")
+    if filtres.get("statut"):
+        labels = {"VALIDE": "Validés", "EN_ATTENTE": "En attente", "ANNULE": "Annulés"}
+        filtres_desc.append(f"Statut : {labels.get(filtres['statut'], filtres['statut'])}")
+    ws["A3"] = "Filtres : " + (" | ".join(filtres_desc) if filtres_desc else "Aucun filtre")
+    ws["A3"].font = Font(size=9, color="374151")
+
+    # Colonnes
+    headers = ["Reçu N°", "Élève", "Frais", "Montant", "Devise", "Mode", "Statut", "Date", "Caissier"]
+    start_row = 5
+    for col, title in enumerate(headers, start=1):
+        cell = ws.cell(row=start_row, column=col, value=title)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = thin
+
+    statut_labels = {"VALIDE": "Validé", "EN_ATTENTE": "En attente", "ANNULE": "Annulé"}
+    for offset, p in enumerate(qs):
+        row = start_row + 1 + offset
+        eleve = p.eleve.eleve if p.eleve_id and p.eleve else None
+        montant = float(p.montant_origine or p.montant_paye or 0)
+        devise = "CDF" if (p.montant_origine and p.taux_change) else (str(p.devise) if p.devise_id else "")
+        values = [
+            p.numero_recu or "En attente",
+            f"{eleve.prenom} {eleve.nom}" if eleve else "",
+            p.frais.type_frais.libelle if p.frais_id else "",
+            montant,
+            devise,
+            p.get_mode_paiement_display(),
+            statut_labels.get(p.statut, p.statut),
+            p.date_encodage.strftime("%d/%m/%Y") if p.date_encodage else "",
+            p.caissier or "",
+        ]
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=row, column=col, value=value)
+            cell.border = thin
+
+    # Ligne de totaux par devise
+    last_data_row = start_row + qs.count()
+    totals_row = last_data_row + 2
+    ws.cell(row=totals_row, column=1, value="TOTAUX (paiements validés)").font = Font(bold=True, size=11)
+    for i, t in enumerate(totaux_par_devise):
+        r = totals_row + 1 + i
+        devise_cell = ws.cell(row=r, column=1, value=t["devise__devise"])
+        devise_cell.font = Font(bold=True)
+        devise_cell.fill = total_fill
+        montant_cell = ws.cell(row=r, column=2, value=float(t["total"] or 0))
+        montant_cell.font = Font(bold=True)
+        montant_cell.fill = total_fill
+        montant_cell.number_format = "#,##0.00"
+
+    # Ajustement largeurs de colonnes
+    col_widths = [14, 28, 24, 14, 10, 14, 12, 12, 18]
+    for i, w in enumerate(col_widths, start=1):
+        ws.column_dimensions[ws.cell(row=start_row, column=i).column_letter].width = w
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    filename = f"paiements_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response = HttpResponse(
+        buffer.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
 @login_required
 def paiement_list(request):
     ecole = get_user_ecole(request)
@@ -1470,6 +1571,22 @@ def paiement_list(request):
     if statut:
         qs = qs.filter(statut=statut)
 
+    # ── Filtres par date ──────────────────────────────────────
+    date_debut = _parse_optional_date(request.GET.get("date_debut"))
+    date_fin = _parse_optional_date(request.GET.get("date_fin"))
+    if date_debut:
+        qs = qs.filter(date_encodage__date__gte=date_debut)
+    if date_fin:
+        qs = qs.filter(date_encodage__date__lte=date_fin)
+
+    # ── Totaux par devise (paiements validés filtrés) ─────────
+    totaux_par_devise = list(
+        qs.filter(statut="VALIDE")
+        .values("devise__devise")
+        .annotate(total=Sum("montant_paye"))
+        .order_by("-total")
+    )
+
     demandes_qs = DemandeModificationPaiement.objects.filter(
         paiement__eleve__eleve__ecole=ecole,
         statut="EN_ATTENTE",
@@ -1490,6 +1607,14 @@ def paiement_list(request):
         .order_by("-created_at")[:40]
     )
 
+    # ── Export Excel ──────────────────────────────────────────
+    if request.GET.get("export") == "excel":
+        return _export_paiement_list_excel(ecole, qs, totaux_par_devise, {
+            "date_debut": date_debut,
+            "date_fin": date_fin,
+            "statut": statut,
+        })
+
     return render(
         request,
         "finances/paiement_list.html",
@@ -1499,6 +1624,10 @@ def paiement_list(request):
             "nb_demandes_ouvertes": nb_demandes_ouvertes,
             "filtre_perso": filtre_perso,
             "intentions_mobile": intentions_mobile,
+            "totaux_par_devise": totaux_par_devise,
+            "filter_date_debut": date_debut.isoformat() if date_debut else "",
+            "filter_date_fin": date_fin.isoformat() if date_fin else "",
+            "filter_statut": statut or "",
         },
     )
 
