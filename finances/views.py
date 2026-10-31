@@ -1472,6 +1472,8 @@ def _export_paiement_list_excel(ecole, qs, totaux_par_devise, filtres):
 
     # Filtres appliqués
     filtres_desc = []
+    if filtres.get("eleve_nom"):
+        filtres_desc.append(f"Élève : {filtres['eleve_nom']}")
     if filtres.get("date_debut"):
         filtres_desc.append(f"Du : {filtres['date_debut'].strftime('%d/%m/%Y')}")
     if filtres.get("date_fin"):
@@ -1483,7 +1485,7 @@ def _export_paiement_list_excel(ecole, qs, totaux_par_devise, filtres):
     ws["A3"].font = Font(size=9, color="374151")
 
     # Colonnes
-    headers = ["Reçu N°", "Élève", "Frais", "Montant", "Devise", "Mode", "Statut", "Date", "Caissier"]
+    headers = ["Reçu N°", "Élève", "Classe", "Frais", "Montant", "Devise", "Mode", "Statut", "Date", "Caissier"]
     start_row = 5
     for col, title in enumerate(headers, start=1):
         cell = ws.cell(row=start_row, column=col, value=title)
@@ -1496,11 +1498,13 @@ def _export_paiement_list_excel(ecole, qs, totaux_par_devise, filtres):
     for offset, p in enumerate(qs):
         row = start_row + 1 + offset
         eleve = p.eleve.eleve if p.eleve_id and p.eleve else None
+        classe_nom = str(p.eleve.classe) if (p.eleve_id and p.eleve and p.eleve.classe) else ""
         montant = float(p.montant_origine or p.montant_paye or 0)
         devise = "CDF" if (p.montant_origine and p.taux_change) else (str(p.devise) if p.devise_id else "")
         values = [
             p.numero_recu or "En attente",
             f"{eleve.prenom} {eleve.nom}" if eleve else "",
+            classe_nom,
             p.frais.type_frais.libelle if p.frais_id else "",
             montant,
             devise,
@@ -1528,7 +1532,7 @@ def _export_paiement_list_excel(ecole, qs, totaux_par_devise, filtres):
         montant_cell.number_format = "#,##0.00"
 
     # Ajustement largeurs de colonnes
-    col_widths = [14, 28, 24, 14, 10, 14, 12, 12, 18]
+    col_widths = [14, 28, 14, 24, 14, 10, 14, 12, 12, 18]
     for i, w in enumerate(col_widths, start=1):
         ws.column_dimensions[ws.cell(row=start_row, column=i).column_letter].width = w
 
@@ -1557,6 +1561,7 @@ def paiement_list(request):
             "devise",
             "devise_origine",
             "eleve__eleve",
+            "eleve__classe",
         )
         .prefetch_related("demandes_modification")
         .order_by("-date_encodage")
@@ -1571,6 +1576,18 @@ def paiement_list(request):
     statut = request.GET.get("statut")
     if statut:
         qs = qs.filter(statut=statut)
+
+    # ── Filtre par élève (nom, prénom, post-nom, matricule) ───
+    eleve_nom = (request.GET.get("eleve_nom") or request.GET.get("q") or "").strip()
+    if eleve_nom:
+        terms = eleve_nom.split()
+        for term in terms:
+            qs = qs.filter(
+                Q(eleve__eleve__nom__icontains=term)
+                | Q(eleve__eleve__Post_nom__icontains=term)
+                | Q(eleve__eleve__prenom__icontains=term)
+                | Q(eleve__eleve__matricule__icontains=term)
+            )
 
     # ── Filtres par date ──────────────────────────────────────
     date_debut = _parse_optional_date(request.GET.get("date_debut"))
@@ -1614,6 +1631,7 @@ def paiement_list(request):
             "date_debut": date_debut,
             "date_fin": date_fin,
             "statut": statut,
+            "eleve_nom": eleve_nom,
         })
 
     return render(
@@ -1629,6 +1647,7 @@ def paiement_list(request):
             "filter_date_debut": date_debut.isoformat() if date_debut else "",
             "filter_date_fin": date_fin.isoformat() if date_fin else "",
             "filter_statut": statut or "",
+            "filter_eleve_nom": eleve_nom,
         },
     )
 

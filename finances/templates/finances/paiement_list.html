@@ -44,6 +44,7 @@
     letter-spacing: .04em;
   }
   .filter-bar input[type="date"],
+  .filter-bar input[type="text"],
   .filter-bar select {
     height: 36px;
     padding: 0 .65rem;
@@ -115,11 +116,14 @@
 {# ── En-tête impression (invisible à l'écran) ── #}
 <div class="print-header">
   <h2 style="margin:0 0 .25rem;">Paiements & Reçus</h2>
-  {% if filter_date_debut or filter_date_fin %}
+  {% if filter_eleve_nom or filter_date_debut or filter_date_fin %}
   <p style="margin:0; font-size:.85rem; color:#555;">
+    {% if filter_eleve_nom %}Élève : {{ filter_eleve_nom }}{% if filter_date_debut or filter_date_fin %} — {% endif %}{% endif %}
+    {% if filter_date_debut or filter_date_fin %}
     Période :
     {% if filter_date_debut %}du {{ filter_date_debut }}{% endif %}
     {% if filter_date_fin %} au {{ filter_date_fin }}{% endif %}
+    {% endif %}
   </p>
   {% endif %}
   <p style="margin:.15rem 0 0; font-size:.8rem; color:#888;">Imprimé le {% now "d/m/Y H:i" %}</p>
@@ -127,17 +131,21 @@
 
 {# ── Filtres de statut (chips) ── #}
 <div class="filter-chips no-print">
-    <a href="{% url 'finances:paiement_list' %}" class="btn {% if not request.GET.statut %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Tous</a>
-    <a href="{% url 'finances:paiement_list' %}?statut=EN_ATTENTE{% if filter_date_debut %}&date_debut={{ filter_date_debut }}{% endif %}{% if filter_date_fin %}&date_fin={{ filter_date_fin }}{% endif %}" class="btn {% if request.GET.statut == 'EN_ATTENTE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">En attente</a>
-    <a href="{% url 'finances:paiement_list' %}?statut=VALIDE{% if filter_date_debut %}&date_debut={{ filter_date_debut }}{% endif %}{% if filter_date_fin %}&date_fin={{ filter_date_fin }}{% endif %}" class="btn {% if request.GET.statut == 'VALIDE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Validés</a>
+    <a href="{% url 'finances:paiement_list' %}{% if filter_eleve_nom or filter_date_debut or filter_date_fin %}?{% if filter_eleve_nom %}eleve_nom={{ filter_eleve_nom }}&{% endif %}{% if filter_date_debut %}date_debut={{ filter_date_debut }}&{% endif %}{% if filter_date_fin %}date_fin={{ filter_date_fin }}{% endif %}{% endif %}" class="btn {% if not request.GET.statut %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Tous</a>
+    <a href="{% url 'finances:paiement_list' %}?statut=EN_ATTENTE{% if filter_eleve_nom %}&eleve_nom={{ filter_eleve_nom }}{% endif %}{% if filter_date_debut %}&date_debut={{ filter_date_debut }}{% endif %}{% if filter_date_fin %}&date_fin={{ filter_date_fin }}{% endif %}" class="btn {% if request.GET.statut == 'EN_ATTENTE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">En attente</a>
+    <a href="{% url 'finances:paiement_list' %}?statut=VALIDE{% if filter_eleve_nom %}&eleve_nom={{ filter_eleve_nom }}{% endif %}{% if filter_date_debut %}&date_debut={{ filter_date_debut }}{% endif %}{% if filter_date_fin %}&date_fin={{ filter_date_fin }}{% endif %}" class="btn {% if request.GET.statut == 'VALIDE' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Validés</a>
     <a href="{% url 'finances:demandes_modification_list' %}" class="btn btn-secondary btn-sm">
       Demandes de correction{% if nb_demandes_ouvertes %} ({{ nb_demandes_ouvertes }}){% endif %}
     </a>
 </div>
 
-{# ── Barre de filtres par date ── #}
+{# ── Barre de filtres ── #}
 <form method="get" action="{% url 'finances:paiement_list' %}" class="filter-bar no-print">
   {% if filter_statut %}<input type="hidden" name="statut" value="{{ filter_statut }}">{% endif %}
+  <div class="filter-group">
+    <label for="id_eleve_nom">Élève</label>
+    <input type="text" id="id_eleve_nom" name="eleve_nom" value="{{ filter_eleve_nom }}" placeholder="Nom, prénom, matricule..." style="min-width: 180px;">
+  </div>
   <div class="filter-group">
     <label for="id_date_debut">Date début</label>
     <input type="date" id="id_date_debut" name="date_debut" value="{{ filter_date_debut }}">
@@ -148,7 +156,7 @@
   </div>
   <div class="filter-actions">
     <button type="submit" class="btn btn-primary btn-sm">🔍 Filtrer</button>
-    {% if filter_date_debut or filter_date_fin %}
+    {% if filter_date_debut or filter_date_fin or filter_eleve_nom %}
     <a href="{% url 'finances:paiement_list' %}{% if filter_statut %}?statut={{ filter_statut }}{% endif %}" class="btn btn-secondary btn-sm">✕ Réinitialiser</a>
     {% endif %}
   </div>
@@ -224,13 +232,15 @@
     <div class="list-toolbar no-print" style="padding: .75rem 1rem 0;">
       <span style="font-size:.82rem; color:var(--text-muted);">
         {{ object_list|length }} paiement{{ object_list|length|pluralize }}
-        {% if filter_date_debut or filter_date_fin %}
-          · filtrés{% if filter_date_debut %} à partir du {{ filter_date_debut }}{% endif %}{% if filter_date_fin %} jusqu'au {{ filter_date_fin }}{% endif %}
+        {% if filter_eleve_nom or filter_date_debut or filter_date_fin %}
+          · filtrés
+          {% if filter_eleve_nom %}pour « {{ filter_eleve_nom }} »{% endif %}
+          {% if filter_date_debut %} à partir du {{ filter_date_debut }}{% endif %}{% if filter_date_fin %} jusqu'au {{ filter_date_fin }}{% endif %}
         {% endif %}
       </span>
       <div class="list-toolbar-right">
         <button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">🖨️ Imprimer</button>
-        <a href="?{% if filter_statut %}statut={{ filter_statut }}&{% endif %}{% if filter_date_debut %}date_debut={{ filter_date_debut }}&{% endif %}{% if filter_date_fin %}date_fin={{ filter_date_fin }}&{% endif %}export=excel"
+        <a href="?{% if filter_statut %}statut={{ filter_statut }}&{% endif %}{% if filter_eleve_nom %}eleve_nom={{ filter_eleve_nom }}&{% endif %}{% if filter_date_debut %}date_debut={{ filter_date_debut }}&{% endif %}{% if filter_date_fin %}date_fin={{ filter_date_fin }}&{% endif %}export=excel"
            class="btn btn-secondary btn-sm">📥 Exporter Excel</a>
       </div>
     </div>
@@ -241,6 +251,7 @@
                 <tr>
                     <th>Reçu N°</th>
                     <th>Élève</th>
+                    <th>Classe</th>
                     <th>Frais</th>
                     <th>Montant</th>
                     <th>Devise</th>
@@ -260,6 +271,7 @@
                         {% endif %}
                     </td>
                     <td><strong>{{ item.eleve.eleve.prenom }} {{ item.eleve.eleve.nom }}</strong></td>
+                    <td>{{ item.eleve.classe.classe|default:"—" }}</td>
                     <td>{{ item.frais.type_frais.libelle }}</td>
                     <td style="font-family:monospace; font-weight:600;">
                         {% if item.montant_origine and item.taux_change %}
@@ -311,7 +323,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                    <td colspan="10" style="text-align: center; color: var(--text-muted); padding: 3rem;">
                         Aucun paiement enregistré pour le moment.
                     </td>
                 </tr>

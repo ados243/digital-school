@@ -59,6 +59,57 @@ class AccesFinancesTests(TestCase):
         response = self.client.get(reverse("finances:paiement_list"))
         self.assertEqual(response.status_code, 200)
 
+    def test_paiement_list_filtre_eleve_et_colonne_classe(self):
+        annee = faire_annee("2025-2026")
+        classe6a = faire_classe(self.ecole, nom="6A")
+        classe5b = faire_classe(self.ecole, nom="5B")
+        tuteur = faire_tuteur(self.ecole)
+        eleve1 = faire_eleve(self.ecole, tuteur, nom="Mbala", prenom="Amina")
+        eleve2 = faire_eleve(self.ecole, tuteur, nom="Kabila", prenom="Joseph")
+        ins1 = Inscription.objects.create(eleve=eleve1, classe=classe6a, annee_s=annee, numero_ins="INS-001")
+        ins2 = Inscription.objects.create(eleve=eleve2, classe=classe5b, annee_s=annee, numero_ins="INS-002")
+        devise = Devise.objects.create(devise="USD")
+        type_frais = TypeFrais.objects.create(ecole=self.ecole, libelle="Minerval")
+        frais = Frais_Scolaire.objects.create(
+            type_frais=type_frais, section=classe6a.section, annee=annee, montant=100, devise=devise, echeance=date(2025, 10, 1)
+        )
+        caissier_name = self.caissier.prenom or self.caissier.username
+        Paiement.objects.create(
+            eleve=ins1, frais=frais, numero_recu="REC-001", montant_paye=Decimal("50.00"), devise=devise,
+            caissier=caissier_name, statut="VALIDE", mode_paiement="ESPECES"
+        )
+        Paiement.objects.create(
+            eleve=ins2, frais=frais, numero_recu="REC-002", montant_paye=Decimal("30.00"), devise=devise,
+            caissier=caissier_name, statut="VALIDE", mode_paiement="ESPECES"
+        )
+
+        self.client.force_login(self.caissier)
+
+        # 1. Sans filtre : les deux paiements et leurs classes sont presents
+        resp = self.client.get(reverse("finances:paiement_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "<th>Classe</th>")
+        self.assertContains(resp, "6A")
+        self.assertContains(resp, "5B")
+        self.assertContains(resp, "Amina")
+        self.assertContains(resp, "Joseph")
+
+        # 2. Filtre sur Amina
+        resp_amina = self.client.get(reverse("finances:paiement_list") + "?eleve_nom=Amina")
+        self.assertEqual(resp_amina.status_code, 200)
+        self.assertContains(resp_amina, "Amina")
+        self.assertContains(resp_amina, "6A")
+        self.assertNotContains(resp_amina, "Joseph")
+        self.assertNotContains(resp_amina, "REC-002")
+
+        # 3. Export Excel avec filtre
+        resp_excel = self.client.get(reverse("finances:paiement_list") + "?eleve_nom=Amina&export=excel")
+        self.assertEqual(resp_excel.status_code, 200)
+        self.assertEqual(
+            resp_excel["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
 
 class MappingRubriqueBudgetTests(SimpleTestCase):
     def test_codes_selon_libelle(self):
